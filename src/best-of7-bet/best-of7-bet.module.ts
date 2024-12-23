@@ -9,5 +9,6 @@ import { AuthModule } from '../auth/auth.module';
   imports: [TypeOrmModule.forFeature([BestOf7BetRepository]), AuthModule],
   controllers: [BestOf7BetController],
   providers: [BestOf7BetService, BestOf7BetRepository],
+  exports: [BestOf7BetService],
 })
 export class BestOf7BetModule {}

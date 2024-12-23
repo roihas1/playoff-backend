@@ -12,6 +12,8 @@ import { TeamWinBetModule } from './team-win-bet/team-win-bet.module';
 import { TeamWinBet } from './team-win-bet/team-win-bet.entity';
 import { PlayerMatchupBetModule } from './player-matchup-bet/player-matchup-bet.module';
 import { PlayerMatchupBet } from './player-matchup-bet/player-matchup-bet.entity';
+import { BestOf7GuessModule } from './best-of7-guess/best-of7-guess.module';
+import { BestOf7Guess } from './best-of7-guess/best-of7-guess.entity';
 
 @Module({
   imports: [
@@ -23,13 +25,21 @@ import { PlayerMatchupBet } from './player-matchup-bet/player-matchup-bet.entity
       username: 'postgres',
       password: 'rHas9697',
       database: 'playoffDB',
-      entities: [User, Series, BestOf7Bet, TeamWinBet, PlayerMatchupBet],
+      entities: [
+        User,
+        Series,
+        BestOf7Bet,
+        TeamWinBet,
+        PlayerMatchupBet,
+        BestOf7Guess,
+      ],
       synchronize: true,
     }),
     SeriesModule,
     BestOf7BetModule,
     TeamWinBetModule,
     PlayerMatchupBetModule,
+    BestOf7GuessModule,
   ],
   controllers: [AppController],
   providers: [AppService],

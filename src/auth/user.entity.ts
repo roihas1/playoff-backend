@@ -1,5 +1,6 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Role } from './user-role.enum';
+import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 
 @Entity()
 export class User {
@@ -33,4 +34,9 @@ export class User {
 
   @Column({ default: false })
   isActive: boolean;
+
+  @OneToMany(() => BestOf7Guess, (bestOf7Guess) => bestOf7Guess.createdBy, {
+    eager: true,
+  })
+  bestOf7Guesses: BestOf7Guess[];
 }

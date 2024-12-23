@@ -1,8 +1,10 @@
+import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 import { Series } from '../series/series.entity';
 import {
   Column,
   Entity,
   JoinColumn,
+  OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
@@ -18,6 +20,10 @@ export class BestOf7Bet {
 
   @Column()
   fantasyPoints: number;
+  @OneToMany(() => BestOf7Guess, (bestOf7Guess) => bestOf7Guess.bet, {
+    eager: true,
+  })
+  guesses: BestOf7Guess[];
 
   @Column({ default: 0 })
   result: number;
