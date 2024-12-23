@@ -18,28 +18,40 @@ import { TeamWinGuessModule } from './team-win-guess/team-win-guess.module';
 import { TeamWinGuess } from './team-win-guess/team-win-guess.entity';
 import { PlayerMatchupGuessModule } from './player-matchup-guess/player-matchup-guess.module';
 import { PlayerMatchupGuess } from './player-matchup-guess/player-matchup-guess.entity';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { configValidationSchema } from './config.schema';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      envFilePath: [`.env.stage.${process.env.STAGE}`],
+      validationSchema: configValidationSchema,
+    }),
     AuthModule,
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'postgres',
-      password: 'rHas9697',
-      database: 'playoffDB',
-      entities: [
-        User,
-        Series,
-        BestOf7Bet,
-        TeamWinBet,
-        PlayerMatchupBet,
-        BestOf7Guess,
-        TeamWinGuess,
-        PlayerMatchupGuess,
-      ],
-      synchronize: true,
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => {
+        return {
+          type: 'postgres',
+          entities: [
+            User,
+            Series,
+            BestOf7Bet,
+            TeamWinBet,
+            PlayerMatchupBet,
+            BestOf7Guess,
+            TeamWinGuess,
+            PlayerMatchupGuess,
+          ],
+          synchronize: true,
+          host: configService.get('DB_HOST'),
+          port: configService.get('DB_PORT'),
+          username: configService.get('DB_USERNAME'),
+          password: configService.get('DB_PASSWORD'),
+          database: configService.get('DB_DATABASE'),
+        };
+      },
     }),
     SeriesModule,
     BestOf7BetModule,

@@ -13,6 +13,7 @@ import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './jwt-payload.interface';
 import { User } from './user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
@@ -20,6 +21,7 @@ export class AuthService {
   constructor(
     private usersRepository: UsersRepository,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
   async signUp(authCredentialsDto: AuthCredentialsDto): Promise<void> {
@@ -36,7 +38,9 @@ export class AuthService {
       throw error;
     }
   }
-  async signIn(authCredentialsDto: LoginDto): Promise<{ accessToken: string }> {
+  async signIn(
+    authCredentialsDto: LoginDto,
+  ): Promise<{ accessToken: string; expiresIn: number }> {
     const { username, password } = authCredentialsDto;
 
     const user = await this.usersRepository.findOne({ where: { username } });
@@ -60,11 +64,11 @@ export class AuthService {
     const payload: JwtPayload = { username };
     const accessToken = this.jwtService.sign(payload);
 
-    // const expiresIn = this.configService.get<number>('EXPIRE_IN') || 360;
+    const expiresIn = this.configService.get<number>('EXPIRE_IN') || 360;
     this.logger.verbose(
       `User "${username}" signed in successfully and access token generated.`,
     );
-    return { accessToken };
+    return { accessToken, expiresIn };
   }
   async logout(user: User): Promise<void> {
     try {
