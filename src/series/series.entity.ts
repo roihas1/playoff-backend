@@ -9,6 +9,8 @@ import {
   OneToMany,
   JoinColumn,
 } from 'typeorm';
+import { Coast } from './Coast.enum';
+import { Round } from './round.enum';
 
 @Entity()
 export class Series {
@@ -21,8 +23,17 @@ export class Series {
   @Column()
   team2: string;
 
-  @Column()
-  round: string;
+  @Column({
+    type: 'enum',
+    enum: Coast,
+  })
+  coast: Coast;
+
+  @Column({
+    type: 'enum',
+    enum: Round,
+  })
+  round: Round;
 
   @Column({ type: 'date' })
   dateOfStart: Date;

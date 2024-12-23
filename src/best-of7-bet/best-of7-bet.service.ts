@@ -2,6 +2,8 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { BestOf7BetRepository } from './bestOf7.repository';
 import { CreateBestOf7BetDto } from './dto/create-best-of7-bet.dto';
 import { BestOf7Bet } from './bestOf7.entity';
+import { UpdateResultDto } from './dto/update-result.dto';
+import { UpdateFantasyPointsDto } from './dto/update-fantasy-points.dto';
 
 @Injectable()
 export class BestOf7BetService {
@@ -29,5 +31,47 @@ export class BestOf7BetService {
       );
     }
     return found;
+  }
+
+  async deleteBestOf7Bet(id: string): Promise<void> {
+    const found = await this.getBestOf7betById(id);
+    try {
+      await this.bestOf7BetRepository.delete(found);
+      this.logger.verbose(`Bet with ID "${id}" successfully deleted.`);
+    } catch (error) {
+      this.logger.error(`Failed to delete bet with ID: "${id}".`, error.stack);
+      throw error;
+    }
+  }
+
+  async updateResult(
+    updateResultDto: UpdateResultDto,
+    id: string,
+  ): Promise<BestOf7Bet> {
+    const bet = await this.getBestOf7betById(id);
+    bet.result = updateResultDto.result;
+    try {
+      const savedBet = await this.bestOf7BetRepository.save(bet);
+      this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
+      return savedBet;
+    } catch (error) {
+      this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
+      throw error;
+    }
+  }
+  async updateFantasyPoints(
+    updateFantasyPointsDto: UpdateFantasyPointsDto,
+    id: string,
+  ): Promise<BestOf7Bet> {
+    const bet = await this.getBestOf7betById(id);
+    bet.fantasyPoints = updateFantasyPointsDto.fantasyPoints;
+    try {
+      const savedBet = await this.bestOf7BetRepository.save(bet);
+      this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
+      return savedBet;
+    } catch (error) {
+      this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
+      throw error;
+    }
   }
 }

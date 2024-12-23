@@ -5,9 +5,11 @@ import {
   Column,
   JoinColumn,
   ManyToOne,
+  OneToMany,
 } from 'typeorm';
 import { PlayerMatchupType } from './player-matchup-type.enum';
 import { MatchupCategory } from './matchup-category.enum';
+import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
 
 @Entity()
 export class PlayerMatchupBet {
@@ -47,4 +49,11 @@ export class PlayerMatchupBet {
 
   @Column({ nullable: true })
   result: number;
+
+  @OneToMany(
+    () => PlayerMatchupGuess,
+    (playerMatchupGuess) => playerMatchupGuess.bet,
+    { eager: true },
+  )
+  guesses: PlayerMatchupGuess[];
 }

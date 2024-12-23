@@ -9,5 +9,6 @@ import { AuthModule } from 'src/auth/auth.module';
   imports: [TypeOrmModule.forFeature([PlayerMatchupBetRepository]), AuthModule],
   controllers: [PlayerMatchupBetController],
   providers: [PlayerMatchupBetService, PlayerMatchupBetRepository],
+  exports: [PlayerMatchupBetService],
 })
 export class PlayerMatchupBetModule {}

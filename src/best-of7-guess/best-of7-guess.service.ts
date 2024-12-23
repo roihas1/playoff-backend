@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { BestOf7GuessRepository } from './best-of7-guess.repository';
 import { CreateBestOf7GuessDto } from './dto/create-best-of7-guess.dto';
 import { BestOf7Guess } from './best-of7-guess.entity';
@@ -39,5 +44,26 @@ export class BestOf7GuessService {
     }
     this.logger.verbose(`BestOf7Guess with ID: ${id} retrieved succesfully.`);
     return found;
+  }
+
+  async updateGuess(id: string, guess: number): Promise<BestOf7Guess> {
+    const found = await this.getGuessById(id);
+
+    found.guess = guess;
+    return await this.bestOf7GuessRepository.save(found);
+  }
+
+  async deleteGuess(id: string): Promise<void> {
+    const found = await this.getGuessById(id);
+    try {
+      await this.bestOf7GuessRepository.delete(found);
+      this.logger.verbose(`BestOf7Guess with ID: ${id} deleted succesfully.`);
+      return;
+    } catch (error) {
+      this.logger.error(`BestOf7Guess with ID: ${id} did not delete.`);
+      throw new InternalServerErrorException(
+        `BestOf7Guess with ID: ${id} did not delete.`,
+      );
+    }
   }
 }

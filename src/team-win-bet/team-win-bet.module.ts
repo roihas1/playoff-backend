@@ -9,5 +9,6 @@ import { AuthModule } from '../auth/auth.module';
   imports: [TypeOrmModule.forFeature([TeamWinBetRepository]), AuthModule],
   controllers: [TeamWinBetController],
   providers: [TeamWinBetService, TeamWinBetRepository],
+  exports: [TeamWinBetService],
 })
 export class TeamWinBetModule {}

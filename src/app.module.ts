@@ -14,6 +14,10 @@ import { PlayerMatchupBetModule } from './player-matchup-bet/player-matchup-bet.
 import { PlayerMatchupBet } from './player-matchup-bet/player-matchup-bet.entity';
 import { BestOf7GuessModule } from './best-of7-guess/best-of7-guess.module';
 import { BestOf7Guess } from './best-of7-guess/best-of7-guess.entity';
+import { TeamWinGuessModule } from './team-win-guess/team-win-guess.module';
+import { TeamWinGuess } from './team-win-guess/team-win-guess.entity';
+import { PlayerMatchupGuessModule } from './player-matchup-guess/player-matchup-guess.module';
+import { PlayerMatchupGuess } from './player-matchup-guess/player-matchup-guess.entity';
 
 @Module({
   imports: [
@@ -32,6 +36,8 @@ import { BestOf7Guess } from './best-of7-guess/best-of7-guess.entity';
         TeamWinBet,
         PlayerMatchupBet,
         BestOf7Guess,
+        TeamWinGuess,
+        PlayerMatchupGuess,
       ],
       synchronize: true,
     }),
@@ -40,6 +46,8 @@ import { BestOf7Guess } from './best-of7-guess/best-of7-guess.entity';
     TeamWinBetModule,
     PlayerMatchupBetModule,
     BestOf7GuessModule,
+    TeamWinGuessModule,
+    PlayerMatchupGuessModule,
   ],
   controllers: [AppController],
   providers: [AppService],

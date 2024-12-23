@@ -12,6 +12,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './jwt-payload.interface';
 import { User } from './user.entity';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class AuthService {
@@ -75,6 +76,40 @@ export class AuthService {
       this.logger.verbose(`User "${user.username}" logout.`);
     } catch (error) {
       throw new NotFoundException(`User ${user.username} not found.`);
+    }
+  }
+  async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+    const user = await this.usersRepository.findOne({ where: { id } });
+
+    if (!user) {
+      this.logger.error(`User with ID ${id} not found`);
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    // Update fields dynamically
+    Object.assign(user, updateUserDto);
+    this.logger.verbose(`User with ID: "${id}" successfully updated.`);
+    return this.usersRepository.save(user);
+  }
+
+  async deleteUser(user: User): Promise<void> {
+    const found = await this.usersRepository.findOne({
+      where: { id: user.id },
+    });
+
+    if (!found) {
+      this.logger.error(`User with ID ${user.id} not found`);
+      throw new NotFoundException(`User with ID ${user.id} not found`);
+    }
+    try {
+      await this.usersRepository.delete(found);
+      this.logger.verbose(`User with ID "${user.id}" successfully deleted.`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to delete user with ID: "${user.id}".`,
+        error.stack,
+      );
+      throw error;
     }
   }
 }

@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Logger,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -43,5 +45,30 @@ export class BestOf7GuessController {
       `User "${user.username}" try to retrieve BestOf7Guess with ID: ${id}.`,
     );
     return await this.bestOf7GuessService.getGuessById(id);
+  }
+
+  @Patch('/:id/:guess')
+  async updateGuess(
+    @Param('id') id: string,
+    @Param('guess') guess: number,
+    @GetUser() user: User,
+  ): Promise<BestOf7Guess> {
+    this.logger.verbose(
+      `User "${user.username}" attempt to update BestOf7Guess with ID: ${id}.`,
+    );
+    const newGuess = await this.bestOf7GuessService.updateGuess(id, guess);
+    this.logger.verbose(`Guess with ID "${id}" successfully updated.`);
+    return newGuess;
+  }
+
+  @Delete('/:id')
+  async deleteGuess(
+    @Param('id') id: string,
+    @GetUser() user: User,
+  ): Promise<void> {
+    this.logger.verbose(
+      `User "${user.username}" attempt to delete BestOf7Guess with ID: ${id}.`,
+    );
+    return await this.bestOf7GuessService.deleteGuess(id);
   }
 }

@@ -1,3 +1,4 @@
+import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
 import { Series } from '../series/series.entity';
 import {
   Entity,
@@ -5,6 +6,7 @@ import {
   Column,
   OneToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 
 @Entity()
@@ -21,4 +23,9 @@ export class TeamWinBet {
 
   @Column({ default: '' })
   result: string;
+
+  @OneToMany(() => TeamWinGuess, (teamWinGuess) => teamWinGuess.bet, {
+    eager: true,
+  })
+  guesses: TeamWinGuess[];
 }
