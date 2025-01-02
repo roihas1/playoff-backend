@@ -5,4 +5,7 @@ export class UpdateGuessDto {
   @Min(1)
   @Max(2)
   guess: number;
+
+  // @IsString()
+  // betId: string;
 }

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Patch,
   Post,
   UseGuards,
@@ -59,10 +60,19 @@ export class AuthController {
   }
 
   @Delete()
-  async delteUser(@GetUser() user: User): Promise<void> {
+  @UseGuards(AuthGuard())
+  async deleteUser(@GetUser() user: User): Promise<void> {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to delete user with ID: "${user.id}".`,
     );
     return await this.authService.deleteUser(user);
+  }
+  @Get()
+  @UseGuards(AuthGuard())
+  async getAllUsers(@GetUser() user: User): Promise<User[]> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to get all users.`,
+    );
+    return await this.authService.getAllUsers();
   }
 }

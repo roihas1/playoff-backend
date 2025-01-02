@@ -6,7 +6,7 @@ export class UpdateFieldsDto {
   @IsOptional()
   typeOfMatchup: PlayerMatchupType;
 
-  @IsEnum(MatchupCategory)
+  @IsEnum(MatchupCategory, { each: true })
   @IsOptional()
   categories: MatchupCategory[];
 

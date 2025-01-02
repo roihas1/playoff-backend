@@ -13,7 +13,6 @@ import { CreatePlayerMatchupBetDto } from './dto/create-player-matchup-bet.dto';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { User } from 'src/auth/user.entity';
 import { PlayerMatchupBet } from './player-matchup-bet.entity';
-import { BestOf7Bet } from 'src/best-of7-bet/bestOf7.entity';
 import { UpdateResultDto } from 'src/best-of7-bet/dto/update-result.dto';
 import { UpdateFieldsDto } from './dto/update-fields.dto';
 
@@ -43,9 +42,9 @@ export class PlayerMatchupBetController {
     @Param('id') id: string,
     @Body() updateResultDto: UpdateResultDto,
     @GetUser() user: User,
-  ): Promise<BestOf7Bet> {
+  ): Promise<PlayerMatchupBet> {
     this.logger.verbose(
-      `User with username: "${user.username}" is attempting to update bestOf7Bet with ID: "${id}".`,
+      `User with username: "${user.username}" is attempting to update playerMatchUpBet result with ID: "${id}".`,
     );
     return await this.playerMatchupBetService.updateResult(updateResultDto, id);
   }
@@ -57,7 +56,7 @@ export class PlayerMatchupBetController {
     @GetUser() user: User,
   ): Promise<PlayerMatchupBet> {
     this.logger.verbose(
-      `User with username: "${user.username}" is attempting to update bestOf7Bet fields with ID: "${id}". Data: ${JSON.stringify(updateFieldsDto)}`,
+      `User with username: "${user.username}" is attempting to update playerMatchUpBet fields with ID: "${id}". Data: ${JSON.stringify(updateFieldsDto)}`,
     );
     return await this.playerMatchupBetService.updateFields(updateFieldsDto, id);
   }

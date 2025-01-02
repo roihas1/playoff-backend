@@ -9,6 +9,7 @@ import { CreateBestOf7GuessDto } from './dto/create-best-of7-guess.dto';
 import { BestOf7Guess } from './best-of7-guess.entity';
 import { User } from '../auth/user.entity';
 import { BestOf7BetService } from 'src/best-of7-bet/best-of7-bet.service';
+import { BestOf7Bet } from 'src/best-of7-bet/bestOf7.entity';
 
 @Injectable()
 export class BestOf7GuessService {
@@ -45,10 +46,46 @@ export class BestOf7GuessService {
     this.logger.verbose(`BestOf7Guess with ID: ${id} retrieved succesfully.`);
     return found;
   }
+  async getGuessByBet(
+    bestOf7Bet: BestOf7Bet,
+    user: User,
+  ): Promise<BestOf7Guess> {
+    // console.log(JSON.stringify(bestOf7Bet), JSON.stringify(user));
+    // const found = await this.bestOf7GuessRepository.findOne({
+    //   where: { bet: bestOf7Bet, createdBy: user },
+    //   relations: ['bet', 'createdBy'],
+    // });
+    const found = await this.bestOf7GuessRepository.findBetAndUserByIds(
+      bestOf7Bet.id,
+      user.id,
+    );
+
+    if (!found) {
+      this.logger.error(
+        `User ${user.id} attempt to get a BestOf7Guess for bet with ID ${bestOf7Bet.id} not found.`,
+      );
+      throw new NotFoundException(
+        `BestOf7Guess for bet with ID ${bestOf7Bet.id} not found.`,
+      );
+    }
+    this.logger.verbose(
+      `BestOf7Guess for bet with ID: ${bestOf7Bet.id} retrieved succesfully.`,
+    );
+    return found;
+  }
 
   async updateGuess(id: string, guess: number): Promise<BestOf7Guess> {
     const found = await this.getGuessById(id);
 
+    found.guess = guess;
+    return await this.bestOf7GuessRepository.save(found);
+  }
+  async updateGuessByBet(
+    bestOf7Bet: BestOf7Bet,
+    guess: number,
+    user: User,
+  ): Promise<BestOf7Guess> {
+    const found = await this.getGuessByBet(bestOf7Bet, user);
     found.guess = guess;
     return await this.bestOf7GuessRepository.save(found);
   }

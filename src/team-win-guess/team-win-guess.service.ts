@@ -5,6 +5,7 @@ import { TeamWinGuessRepository } from './team-win-guess.repository';
 import { User } from 'src/auth/user.entity';
 import { CreateTeamWinGuessDto } from './dto/create-team-win-guess.dto';
 import { UpdateGuessDto } from 'src/player-matchup-guess/dto/update-guess.dto';
+import { TeamWinBet } from 'src/team-win-bet/team-win-bet.entity';
 
 @Injectable()
 export class TeamWinGuessService {
@@ -30,32 +31,44 @@ export class TeamWinGuessService {
     );
   }
 
-  async getGuessById(id: string): Promise<TeamWinGuess> {
+  async getGuessById(
+    teamWinBet: TeamWinBet,
+    user: User,
+  ): Promise<TeamWinGuess> {
+    // const bet = await this.teamWinBetService.getTeamWinBetById(id);
     const found = await this.teamWinGuessRepository.findOne({
-      where: { id },
+      where: { createdBy: user, bet: teamWinBet },
       relations: ['bet', 'createdBy'],
     });
     if (!found) {
-      this.logger.error(`TeamWinGuess with ID ${id} not found.`);
-      throw new NotFoundException(`TeamWinGuess with ID ${id} not found.`);
+      this.logger.error(`TeamWinGuess for bet ID ${teamWinBet.id} not found.`);
+      throw new NotFoundException(
+        `TeamWinGuess for bet ID ${teamWinBet.id} not found.`,
+      );
     }
-    this.logger.verbose(`TeamWinGuess with ID: ${id} retrieved succesfully.`);
+    this.logger.verbose(
+      `TeamWinGuess with ID: ${found.id} retrieved succesfully.`,
+    );
     return found;
   }
 
   async updateGuess(
-    id: string,
+    teamWinBet: TeamWinBet,
     updateGuessDto: UpdateGuessDto,
+    user: User,
   ): Promise<TeamWinGuess> {
-    const bet = await this.getGuessById(id);
+    const bet = await this.getGuessById(teamWinBet, user);
     bet.guess = updateGuessDto.guess;
 
     try {
       const savedBet = await this.teamWinGuessRepository.save(bet);
-      this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
+      this.logger.verbose(`TeamWinGuess for bet ID ${teamWinBet.id} updated.`);
       return savedBet;
     } catch (error) {
-      this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
+      this.logger.error(
+        `Failed to update bet guess with ID: "${teamWinBet.id}".`,
+        error.stack,
+      );
       throw error;
     }
   }

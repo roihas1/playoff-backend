@@ -1,4 +1,4 @@
-export enum Coast {
+export enum Conference {
   EAST = 'East',
   WEST = 'West',
 }

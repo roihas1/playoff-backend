@@ -1,27 +1,43 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { BestOf7BetRepository } from './bestOf7.repository';
 import { CreateBestOf7BetDto } from './dto/create-best-of7-bet.dto';
 import { BestOf7Bet } from './bestOf7.entity';
 import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFantasyPointsDto } from './dto/update-fantasy-points.dto';
+import { SeriesService } from 'src/series/series.service';
 
 @Injectable()
 export class BestOf7BetService {
   private logger = new Logger('BestOf7BetService', { timestamp: true });
-  constructor(private bestOf7BetRepository: BestOf7BetRepository) {}
+  constructor(
+    private bestOf7BetRepository: BestOf7BetRepository,
+    @Inject(forwardRef(() => SeriesService))
+    private seriesService: SeriesService,
+  ) {}
 
   async createBestOf7Bet(
     createBestOf7BetDto: CreateBestOf7BetDto,
   ): Promise<BestOf7Bet> {
     this.logger.verbose(`Trying to create bestOf7Bet.`);
+    const series = await this.seriesService.getSeriesByID(
+      createBestOf7BetDto.seriesId,
+    );
     return await this.bestOf7BetRepository.createBestOf7Bet(
-      createBestOf7BetDto,
+      series,
+      createBestOf7BetDto.fantasyPoints,
     );
   }
 
   async getBestOf7betById(bestOf7BetId: string): Promise<BestOf7Bet> {
     const found = await this.bestOf7BetRepository.findOne({
       where: { id: bestOf7BetId },
+      relations: ['guesses', 'guesses.createdBy'],
     });
 
     if (!found) {

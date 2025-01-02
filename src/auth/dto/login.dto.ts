@@ -1,4 +1,4 @@
-import { IsString, MinLength, MaxLength, Matches } from 'class-validator';
+import { IsString, MinLength, MaxLength } from 'class-validator';
 
 export class LoginDto {
   @IsString()
@@ -7,10 +7,5 @@ export class LoginDto {
   username: string;
 
   @IsString()
-  @MinLength(8)
-  @MaxLength(32)
-  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[\d!@#$%^&*()]).{8,}$/, {
-    message: 'password is too weak!',
-  })
   password: string;
 }

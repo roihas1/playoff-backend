@@ -7,9 +7,8 @@ import {
   Column,
   OneToOne,
   OneToMany,
-  JoinColumn,
 } from 'typeorm';
-import { Coast } from './Coast.enum';
+import { Conference } from './conference.enum';
 import { Round } from './round.enum';
 
 @Entity()
@@ -22,12 +21,15 @@ export class Series {
 
   @Column()
   team2: string;
-
+  @Column({ nullable: true })
+  seed1: number;
+  @Column({ nullable: true })
+  seed2: number;
   @Column({
     type: 'enum',
-    enum: Coast,
+    enum: Conference,
   })
-  coast: Coast;
+  conference: Conference;
 
   @Column({
     type: 'enum',
@@ -38,17 +40,17 @@ export class Series {
   @Column({ type: 'date' })
   dateOfStart: Date;
 
-  @OneToOne(() => BestOf7Bet, (bestOf7Bet) => bestOf7Bet.seriesId, {
+  @OneToOne(() => BestOf7Bet, (bestOf7Bet) => bestOf7Bet.series, {
     eager: true,
+    cascade: true,
   })
-  @JoinColumn()
-  bestOf7BetId: string;
+  bestOf7BetId: BestOf7Bet;
 
   @OneToOne(() => TeamWinBet, (teamWinBet) => teamWinBet.seriesId, {
     eager: true,
+    cascade: true,
   })
-  @JoinColumn()
-  teamWinBetId: string;
+  teamWinBetId: TeamWinBet;
 
   @OneToMany(
     () => PlayerMatchupBet,

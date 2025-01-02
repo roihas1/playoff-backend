@@ -1,5 +1,5 @@
 import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { Coast } from '../Coast.enum';
+import { Conference } from '../conference.enum';
 import { Round } from '../round.enum';
 
 export class GetSeriesWithFilterDto {
@@ -7,9 +7,9 @@ export class GetSeriesWithFilterDto {
   @IsOptional()
   round?: Round;
 
-  @IsEnum(Coast)
+  @IsEnum(Conference)
   @IsOptional()
-  coast?: Coast;
+  coast?: Conference;
 
   @IsString()
   @IsOptional()

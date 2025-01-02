@@ -1,6 +1,6 @@
-import { IsString, IsDateString, IsEnum } from 'class-validator';
+import { IsString, IsDateString, IsEnum, IsNumber } from 'class-validator';
 import { Round } from '../round.enum';
-import { Coast } from '../Coast.enum';
+import { Conference } from '../conference.enum';
 
 export class CreateSeriesDto {
   @IsString()
@@ -8,11 +8,15 @@ export class CreateSeriesDto {
 
   @IsString()
   team2: string;
+  @IsNumber()
+  seed1: number;
+  @IsNumber()
+  seed2: number;
 
   @IsEnum(Round)
   round: Round;
-  @IsEnum(Coast)
-  coast: Coast;
+  @IsEnum(Conference)
+  conference: Conference;
   @IsDateString()
   dateOfStart: string;
 }

@@ -20,8 +20,12 @@ export class TeamWinBetService {
   }
 
   async getTeamWinBetById(teamWinBetId: string): Promise<TeamWinBet> {
+    this.logger.verbose(
+      `attempting to get team Win bet: ${JSON.stringify(teamWinBetId)}`,
+    );
     const found = await this.teamWinBetRepository.findOne({
       where: { id: teamWinBetId },
+      relations: ['guesses', 'guesses.createdBy'],
     });
     if (!found) {
       this.logger.error(`teamWinBet with ID ${teamWinBetId} not found.`);

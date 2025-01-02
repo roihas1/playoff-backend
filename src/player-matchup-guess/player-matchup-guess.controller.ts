@@ -39,6 +39,7 @@ export class PlayerMatchupGuessController {
     const newGuess = await this.playerMatchupGuessService.updateGuess(
       id,
       updateGuessDto,
+      user,
     );
     this.logger.verbose(`Guess with ID "${id}" successfully updated.`);
     return newGuess;

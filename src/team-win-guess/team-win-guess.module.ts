@@ -15,5 +15,6 @@ import { TeamWinBetModule } from 'src/team-win-bet/team-win-bet.module';
   ],
   controllers: [TeamWinGuessController],
   providers: [TeamWinGuessService, TeamWinGuessRepository],
+  exports: [TeamWinGuessService],
 })
 export class TeamWinGuessModule {}

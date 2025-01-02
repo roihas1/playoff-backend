@@ -36,30 +36,31 @@ export class TeamWinGuessController {
     );
   }
 
-  @Get('/:guessId')
-  async getGuessById(
-    @Param('guessId') id: string,
-    @GetUser() user: User,
-  ): Promise<TeamWinGuess> {
-    this.logger.verbose(
-      `User "${user.username}" try to retrieve TeamWinGuess with ID: ${id}.`,
-    );
-    return await this.teamWinGuessService.getGuessById(id);
-  }
-  @Patch('/:id')
-  async updateGuess(
-    @Param('id') id: string,
-    @Body() updateGuessDto: UpdateGuessDto,
-    @GetUser() user: User,
-  ): Promise<TeamWinGuess> {
-    this.logger.verbose(
-      `User "${user.username}" attempt to update TeamWinGuess with ID: ${id}.`,
-    );
-    const newGuess = await this.teamWinGuessService.updateGuess(
-      id,
-      updateGuessDto,
-    );
-    this.logger.verbose(`Guess with ID "${id}" successfully updated.`);
-    return newGuess;
-  }
+  // @Get('/:guessId')
+  // async getGuessById(
+  //   @Param('guessId') id: string,
+  //   @GetUser() user: User,
+  // ): Promise<TeamWinGuess> {
+  //   this.logger.verbose(
+  //     `User "${user.username}" try to retrieve TeamWinGuess with ID: ${id}.`,
+  //   );
+  //   return await this.teamWinGuessService.getGuessById(id, user);
+  // }
+  // @Patch('/:id')
+  // async updateGuess(
+  //   @Param('id') id: string,
+  //   @Body() updateGuessDto: UpdateGuessDto,
+  //   @GetUser() user: User,
+  // ): Promise<TeamWinGuess> {
+  //   this.logger.verbose(
+  //     `User "${user.username}" attempt to update TeamWinGuess with ID: ${id}.`,
+  //   );
+  //   const newGuess = await this.teamWinGuessService.updateGuess(
+  //     id,
+  //     updateGuessDto,
+  //     user,
+  //   );
+  //   this.logger.verbose(`Guess with ID "${id}" successfully updated.`);
+  //   return newGuess;
+  // }
 }

@@ -14,5 +14,6 @@ import { PlayerMatchupBetModule } from 'src/player-matchup-bet/player-matchup-be
   ],
   controllers: [PlayerMatchupGuessController],
   providers: [PlayerMatchupGuessService, PlayerMatchupGuessRepository],
+  exports: [PlayerMatchupGuessService],
 })
 export class PlayerMatchupGuessModule {}

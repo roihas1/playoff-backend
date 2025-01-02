@@ -20,6 +20,7 @@ import { PlayerMatchupGuessModule } from './player-matchup-guess/player-matchup-
 import { PlayerMatchupGuess } from './player-matchup-guess/player-matchup-guess.entity';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { configValidationSchema } from './config.schema';
+import { AssetsModule } from './assets/assets.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { configValidationSchema } from './config.schema';
     BestOf7GuessModule,
     TeamWinGuessModule,
     PlayerMatchupGuessModule,
+    AssetsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

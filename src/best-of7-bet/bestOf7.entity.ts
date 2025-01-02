@@ -16,7 +16,7 @@ export class BestOf7Bet {
 
   @OneToOne(() => Series, (series) => series.bestOf7BetId, { eager: false })
   @JoinColumn()
-  seriesId: string;
+  series: Series;
 
   @Column()
   fantasyPoints: number;

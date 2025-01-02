@@ -14,6 +14,7 @@ import { JwtPayload } from './jwt-payload.interface';
 import { User } from './user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ConfigService } from '@nestjs/config';
+import { Role } from './user-role.enum';
 
 @Injectable()
 export class AuthService {
@@ -40,7 +41,7 @@ export class AuthService {
   }
   async signIn(
     authCredentialsDto: LoginDto,
-  ): Promise<{ accessToken: string; expiresIn: number }> {
+  ): Promise<{ accessToken: string; expiresIn: number; userRole: Role }> {
     const { username, password } = authCredentialsDto;
 
     const user = await this.usersRepository.findOne({ where: { username } });
@@ -68,7 +69,7 @@ export class AuthService {
     this.logger.verbose(
       `User "${username}" signed in successfully and access token generated.`,
     );
-    return { accessToken, expiresIn };
+    return { accessToken, expiresIn, userRole: user.role };
   }
   async logout(user: User): Promise<void> {
     try {
@@ -113,6 +114,17 @@ export class AuthService {
         `Failed to delete user with ID: "${user.id}".`,
         error.stack,
       );
+      throw error;
+    }
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    try {
+      const users = await this.usersRepository.find();
+      this.logger.verbose(`All users retrieved successfully.`);
+      return users;
+    } catch (error) {
+      this.logger.error(`Failed to get all users.`, error.stack);
       throw error;
     }
   }

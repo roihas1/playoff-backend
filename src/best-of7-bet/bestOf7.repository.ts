@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { BestOf7Bet } from './bestOf7.entity';
-import { CreateBestOf7BetDto } from './dto/create-best-of7-bet.dto';
+import { Series } from 'src/series/series.entity';
 
 @Injectable()
 export class BestOf7BetRepository extends Repository<BestOf7Bet> {
@@ -15,11 +15,11 @@ export class BestOf7BetRepository extends Repository<BestOf7Bet> {
   }
 
   async createBestOf7Bet(
-    createBestOf7BetDto: CreateBestOf7BetDto,
+    series: Series,
+    fantasyPoints: number,
   ): Promise<BestOf7Bet> {
-    const { seriesId, fantasyPoints } = createBestOf7BetDto;
     const bestOf7Bet = this.create({
-      seriesId,
+      series,
       fantasyPoints,
     });
     try {

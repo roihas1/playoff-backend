@@ -14,5 +14,6 @@ import { BestOf7BetModule } from 'src/best-of7-bet/best-of7-bet.module';
   ],
   controllers: [BestOf7GuessController],
   providers: [BestOf7GuessService, BestOf7GuessRepository],
+  exports: [BestOf7GuessService],
 })
 export class BestOf7GuessModule {}

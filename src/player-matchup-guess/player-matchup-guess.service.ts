@@ -5,6 +5,7 @@ import { User } from 'src/auth/user.entity';
 import { PlayerMatchupGuess } from './player-matchup-guess.entity';
 import { PlayerMatchupBetService } from 'src/player-matchup-bet/player-matchup-bet.service';
 import { UpdateGuessDto } from './dto/update-guess.dto';
+import { PlayerMatchupBet } from 'src/player-matchup-bet/player-matchup-bet.entity';
 
 @Injectable()
 export class PlayerMatchupGuessService {
@@ -43,11 +44,40 @@ export class PlayerMatchupGuessService {
     }
     return found;
   }
+  async getPlayerMatcupGuessByBet(
+    playerMatchupBet: PlayerMatchupBet,
+    user: User,
+  ): Promise<PlayerMatchupGuess> {
+    const found = await this.playerMatchupGuessRepository.findOne({
+      where: {
+        bet: { id: playerMatchupBet.id }, // Reference to the bet by betId
+        createdBy: { id: user.id }, // Reference to the user by userId
+      },
+      relations: ['bet', 'createdBy'], // Ensure relations are loaded
+    });
+
+    if (!found) {
+      this.logger.error(
+        `PlayerMatchupGuess for bet with ID ${playerMatchupBet.id} not found.`,
+      );
+      throw new NotFoundException(
+        `PlayerMatchupGuess for bet with ID ${playerMatchupBet.id} not found.`,
+      );
+    }
+    return found;
+  }
   async updateGuess(
     id: string,
     updateGuessDto: UpdateGuessDto,
+    user: User,
   ): Promise<PlayerMatchupGuess> {
     const bet = await this.getPlayerMatcupGuessById(id);
+    if (!bet) {
+      return await this.createPlayerMatchupGuess(
+        { guess: updateGuessDto.guess, playerMatchupBetId: id },
+        user,
+      );
+    }
     bet.guess = updateGuessDto.guess;
 
     try {
@@ -56,6 +86,27 @@ export class PlayerMatchupGuessService {
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
+      throw error;
+    }
+  }
+  async updateGuessByBet(
+    playerMatchupBet: PlayerMatchupBet,
+    updateGuessDto: UpdateGuessDto,
+    user: User,
+  ): Promise<PlayerMatchupGuess> {
+    try {
+      const bet = await this.getPlayerMatcupGuessByBet(playerMatchupBet, user);
+      bet.guess = updateGuessDto.guess;
+      const savedBet = await this.playerMatchupGuessRepository.save(bet);
+      this.logger.verbose(
+        `PlayerMatchupGuess for Bet with ID "${playerMatchupBet.id}" successfully updated.`,
+      );
+      return savedBet;
+    } catch (error) {
+      this.logger.error(
+        `Failed to update guess for bet with ID: "${playerMatchupBet.id}".`,
+        error.stack,
+      );
       throw error;
     }
   }

@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { BestOf7Guess } from './best-of7-guess.entity';
 import { DataSource, Repository } from 'typeorm';
@@ -53,5 +54,24 @@ export class BestOf7GuessRepository extends Repository<BestOf7Guess> {
 
       throw new InternalServerErrorException();
     }
+  }
+
+  async findBetAndUserByIds(
+    betId: string,
+    userId: string,
+  ): Promise<BestOf7Guess> {
+    console.log('In repository');
+
+    const guess = await this.createQueryBuilder('bestOf7Guess')
+      .leftJoinAndSelect('bestOf7Guess.bet', 'bestOf7Bet') // Correct join to bet relation
+      .leftJoinAndSelect('bestOf7Guess.createdBy', 'user') // Correct join to user relation
+      .where('bestOf7Bet.id = :betId AND user.id = :userId', { betId, userId })
+      .getOne();
+
+    if (!guess) {
+      throw new NotFoundException('Bet and user not found');
+    }
+
+    return guess;
   }
 }
