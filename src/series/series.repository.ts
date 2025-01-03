@@ -49,6 +49,8 @@ export class SeriesRepository extends Repository<Series> {
     const {
       team1,
       team2,
+      seed1,
+      seed2,
       round,
       conference: coast,
       dateOfStart,
@@ -56,6 +58,8 @@ export class SeriesRepository extends Repository<Series> {
     const series = this.create({
       team1,
       team2,
+      seed1,
+      seed2,
       round,
       conference: coast,
       dateOfStart,

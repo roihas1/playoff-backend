@@ -1,4 +1,4 @@
-import { IsString, IsDateString, IsEnum, IsNumber } from 'class-validator';
+import { IsString, IsEnum, IsNumber, IsDateString } from 'class-validator';
 import { Round } from '../round.enum';
 import { Conference } from '../conference.enum';
 

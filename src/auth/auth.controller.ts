@@ -75,4 +75,12 @@ export class AuthController {
     );
     return await this.authService.getAllUsers();
   }
+  @Get('/user')
+  @UseGuards(AuthGuard())
+  async getUser(@GetUser() user: User): Promise<User> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to get his user object`,
+    );
+    return user;
+  }
 }

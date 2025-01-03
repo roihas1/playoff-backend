@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Logger,
   Param,
   Patch,
@@ -35,6 +36,16 @@ export class PlayerMatchupBetController {
     return await this.playerMatchupBetService.createPlayerMatchupBet(
       createPlayerMatchupBetDto,
     );
+  }
+  @Delete('/:id/delete')
+  async deleteBet(
+    @Param('id') id: string,
+    @GetUser() user: User,
+  ): Promise<void> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to delete playerMatchUpBet result with ID: "${id}".`,
+    );
+    await this.playerMatchupBetService.deleteBet(id, user);
   }
 
   @Patch('/:id/result')

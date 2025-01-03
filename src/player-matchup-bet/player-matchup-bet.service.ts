@@ -4,6 +4,7 @@ import { CreatePlayerMatchupBetDto } from './dto/create-player-matchup-bet.dto';
 import { PlayerMatchupBet } from './player-matchup-bet.entity';
 import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFieldsDto } from './dto/update-fields.dto';
+import { User } from 'src/auth/user.entity';
 
 @Injectable()
 export class PlayerMatchupBetService {
@@ -66,6 +67,33 @@ export class PlayerMatchupBetService {
         `Failed to update bet fields with ID: "${id}".`,
         error.stack,
       );
+      throw error;
+    }
+  }
+
+  async deleteBet(id: string, user: User): Promise<void> {
+    try {
+      // Check if the bet exists before trying to delete it
+      const bet = await this.playerMatcupBetRepository.findOne({
+        where: { id },
+      });
+
+      if (!bet) {
+        // If the bet does not exist, log and throw an error
+        this.logger.error(`Bet with ID: "${id}" not found.`);
+        throw new Error(`Bet with ID: "${id}" not found.`);
+      }
+
+      // Proceed with deletion
+      await this.playerMatcupBetRepository.delete(id);
+
+      // Optionally log success
+      this.logger.verbose(
+        `Successfully deleted bet with ID: "${id}" by user: ${user.username}`,
+      );
+    } catch (error) {
+      // Log the error stack if something goes wrong
+      this.logger.error(`Failed to delete bet with ID: "${id}".`, error.stack);
       throw error;
     }
   }

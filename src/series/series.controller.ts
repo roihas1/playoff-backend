@@ -47,6 +47,7 @@ export class SeriesController {
     this.logger.verbose(
       `User "${user.username}" creating new series. Data: ${JSON.stringify(createSeriesDto)}.`,
     );
+    console.log(JSON.stringify(createSeriesDto));
     return await this.seriesServie.createSeries(createSeriesDto); // todo: decide if I need to save the user to series.
   }
 
