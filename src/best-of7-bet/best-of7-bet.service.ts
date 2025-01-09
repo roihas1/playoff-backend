@@ -11,6 +11,9 @@ import { BestOf7Bet } from './bestOf7.entity';
 import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFantasyPointsDto } from './dto/update-fantasy-points.dto';
 import { SeriesService } from 'src/series/series.service';
+import { AuthService } from 'src/auth/auth.service';
+import { UpdateGameDto } from '../series/dto/update-game.dto';
+import { User } from 'src/auth/user.entity';
 
 @Injectable()
 export class BestOf7BetService {
@@ -19,6 +22,7 @@ export class BestOf7BetService {
     private bestOf7BetRepository: BestOf7BetRepository,
     @Inject(forwardRef(() => SeriesService))
     private seriesService: SeriesService,
+    private usersService: AuthService,
   ) {}
 
   async createBestOf7Bet(
@@ -52,7 +56,7 @@ export class BestOf7BetService {
   async deleteBestOf7Bet(id: string): Promise<void> {
     const found = await this.getBestOf7betById(id);
     try {
-      await this.bestOf7BetRepository.delete(found);
+      await this.bestOf7BetRepository.delete(found.id);
       this.logger.verbose(`Bet with ID "${id}" successfully deleted.`);
     } catch (error) {
       this.logger.error(`Failed to delete bet with ID: "${id}".`, error.stack);
@@ -68,7 +72,40 @@ export class BestOf7BetService {
     bet.result = updateResultDto.result;
     try {
       const savedBet = await this.bestOf7BetRepository.save(bet);
-      this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
+      this.logger.verbose(`BestOf7 Bet with ID "${id}" successfully updated.`);
+      await Promise.all(
+        savedBet.guesses.map(async (guess) => {
+          if (guess.guess === savedBet.result) {
+            await this.usersService.updateFantasyPoints(
+              guess.createdBy,
+              savedBet.fantasyPoints,
+            );
+          }
+        }),
+      );
+      return savedBet;
+    } catch (error) {
+      this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
+      throw error;
+    }
+  }
+  async updateResultForSeries(id: string): Promise<BestOf7Bet> {
+    const bet = await this.getBestOf7betById(id);
+    const games = bet.seriesScore[0] + bet.seriesScore[1];
+    bet.result = games;
+    try {
+      const savedBet = await this.bestOf7BetRepository.save(bet);
+      this.logger.verbose(`BestOf7 Bet with ID "${id}" successfully updated.`);
+      // await Promise.all(
+      //   savedBet.guesses.map(async (guess) => {
+      //     if (guess.guess === savedBet.result) {
+      //       await this.usersService.updateFantasyPoints(
+      //         guess.createdBy,
+      //         savedBet.fantasyPoints,
+      //       );
+      //     }
+      //   }),
+      // );
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
@@ -87,6 +124,28 @@ export class BestOf7BetService {
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
+      throw error;
+    }
+  }
+
+  async updateGame(
+    id: string,
+    updateGame: UpdateGameDto,
+    user: User,
+  ): Promise<void> {
+    const bet = await this.getBestOf7betById(id);
+    const { teamWon } = updateGame;
+    bet.seriesScore[teamWon - 1] += 1;
+    try {
+      await this.bestOf7BetRepository.save(bet);
+      this.logger.verbose(
+        `BestOf7Bet with ID "${id}" successfully updated series score.`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to update bet series score with ID: "${id}".`,
+        error.stack,
+      );
       throw error;
     }
   }

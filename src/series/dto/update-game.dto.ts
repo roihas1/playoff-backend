@@ -1,6 +1,6 @@
 import { IsNumber } from 'class-validator';
 
-export class UpdateResultDto {
+export class UpdateGameDto {
   @IsNumber()
-  result: number;
+  teamWon: number;
 }

@@ -25,4 +25,7 @@ export class UpdateFieldsDto {
   @IsNumber()
   @IsOptional()
   differential: number;
+
+  @IsOptional()
+  currentStats: number[];
 }

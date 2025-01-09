@@ -3,6 +3,10 @@ import { Role } from './user-role.enum';
 import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
 import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
+import { ConferenceFinalGuess } from 'src/champions-guess/entities/conference-final-guess.entity';
+import { ChampionTeamGuess } from 'src/champions-guess/entities/champion-team-guess.entity';
+import { MVPGuess } from 'src/champions-guess/entities/mvp-guess.entity';
+import { Exclude } from 'class-transformer';
 
 @Entity()
 export class User {
@@ -11,7 +15,7 @@ export class User {
 
   @Column({ unique: true })
   username: string;
-
+  @Exclude()
   @Column()
   password: string;
 
@@ -55,4 +59,25 @@ export class User {
     },
   )
   playerMatchupGuesses: PlayerMatchupGuess[];
+
+  @OneToMany(
+    () => ConferenceFinalGuess,
+    (conferenceFinalGuesses) => conferenceFinalGuesses.createdBy,
+    {
+      eager: true,
+    },
+  )
+  conferenceFinalGuesses: ConferenceFinalGuess[];
+  @OneToMany(
+    () => ChampionTeamGuess,
+    (championTeamGuesses) => championTeamGuesses.createdBy,
+    {
+      eager: true,
+    },
+  )
+  championTeamGuesses: ChampionTeamGuess[];
+  @OneToMany(() => MVPGuess, (mvpGuess) => mvpGuess.createdBy, {
+    eager: true,
+  })
+  mvpGuesses: MVPGuess[];
 }

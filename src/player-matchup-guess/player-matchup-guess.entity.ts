@@ -18,7 +18,7 @@ export class PlayerMatchupGuess {
   @ManyToOne(
     () => PlayerMatchupBet,
     (playerMatchupBet) => playerMatchupBet.guesses,
-    { eager: false },
+    { eager: false, onDelete: 'SET NULL' },
   )
   bet: PlayerMatchupBet;
 

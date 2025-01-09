@@ -5,11 +5,15 @@ import { PlayerMatchupBet } from './player-matchup-bet.entity';
 import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFieldsDto } from './dto/update-fields.dto';
 import { User } from 'src/auth/user.entity';
+import { AuthService } from 'src/auth/auth.service';
 
 @Injectable()
 export class PlayerMatchupBetService {
   private logger = new Logger('PlayerMatchupBetService', { timestamp: true });
-  constructor(private playerMatcupBetRepository: PlayerMatchupBetRepository) {}
+  constructor(
+    private playerMatcupBetRepository: PlayerMatchupBetRepository,
+    private usersService: AuthService,
+  ) {}
 
   async createPlayerMatchupBet(
     createPlayerMatchupBetDto: CreatePlayerMatchupBetDto,
@@ -42,9 +46,54 @@ export class PlayerMatchupBetService {
     try {
       const savedBet = await this.playerMatcupBetRepository.save(bet);
       this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
+      await Promise.all(
+        savedBet.guesses.map(async (guess) => {
+          if (guess.guess === savedBet.result) {
+            await this.usersService.updateFantasyPoints(
+              guess.createdBy,
+              savedBet.fantasyPoints,
+            );
+          }
+        }),
+      );
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
+      throw error;
+    }
+  }
+  async updateResultForSeries(
+    matchup: PlayerMatchupBet,
+  ): Promise<PlayerMatchupBet> {
+    if (matchup.typeOfMatchup === 'UNDER/OVER') {
+      const result = matchup.currentStats[0] < matchup.differential ? 1 : 2;
+      matchup.result = result;
+    } else {
+      const result =
+        matchup.currentStats[0] > matchup.currentStats[1] + matchup.differential
+          ? 1
+          : 2;
+      matchup.result = result;
+    }
+    try {
+      const savedBet = await this.playerMatcupBetRepository.save(matchup);
+      this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);
+      await Promise.all(
+        savedBet.guesses.map(async (guess) => {
+          if (guess.guess === savedBet.result) {
+            await this.usersService.updateFantasyPoints(
+              guess.createdBy,
+              savedBet.fantasyPoints,
+            );
+          }
+        }),
+      );
+      return savedBet;
+    } catch (error) {
+      this.logger.error(
+        `Failed to update bet with ID: "${matchup.id}".`,
+        error.stack,
+      );
       throw error;
     }
   }

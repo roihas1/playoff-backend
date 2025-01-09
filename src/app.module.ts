@@ -21,6 +21,14 @@ import { PlayerMatchupGuess } from './player-matchup-guess/player-matchup-guess.
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { configValidationSchema } from './config.schema';
 import { AssetsModule } from './assets/assets.module';
+import { APP_FILTER } from '@nestjs/core';
+import { UnauthorizedExceptionFilter } from './filters/unauthorizedException.Filter';
+import { ChampionsGuessModule } from './champions-guess/champions-guess.module';
+import { PlayoffsStageModule } from './playoffs-stage/playoffs-stage.module';
+import { MVPGuess } from './champions-guess/entities/mvp-guess.entity';
+import { ConferenceFinalGuess } from './champions-guess/entities/conference-final-guess.entity';
+import { ChampionTeamGuess } from './champions-guess/entities/champion-team-guess.entity';
+import { PlayoffStage } from './playoffs-stage/playoffs-stage.entity';
 
 @Module({
   imports: [
@@ -44,6 +52,10 @@ import { AssetsModule } from './assets/assets.module';
             BestOf7Guess,
             TeamWinGuess,
             PlayerMatchupGuess,
+            MVPGuess,
+            ConferenceFinalGuess,
+            ChampionTeamGuess,
+            PlayoffStage,
           ],
           synchronize: true,
           host: configService.get('DB_HOST'),
@@ -62,8 +74,16 @@ import { AssetsModule } from './assets/assets.module';
     TeamWinGuessModule,
     PlayerMatchupGuessModule,
     AssetsModule,
+    ChampionsGuessModule,
+    PlayoffsStageModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_FILTER,
+      useClass: UnauthorizedExceptionFilter,
+    },
+  ],
 })
 export class AppModule {}

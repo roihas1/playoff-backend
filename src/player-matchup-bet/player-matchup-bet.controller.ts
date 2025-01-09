@@ -14,7 +14,7 @@ import { CreatePlayerMatchupBetDto } from './dto/create-player-matchup-bet.dto';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { User } from 'src/auth/user.entity';
 import { PlayerMatchupBet } from './player-matchup-bet.entity';
-import { UpdateResultDto } from 'src/best-of7-bet/dto/update-result.dto';
+import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFieldsDto } from './dto/update-fields.dto';
 
 @Controller('player-matchup-bet')

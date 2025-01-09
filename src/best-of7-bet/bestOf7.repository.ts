@@ -21,6 +21,7 @@ export class BestOf7BetRepository extends Repository<BestOf7Bet> {
     const bestOf7Bet = this.create({
       series,
       fantasyPoints,
+      seriesScore: [0, 0],
     });
     try {
       const savedBestOf7Bet = await this.save(bestOf7Bet);

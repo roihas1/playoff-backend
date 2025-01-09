@@ -39,9 +39,12 @@ export class AuthService {
       throw error;
     }
   }
-  async signIn(
-    authCredentialsDto: LoginDto,
-  ): Promise<{ accessToken: string; expiresIn: number; userRole: Role }> {
+  async signIn(authCredentialsDto: LoginDto): Promise<{
+    accessToken: string;
+    expiresIn: number;
+    userRole: Role;
+    username: string;
+  }> {
     const { username, password } = authCredentialsDto;
 
     const user = await this.usersRepository.findOne({ where: { username } });
@@ -63,24 +66,24 @@ export class AuthService {
     await this.usersRepository.save(user);
 
     const payload: JwtPayload = { username };
+    const expiresIn = this.configService.get<number>('EXPIRE_IN') || 3600;
     const accessToken = this.jwtService.sign(payload);
 
-    const expiresIn = this.configService.get<number>('EXPIRE_IN') || 360;
     this.logger.verbose(
       `User "${username}" signed in successfully and access token generated.`,
     );
-    return { accessToken, expiresIn, userRole: user.role };
+    return { accessToken, expiresIn, userRole: user.role, username };
   }
-  async logout(user: User): Promise<void> {
+  async logout(username: string): Promise<void> {
     try {
       const found = await this.usersRepository.findOne({
-        where: { username: user.username },
+        where: { username: username },
       });
       found.isActive = false;
       await this.usersRepository.save(found);
-      this.logger.verbose(`User "${user.username}" logout.`);
+      this.logger.verbose(`User "${username}" logout.`);
     } catch (error) {
-      throw new NotFoundException(`User ${user.username} not found.`);
+      throw new NotFoundException(`User ${username} not found.`);
     }
   }
   async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
@@ -125,6 +128,19 @@ export class AuthService {
       return users;
     } catch (error) {
       this.logger.error(`Failed to get all users.`, error.stack);
+      throw error;
+    }
+  }
+  async updateFantasyPoints(user: User, points: number): Promise<void> {
+    try {
+      user.fantasyPoints = user.fantasyPoints + points;
+      await this.usersRepository.save(user);
+      this.logger.verbose(`User: ${user.username} points were updated.`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to update fantasy points to user:${user.username}`,
+        error.stack,
+      );
       throw error;
     }
   }

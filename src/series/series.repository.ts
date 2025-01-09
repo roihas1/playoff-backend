@@ -22,7 +22,6 @@ export class SeriesRepository extends Repository<Series> {
       'series.playerMatchupBets',
       'playerMatchupBet',
     );
-
     if (round) {
       query.andWhere('series.round = :round', { round });
     }

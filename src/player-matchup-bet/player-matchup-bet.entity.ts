@@ -35,7 +35,7 @@ export class PlayerMatchupBet {
   })
   categories: MatchupCategory[];
 
-  @Column()
+  @Column({ default: 2 })
   fantasyPoints: number;
 
   @Column()
@@ -49,6 +49,8 @@ export class PlayerMatchupBet {
 
   @Column({ nullable: true })
   result: number;
+  @Column('int', { array: true, nullable: true, default: [0, 0] })
+  currentStats: number[];
 
   @OneToMany(
     () => PlayerMatchupGuess,

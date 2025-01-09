@@ -6,7 +6,6 @@ import { BestOf7BetRepository } from './bestOf7.repository';
 import { AuthModule } from '../auth/auth.module';
 import { SeriesModule } from 'src/series/series.module';
 
-
 @Module({
   imports: [
     TypeOrmModule.forFeature([BestOf7BetRepository]),

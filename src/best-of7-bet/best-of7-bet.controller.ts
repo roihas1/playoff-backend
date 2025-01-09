@@ -17,6 +17,7 @@ import { BestOf7Bet } from './bestOf7.entity';
 import { User } from '../auth/user.entity';
 import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFantasyPointsDto } from './dto/update-fantasy-points.dto';
+import { UpdateGameDto } from '../series/dto/update-game.dto';
 
 @Controller('best-of7-bet')
 @UseGuards(AuthGuard())
@@ -81,5 +82,16 @@ export class BestOf7BetController {
       updateFantasyPointsDto,
       id,
     );
+  }
+  @Patch('/:id/updateGame')
+  async updateGameResult(
+    @Param('id') id: string,
+    @Body() updateGame: UpdateGameDto,
+    @GetUser() user: User,
+  ): Promise<void> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to update bestOf7Bet game with ID: "${id}".`,
+    );
+    return await this.bestOf7BetService.updateGame(id, updateGame, user);
   }
 }

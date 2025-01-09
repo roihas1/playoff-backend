@@ -18,12 +18,15 @@ export class BestOf7Bet {
   @JoinColumn()
   series: Series;
 
-  @Column()
+  @Column({ default: 4 })
   fantasyPoints: number;
   @OneToMany(() => BestOf7Guess, (bestOf7Guess) => bestOf7Guess.bet, {
     eager: true,
   })
   guesses: BestOf7Guess[];
+
+  @Column('int', { array: true, nullable: true })
+  seriesScore: number[];
 
   @Column({ default: 0 })
   result: number;

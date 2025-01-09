@@ -21,9 +21,12 @@ import { CreateGuessesDto } from './dto/create-guesses.dto';
 import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
 import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
+import { UpdateResultTeamGamesDto } from './dto/update-team-games-result.dto';
+import { UpdateGameDto } from './dto/update-game.dto';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 
 @Controller('series')
-@UseGuards(AuthGuard())
+@UseGuards(JwtAuthGuard)
 export class SeriesController {
   private logger = new Logger('SeriesController', { timestamp: true });
   constructor(private seriesServie: SeriesService) {}
@@ -60,6 +63,16 @@ export class SeriesController {
       `User "${user.username}" retrieving series with id: ${id}.`,
     );
     return await this.seriesServie.getSeriesByID(id);
+  }
+  @Get('/:id/score')
+  async getSeriesScore(
+    @Param('id') id: string,
+    @GetUser() user: User,
+  ): Promise<number[]> {
+    this.logger.verbose(
+      `User "${user.username}" retrieving series score with id: ${id}.`,
+    );
+    return await this.seriesServie.getSeriesScore(id);
   }
 
   @Delete('/:id')
@@ -109,5 +122,42 @@ export class SeriesController {
     const guesses = await this.seriesServie.getGuessesByUser(seriesId, user);
 
     return guesses;
+  }
+  @Patch('/:seriesId/updateResult')
+  async updateResultTeamGames(
+    @Param('seriesId') seriesId: string,
+    @Body() updateResultTeamGamesDto: UpdateResultTeamGamesDto,
+    @GetUser() user: User,
+  ): Promise<void> {
+    this.logger.verbose(
+      `User "${user.username}" attempt to update series team and games result. Series with id: ${seriesId}.`,
+    );
+    return await this.seriesServie.updateResultTeamGames(
+      seriesId,
+      updateResultTeamGamesDto,
+      user,
+    );
+  }
+  @Patch('/:seriesId/updateGame')
+  async updateGameResult(
+    @Param('seriesId') id: string,
+    @Body() updateGame: UpdateGameDto,
+    @GetUser() user: User,
+  ): Promise<void> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to update bestOf7Bet game in series ID: "${id}".`,
+    );
+    return await this.seriesServie.updateGame(id, updateGame, user);
+  }
+
+  @Patch('/:seriesId/closeBets')
+  async closeAllBetsInSeries(
+    @Param('seriesId') seriesId: string,
+    @GetUser() user: User,
+  ): Promise<void> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to close all bets in series with ID: "${seriesId}".`,
+    );
+    return await this.seriesServie.closeAllBetsInSeries(seriesId, user);
   }
 }

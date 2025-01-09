@@ -21,6 +21,8 @@ import { TeamWinBetService } from 'src/team-win-bet/team-win-bet.service';
 import { BestOf7BetService } from 'src/best-of7-bet/best-of7-bet.service';
 import { PlayerMatchupBetService } from 'src/player-matchup-bet/player-matchup-bet.service';
 import { UpdateGuessesDto } from './dto/update-guesses.dto';
+import { UpdateResultTeamGamesDto } from './dto/update-team-games-result.dto';
+import { UpdateGameDto } from './dto/update-game.dto';
 
 @Injectable()
 export class SeriesService {
@@ -32,7 +34,7 @@ export class SeriesService {
     private playerMatchupGuessService: PlayerMatchupGuessService,
     private teamWinBetService: TeamWinBetService,
     private bestOf7BetService: BestOf7BetService,
-    private playerMatcupbetService: PlayerMatchupBetService,
+    private playerMatcupBetService: PlayerMatchupBetService,
   ) {}
 
   async getAllSeries(): Promise<Series[]> {
@@ -55,7 +57,22 @@ export class SeriesService {
     }
   }
   async createSeries(createSeriesDto: CreateSeriesDto): Promise<Series> {
-    return await this.seriesRepository.createSeries(createSeriesDto);
+    try {
+      const newSeries =
+        await this.seriesRepository.createSeries(createSeriesDto);
+      await this.bestOf7BetService.createBestOf7Bet({
+        seriesId: newSeries.id,
+        fantasyPoints: 4,
+      });
+      await this.teamWinBetService.createTeamWinBet({
+        seriesId: newSeries.id,
+        fantasyPoints: 4,
+      });
+      return newSeries;
+    } catch (error) {
+      this.logger.error(`Failed to create new Series `);
+      throw new InternalServerErrorException(`Failed to create new Series`);
+    }
   }
   async getSeriesByID(id: string): Promise<Series> {
     const foundSeries = await this.seriesRepository.findOne({ where: { id } });
@@ -64,6 +81,18 @@ export class SeriesService {
       throw new NotFoundException(`Event with ID "${id}" not found`);
     }
     return foundSeries;
+  }
+  async getSeriesScore(id: string): Promise<number[]> {
+    try {
+      const series = await this.getSeriesByID(id);
+      const score = series.bestOf7BetId.seriesScore;
+      return score;
+    } catch (error) {
+      this.logger.error(`Can not return Series score  with ID: ${id} `);
+      throw new InternalServerErrorException(
+        `Can not return Series score  with ID: ${id}`,
+      );
+    }
   }
 
   async deleteSeries(id: string): Promise<void> {
@@ -150,7 +179,7 @@ export class SeriesService {
       );
       const playerMatchupBets = await Promise.all(
         series.playerMatchupBets.map(async (bet) => {
-          return await this.playerMatcupbetService.getPlayerMatchupBetById(
+          return await this.playerMatcupBetService.getPlayerMatchupBetById(
             bet.id,
           );
         }),
@@ -220,6 +249,78 @@ export class SeriesService {
       );
       throw new InternalServerErrorException(
         `User: ${user.username} faild to update  his guesses to series: ${seriesId}`,
+      );
+    }
+  }
+  async updateResultTeamGames(
+    seriesId: string,
+    updateResultTeamGamesDto: UpdateResultTeamGamesDto,
+    user: User,
+  ): Promise<void> {
+    try {
+      const series = await this.getSeriesByID(seriesId);
+      await this.bestOf7BetService.updateResult(
+        { result: updateResultTeamGamesDto.numOfGames },
+        series.bestOf7BetId.id,
+      );
+      await this.teamWinBetService.updateResult(
+        { result: updateResultTeamGamesDto.wonTeam },
+        series.teamWinBetId.id,
+      );
+    } catch (error) {
+      this.logger.error(
+        `User: ${user.username} faild to update results to series: ${seriesId}`,
+      );
+      throw new InternalServerErrorException(
+        `User: ${user.username} faild to update resilts to series: ${seriesId}`,
+      );
+    }
+  }
+  async updateGame(
+    seriesId: string,
+    updateGame: UpdateGameDto,
+    user: User,
+  ): Promise<void> {
+    try {
+      const series = await this.getSeriesByID(seriesId);
+      await this.bestOf7BetService.updateGame(
+        series.bestOf7BetId.id,
+        updateGame,
+        user,
+      );
+    } catch (error) {
+      this.logger.error(
+        `User: ${user.username} faild to update results to series: ${seriesId}`,
+      );
+      throw new InternalServerErrorException(
+        `User: ${user.username} faild to update results to series: ${seriesId}`,
+      );
+    }
+  }
+  async closeAllBetsInSeries(seriesId: string, user: User): Promise<void> {
+    try {
+      const series = await this.getSeriesByID(seriesId);
+      const bestOf7Bet = await this.bestOf7BetService.updateResultForSeries(
+        series.bestOf7BetId.id,
+      );
+      const teamWin =
+        bestOf7Bet.seriesScore[0] > bestOf7Bet.seriesScore[1] ? 1 : 2;
+      await this.teamWinBetService.updateResult(
+        { result: teamWin },
+        series.teamWinBetId.id,
+        bestOf7Bet,
+      );
+      await Promise.all(
+        series.playerMatchupBets.map(async (matchup) => {
+          await this.playerMatcupBetService.updateResultForSeries(matchup);
+        }),
+      );
+    } catch (error) {
+      this.logger.error(
+        `User: ${user.username} faild to close all bets results to series: ${seriesId}`,
+      );
+      throw new InternalServerErrorException(
+        `User: ${user.username} faild to close all bets results to series: ${seriesId}`,
       );
     }
   }
