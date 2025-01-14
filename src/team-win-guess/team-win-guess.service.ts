@@ -23,7 +23,16 @@ export class TeamWinGuessService {
     const { guess, teamWinBetId } = createTeamWinGuessDto;
     const teamWinBet =
       await this.teamWinBetService.getTeamWinBetById(teamWinBetId);
-
+    const found = await this.teamWinGuessRepository.findOne({
+      where: {
+        createdBy: user,
+        bet: teamWinBet,
+      },
+    });
+    if (found) {
+      found.guess = guess;
+      return await this.teamWinGuessRepository.save(found);
+    }
     return await this.teamWinGuessRepository.createTeamWinGuess(
       guess,
       teamWinBet,

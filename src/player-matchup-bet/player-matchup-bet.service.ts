@@ -28,7 +28,7 @@ export class PlayerMatchupBetService {
       where: {
         id,
       },
-      relations: ['guesses', 'guesses.createdBy'],
+      relations: ['guesses', 'guesses.createdBy', 'guesses', 'guesses.bet'],
     });
     if (!found) {
       this.logger.error(`PlayerMatchupBet with ID ${id} not found.`);

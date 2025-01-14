@@ -114,34 +114,40 @@ export class SeriesService {
   ): Promise<void> {
     try {
       const series = await this.getSeriesByID(seriesId);
-
-      const createTeamWinGuessDto = {
-        guess: createGuessesDto.teamWinGuess,
-        teamWinBetId: series.teamWinBetId.id,
-      };
-      await this.teamWinGuessService.createTeamWinGuess(
-        createTeamWinGuessDto,
-        user,
-      );
-
-      const createBestOf7GuessDto = {
-        guess: createGuessesDto.bestOf7Guess,
-        bestOf7BetId: series.bestOf7BetId.id,
-      };
-      await this.bestOf7GuessService.createBestOf7Guess(
-        createBestOf7GuessDto,
-        user,
-      );
-
-      series.playerMatchupBets.forEach(async (bet, idx) => {
-        await this.playerMatchupGuessService.createPlayerMatchupGuess(
-          {
-            guess: createGuessesDto.playermatchupGuess[idx],
-            playerMatchupBetId: bet.id,
-          },
+      if (createGuessesDto.teamWinGuess) {
+        const createTeamWinGuessDto = {
+          guess: createGuessesDto.teamWinGuess,
+          teamWinBetId: series.teamWinBetId.id,
+        };
+        await this.teamWinGuessService.createTeamWinGuess(
+          createTeamWinGuessDto,
           user,
         );
-      });
+      }
+      if (createGuessesDto.bestOf7Guess) {
+        const createBestOf7GuessDto = {
+          guess: createGuessesDto.bestOf7Guess,
+          bestOf7BetId: series.bestOf7BetId.id,
+        };
+        await this.bestOf7GuessService.createBestOf7Guess(
+          createBestOf7GuessDto,
+          user,
+        );
+      }
+
+      if (createGuessesDto.playermatchupGuess) {
+        series.playerMatchupBets.forEach(async (bet, idx) => {
+          if (createGuessesDto.playermatchupGuess.hasOwnProperty(bet.id)) {
+            await this.playerMatchupGuessService.createPlayerMatchupGuess(
+              {
+                guess: createGuessesDto.playermatchupGuess[bet.id],
+                playerMatchupBetId: bet.id,
+              },
+              user,
+            );
+          }
+        });
+      }
     } catch (error) {
       this.logger.error(
         `Series with ID: ${seriesId} did not update the guesses.`,
@@ -185,7 +191,9 @@ export class SeriesService {
         }),
       );
       const playerMatchupGuesses = playerMatchupBets.map((bet) =>
-        bet.guesses?.filter((guess) => guess.createdById === user.id),
+        bet.guesses?.filter((guess) => {
+          return guess.createdById === user.id;
+        }),
       );
 
       const flattenedPlayerMatchupGuesses = playerMatchupGuesses.flat();

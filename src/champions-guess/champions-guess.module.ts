@@ -6,6 +6,7 @@ import { ChampionTeamGuess } from './entities/champion-team-guess.entity';
 import { ConferenceFinalGuess } from './entities/conference-final-guess.entity';
 import { MVPGuess } from './entities/mvp-guess.entity';
 import { PlayoffsStageModule } from 'src/playoffs-stage/playoffs-stage.module';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
@@ -15,8 +16,10 @@ import { PlayoffsStageModule } from 'src/playoffs-stage/playoffs-stage.module';
       MVPGuess,
     ]),
     PlayoffsStageModule,
+    AuthModule,
   ],
   controllers: [ChampionsGuessController],
   providers: [ChampionsGuessService],
+  exports: [ChampionsGuessService],
 })
 export class ChampionsGuessModule {}

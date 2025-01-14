@@ -15,8 +15,9 @@ export class User {
 
   @Column({ unique: true })
   username: string;
-  @Exclude()
+
   @Column()
+  @Exclude()
   password: string;
 
   @Column({ default: 0 })
@@ -44,11 +45,13 @@ export class User {
   @OneToMany(() => BestOf7Guess, (bestOf7Guess) => bestOf7Guess.createdBy, {
     eager: true,
   })
+  @Exclude()
   bestOf7Guesses: BestOf7Guess[];
 
   @OneToMany(() => TeamWinGuess, (teamWinGuess) => teamWinGuess.createdBy, {
     eager: true,
   })
+  @Exclude()
   teamWinGuesses: TeamWinGuess[];
 
   @OneToMany(
@@ -58,6 +61,7 @@ export class User {
       eager: true,
     },
   )
+  @Exclude()
   playerMatchupGuesses: PlayerMatchupGuess[];
 
   @OneToMany(
@@ -67,6 +71,7 @@ export class User {
       eager: true,
     },
   )
+  @Exclude()
   conferenceFinalGuesses: ConferenceFinalGuess[];
   @OneToMany(
     () => ChampionTeamGuess,
@@ -75,9 +80,11 @@ export class User {
       eager: true,
     },
   )
+  @Exclude()
   championTeamGuesses: ChampionTeamGuess[];
   @OneToMany(() => MVPGuess, (mvpGuess) => mvpGuess.createdBy, {
     eager: true,
   })
+  @Exclude()
   mvpGuesses: MVPGuess[];
 }

@@ -1,10 +1,13 @@
-import { IsArray, IsNumber } from 'class-validator';
+import { IsNumber, IsOptional } from 'class-validator';
 
 export class CreateGuessesDto {
   @IsNumber()
-  teamWinGuess: number;
+  @IsOptional()
+  teamWinGuess?: number;
   @IsNumber()
-  bestOf7Guess: number;
-  @IsArray()
-  playermatchupGuess: { [key: number]: number };
+  @IsOptional()
+  bestOf7Guess?: number;
+
+  @IsOptional()
+  playermatchupGuess?: { [key: string]: number };
 }

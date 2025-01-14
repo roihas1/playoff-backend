@@ -27,6 +27,16 @@ export class BestOf7GuessService {
     const { guess, bestOf7BetId } = createBestOf7GuessDto;
     const bestOf7Bet =
       await this.bestOf7BetService.getBestOf7betById(bestOf7BetId);
+    const found = await this.bestOf7GuessRepository.findOne({
+      where: {
+        createdBy: user,
+        bet: bestOf7Bet,
+      },
+    });
+    if (found) {
+      found.guess = guess;
+      return await this.bestOf7GuessRepository.save(found);
+    }
     return await this.bestOf7GuessRepository.createBestOf7Guess(
       guess,
       bestOf7Bet,

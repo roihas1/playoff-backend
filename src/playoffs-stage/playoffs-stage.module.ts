@@ -1,12 +1,16 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { PlayoffsStageController } from './playoffs-stage.controller';
 import { PlayoffsStageService } from './playoffs-stage.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PlayoffStage } from './playoffs-stage.entity';
 import { PlayoffsStageRepository } from './playoffs-stage.repository';
+import { ChampionsGuessModule } from 'src/champions-guess/champions-guess.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PlayoffStage])],
+  imports: [
+    TypeOrmModule.forFeature([PlayoffStage]),
+    forwardRef(() => ChampionsGuessModule),
+  ],
   controllers: [PlayoffsStageController],
   providers: [PlayoffsStageService, PlayoffsStageRepository],
   exports: [PlayoffsStageService],

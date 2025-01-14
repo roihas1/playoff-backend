@@ -43,11 +43,26 @@ export class PlayoffsStageRepository extends Repository<PlayoffStage> {
           'conferenceFinalGuess',
         )
         .leftJoinAndSelect(
+          'conferenceFinalGuess.createdBy', // Join createdBy on conferenceFinalGuess
+          'user1',
+        )
+        .leftJoinAndSelect(
           'playoff-stage.championTeamGuesses',
           'championFinalGuess',
         )
-        .leftJoinAndSelect('playoff-stage.mvpGuesses', 'mvpGuess');
+        .leftJoinAndSelect(
+          'championFinalGuess.createdBy', // Join createdBy on championFinalGuess
+          'user2',
+        )
+        .leftJoinAndSelect('playoff-stage.mvpGuesses', 'mvpGuess')
+        .leftJoinAndSelect(
+          'mvpGuess.createdBy', // Join createdBy on mvpGuess
+          'user3',
+        );
       return await query.getMany();
-    } catch (error) {}
+    } catch (error) {
+      this.logger.error(`Failed to get all stages`);
+      throw new InternalServerErrorException(`Failed to get all stages`);
+    }
   }
 }

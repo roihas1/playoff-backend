@@ -1,4 +1,3 @@
-import { IsDateString } from 'class-validator';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 import { Conference } from 'src/series/conference.enum';
 
@@ -18,6 +17,4 @@ export class CreateChampGuessDto {
     fantasyPoints?: number;
   };
   stage: PlayoffsStage;
-  // @IsDateString()
-  // deadline: string;
 }

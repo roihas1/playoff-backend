@@ -25,6 +25,16 @@ export class PlayerMatchupGuessService {
       await this.playerMatchupBetService.getPlayerMatchupBetById(
         playerMatchupBetId,
       );
+    const found = await this.playerMatchupGuessRepository.findOne({
+      where: {
+        createdBy: user,
+        bet: playerMatchupBet,
+      },
+    });
+    if (found) {
+      found.guess = guess;
+      return await this.playerMatchupGuessRepository.save(found);
+    }
     return await this.playerMatchupGuessRepository.createPlayerMatchupGuess(
       guess,
       playerMatchupBet,

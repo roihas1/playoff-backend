@@ -14,6 +14,7 @@ import { PlayoffStage } from 'src/playoffs-stage/playoffs-stage.entity';
 import { PlayoffsStageService } from 'src/playoffs-stage/playoffs-stage.service';
 import { Conference } from 'src/series/conference.enum';
 import { UpdateChamionGuessDto } from './dto/update-champ-guess.dto';
+import { AuthService } from 'src/auth/auth.service';
 
 @Injectable()
 export class ChampionsGuessService {
@@ -26,6 +27,7 @@ export class ChampionsGuessService {
     @InjectRepository(MVPGuess)
     private mvpGuessRepository: Repository<MVPGuess>,
     private playoffsStageService: PlayoffsStageService,
+    private usersService: AuthService,
   ) {}
 
   private async createChampTeamGuess(
@@ -78,16 +80,29 @@ export class ChampionsGuessService {
     fantasyPoints: number,
     stage: PlayoffStage,
   ): Promise<ConferenceFinalGuess> {
-    const conferenceFinalGuess = this.conferenceFinalGuessRepo.create({
-      createdBy: user,
-      team1,
-      team2,
-      conference,
-      fantasyPoints,
-      stage,
-    });
     try {
-      return await this.conferenceFinalGuessRepo.save(conferenceFinalGuess);
+      const found = await this.conferenceFinalGuessRepo.findOne({
+        where: {
+          createdBy: user,
+          stage,
+          conference,
+        },
+      });
+      if (!found) {
+        const conferenceFinalGuess = this.conferenceFinalGuessRepo.create({
+          createdBy: user,
+          team1,
+          team2,
+          conference,
+          fantasyPoints,
+          stage,
+        });
+
+        return await this.conferenceFinalGuessRepo.save(conferenceFinalGuess);
+      }
+      found.team1 = team1;
+      found.team2 = team2;
+      return await this.conferenceFinalGuessRepo.save(found);
     } catch (error) {
       this.logger.error(
         `User ${user.username} failed to create new conference Final Guess to stage ${stage.name} ${error}`,
@@ -220,5 +235,56 @@ export class ChampionsGuessService {
         'Failed to update champion guesses. Please try again later.',
       );
     }
+  }
+
+  async updatePointsConferenceFinalsForUser(
+    conferenceFinalResult: string[],
+    guesses: ConferenceFinalGuess[],
+  ): Promise<void> {
+    await Promise.all(
+      guesses.map(async (guess) => {
+        if (
+          (guess.team1 === conferenceFinalResult[0] &&
+            guess.team2 === conferenceFinalResult[1]) ||
+          (guess.team2 === conferenceFinalResult[0] &&
+            guess.team1 === conferenceFinalResult[1])
+        ) {
+          await this.usersService.updateFantasyPoints(
+            guess.createdBy,
+            guess.fantasyPoints,
+          );
+        }
+      }),
+    );
+  }
+  async updatePointsForUserChampionTeam(
+    championTeam: string,
+    guesses: ChampionTeamGuess[],
+  ): Promise<void> {
+    await Promise.all(
+      guesses.map(async (guess) => {
+        if (guess.team === championTeam) {
+          await this.usersService.updateFantasyPoints(
+            guess.createdBy,
+            guess.fantasyPoints,
+          );
+        }
+      }),
+    );
+  }
+  async updatePointsForUserMVP(
+    mvp: string,
+    guesses: MVPGuess[],
+  ): Promise<void> {
+    await Promise.all(
+      guesses.map(async (guess) => {
+        if (guess.player === mvp) {
+          await this.usersService.updateFantasyPoints(
+            guess.createdBy,
+            guess.fantasyPoints,
+          );
+        }
+      }),
+    );
   }
 }
