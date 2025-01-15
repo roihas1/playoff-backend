@@ -20,7 +20,22 @@ import { CloseGuessesDto } from './dto/close-guesses.dto';
 import { ChampionTeamGuess } from 'src/champions-guess/entities/champion-team-guess.entity';
 import { ConferenceFinalGuess } from 'src/champions-guess/entities/conference-final-guess.entity';
 import { MVPGuess } from 'src/champions-guess/entities/mvp-guess.entity';
-import { GetUserGuessesDto } from './dto/get-user-guesses.dto';
+export interface PriorGuesses {
+  conferenceFinalGuesses: {
+    id: string;
+    team1: string;
+    team2: string;
+    conference: string;
+  }[];
+  championTeamGuesses: { id: string; team: string }[];
+  mvpGuesses: { id: string; player: string }[];
+}
+
+export interface PriorGuessesByStage {
+  beforePlayoffs?: PriorGuesses;
+  round1?: PriorGuesses;
+  round2?: PriorGuesses;
+}
 
 @Controller('playoffs-stage')
 @UseGuards(JwtAuthGuard)
@@ -54,7 +69,7 @@ export class PlayoffsStageController {
     this.logger.verbose(
       `User: ${user.username} attempt to create playoffs stage ${createPlayoffsStageDto.name}.`,
     );
-    console.log(createPlayoffsStageDto.startDate);
+
     return await this.playoffsStageService.createPlayoffsStage(
       createPlayoffsStageDto,
       user,
@@ -85,5 +100,16 @@ export class PlayoffsStageController {
     );
 
     return await this.playoffsStageService.getUserGuesses(stage, user);
+  }
+  @Get('/getGuesses/:stage')
+  async getPriorGuesses(
+    @Param('stage') stage: PlayoffsStage,
+    @GetUser() user: User,
+  ): Promise<PriorGuesses | PriorGuessesByStage> {
+    this.logger.verbose(
+      `User: ${user.username} attempt to get his prior champions guesses`,
+    );
+    console.log(stage);
+    return await this.playoffsStageService.getPriorGuesses(stage, user);
   }
 }

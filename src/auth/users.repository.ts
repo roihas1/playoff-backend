@@ -3,7 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { User } from './user.entity';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import * as bcrypt from 'bcrypt';
@@ -36,5 +36,22 @@ export class UsersRepository extends Repository<User> {
         throw new InternalServerErrorException();
       }
     }
+  }
+  async getChampionsGuesses(id: string): Promise<any> {
+    
+    const query = this.createQueryBuilder('user')
+      .leftJoinAndSelect(
+        'user.conferenceFinalGuesses',
+        'conferenceFinalGuesses',
+      ) // Join and select related data
+      .leftJoinAndSelect('user.championTeamGuesses', 'championTeamGuesses') // Join and select related data
+      .leftJoinAndSelect('user.mvpGuesses', 'mvpGuesses')
+      .leftJoinAndSelect('conferenceFinalGuesses.stage', 'playoffsStage1')
+      .leftJoinAndSelect('championTeamGuesses.stage', 'playoffsStage2')
+      .leftJoinAndSelect('mvpGuesses.stage', 'playoffsStage3') // Join and select related data
+      .where('user.id = :id', { id });
+      
+    const res = await query.getOne();
+    return res;
   }
 }

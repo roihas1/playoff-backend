@@ -20,7 +20,7 @@ export class TeamWinGuess {
   })
   bet: TeamWinBet;
 
-  @ManyToOne(() => User, (user) => user.teamWinGuesses, { eager: false })
+  @ManyToOne(() => User, (user) => user.teamWinGuesses, { eager: true })
   @Exclude({ toPlainOnly: true })
   createdBy: User;
 

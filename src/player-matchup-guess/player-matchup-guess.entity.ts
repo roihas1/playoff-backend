@@ -22,7 +22,7 @@ export class PlayerMatchupGuess {
   )
   bet: PlayerMatchupBet;
 
-  @ManyToOne(() => User, (user) => user.playerMatchupGuesses, { eager: false })
+  @ManyToOne(() => User, (user) => user.playerMatchupGuesses, { eager: true })
   @Exclude({ toPlainOnly: true })
   createdBy: User;
 

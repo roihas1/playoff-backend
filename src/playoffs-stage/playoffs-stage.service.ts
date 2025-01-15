@@ -16,6 +16,7 @@ import { ChampionsGuessService } from 'src/champions-guess/champions-guess.servi
 import { ConferenceFinalGuess } from 'src/champions-guess/entities/conference-final-guess.entity';
 import { ChampionTeamGuess } from 'src/champions-guess/entities/champion-team-guess.entity';
 import { MVPGuess } from 'src/champions-guess/entities/mvp-guess.entity';
+import { PriorGuesses, PriorGuessesByStage } from './playoffs-stage.controller';
 
 @Injectable()
 export class PlayoffsStageService {
@@ -171,13 +172,14 @@ export class PlayoffsStageService {
           'conferenceFinalGuesses.createdBy',
         ],
       });
+
       let conferenceFinalGuesses = [];
       if (stage === 'Before playoffs') {
         conferenceFinalGuesses = stageObj.conferenceFinalGuesses.filter(
           (guess) => guess.createdBy.id === user.id,
         );
       }
-      console.log(conferenceFinalGuesses);
+
       const championTeamGuesses = stageObj.championTeamGuesses.filter(
         (guess) => guess.createdBy.id === user.id,
       );
@@ -192,6 +194,108 @@ export class PlayoffsStageService {
       );
       throw new InternalServerErrorException(
         `User: ${user.username} failed to get his guesses.`,
+      );
+    }
+  }
+  private extractCertainProperties(
+    conferenceFinalGuesses: ConferenceFinalGuess[],
+    championTeamGuesses: ChampionTeamGuess[],
+    mvpGuesses: MVPGuess[],
+  ): any {
+    const conferenceFinalGuessesNew = conferenceFinalGuesses.map((guess) => ({
+      id: guess.id,
+      team1: guess.team1,
+      team2: guess.team2,
+      conference: guess.conference,
+    }));
+    const championTeamGuessesNew = championTeamGuesses.map((guess) => ({
+      id: guess.id,
+      team: guess.team,
+    }));
+
+    // Extract mvpGuesses with selected properties
+    const mvpGuessesNew = mvpGuesses.map((guess) => ({
+      id: guess.id,
+      player: guess.player,
+    }));
+
+    return {
+      conferenceFinalGuesses: conferenceFinalGuessesNew,
+      championTeamGuesses: championTeamGuessesNew,
+      mvpGuesses: mvpGuessesNew,
+    };
+  }
+  async getPriorGuesses(
+    stage: PlayoffsStage,
+    user: User,
+  ): Promise<PriorGuesses | PriorGuessesByStage> {
+    try {
+      if (stage === PlayoffsStage.ROUND1) {
+        const guesses = await this.getUserGuesses(
+          PlayoffsStage.BEFOREPLAOFFS,
+          user,
+        );
+        const newGuess = this.extractCertainProperties(
+          guesses.conferenceFinalGuesses,
+          guesses.championTeamGuesses,
+          guesses.mvpGuesses,
+        );
+        return {
+          conferenceFinalGuesses: newGuess.conferenceFinalGuesses,
+          championTeamGuesses: newGuess.championTeamGuesses,
+          mvpGuesses: newGuess.mvpGuesses,
+        };
+      } else if (
+        stage === PlayoffsStage.ROUND2 ||
+        stage === PlayoffsStage.FINISH
+      ) {
+        const beforePlayoffsStageGuesses = await this.getUserGuesses(
+          PlayoffsStage.BEFOREPLAOFFS,
+          user,
+        );
+        const beforePlayoffsGuessesNew = this.extractCertainProperties(
+          beforePlayoffsStageGuesses.conferenceFinalGuesses,
+          beforePlayoffsStageGuesses.championTeamGuesses,
+          beforePlayoffsStageGuesses.mvpGuesses,
+        );
+        const round1StageGuesses = await this.getUserGuesses(
+          PlayoffsStage.ROUND1,
+          user,
+        );
+        const round1GuessesNew = this.extractCertainProperties(
+          round1StageGuesses.conferenceFinalGuesses,
+          round1StageGuesses.championTeamGuesses,
+          round1StageGuesses.mvpGuesses,
+        );
+
+        if (stage === PlayoffsStage.FINISH) {
+          const round2Guesses = await this.getUserGuesses(
+            PlayoffsStage.ROUND2,
+            user,
+          );
+          const round2StageGuesses = this.extractCertainProperties(
+            round2Guesses.conferenceFinalGuesses,
+            round2Guesses.championTeamGuesses,
+            round2Guesses.mvpGuesses,
+          );
+          return {
+            beforePlayoffs: beforePlayoffsGuessesNew,
+            round1: round1GuessesNew,
+            round2: round2StageGuesses,
+          };
+        }
+
+        return {
+          beforePlayoffs: beforePlayoffsGuessesNew,
+          round1: round1GuessesNew,
+        };
+      }
+    } catch (error) {
+      this.logger.error(
+        `User: ${user.username} failed to get his prior guesses. ${error.stack}`,
+      );
+      throw new InternalServerErrorException(
+        `User: ${user.username} failed to get his prior guesses.`,
       );
     }
   }

@@ -60,8 +60,6 @@ export class BestOf7GuessRepository extends Repository<BestOf7Guess> {
     betId: string,
     userId: string,
   ): Promise<BestOf7Guess> {
-    console.log('In repository');
-
     const guess = await this.createQueryBuilder('bestOf7Guess')
       .leftJoinAndSelect('bestOf7Guess.bet', 'bestOf7Bet') // Correct join to bet relation
       .leftJoinAndSelect('bestOf7Guess.createdBy', 'user') // Correct join to user relation

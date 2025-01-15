@@ -136,7 +136,7 @@ export class SeriesService {
       }
 
       if (createGuessesDto.playermatchupGuess) {
-        series.playerMatchupBets.forEach(async (bet, idx) => {
+        series.playerMatchupBets.forEach(async (bet) => {
           if (createGuessesDto.playermatchupGuess.hasOwnProperty(bet.id)) {
             await this.playerMatchupGuessService.createPlayerMatchupGuess(
               {
@@ -331,5 +331,37 @@ export class SeriesService {
         `User: ${user.username} faild to close all bets results to series: ${seriesId}`,
       );
     }
+  }
+  async checkIfUserGuessedAll(user: User): Promise<{ [key: string]: boolean }> {
+    try {
+      const series = await this.getAllSeries();
+      const result: { [key: string]: boolean } = {};
+      series.map((element) => {
+        const bestOf7Guess = element.bestOf7BetId.guesses.filter((guess) => {
+          return guess.createdById === user.id;
+        });
+
+        const teamWinGuess = element.teamWinBetId.guesses.filter(
+          (guess) => guess.createdById === user.id,
+        );
+        const playerMatchupGuess = element.playerMatchupBets.flatMap((bet) => {
+          return (
+            bet.guesses.filter((guess) => guess.createdById === user.id) || []
+          );
+        });
+
+        if (
+          bestOf7Guess.length > 0 &&
+          teamWinGuess.length > 0 &&
+          playerMatchupGuess.length === element.playerMatchupBets.length
+        ) {
+          result[element.id] = true;
+        } else {
+          result[element.id] = false;
+        }
+      });
+
+      return result;
+    } catch (error) {}
   }
 }

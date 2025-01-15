@@ -5,6 +5,7 @@ import {
   Get,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -18,6 +19,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { Role } from './user-role.enum';
 import { LogoutCredentialsDto } from './dto/logout-credentials.dto';
+import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 
 @Controller('auth')
 export class AuthController {
@@ -88,5 +90,20 @@ export class AuthController {
       `User with username: "${user.username}" is attempting to get his user object`,
     );
     return user;
+  }
+  @Get('/checkChampionsGuess')
+  @UseGuards(JwtAuthGuard)
+  async checkIfGuessedForChampions(
+    @Query('stage') stage: PlayoffsStage,
+    @GetUser() user: User,
+  ): Promise<boolean> {
+    this.logger.verbose(
+      `User: ${user.username} checking if he has guessed already.`,
+    );
+    const isGuess = await this.authService.checkIfGuessedForChampions(
+      stage,
+      user,
+    );
+    return isGuess;
   }
 }

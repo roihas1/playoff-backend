@@ -50,7 +50,6 @@ export class SeriesController {
     this.logger.verbose(
       `User "${user.username}" creating new series. Data: ${JSON.stringify(createSeriesDto)}.`,
     );
-    console.log(JSON.stringify(createSeriesDto));
     return await this.seriesServie.createSeries(createSeriesDto); // todo: decide if I need to save the user to series.
   }
 
@@ -159,5 +158,14 @@ export class SeriesController {
       `User with username: "${user.username}" is attempting to close all bets in series with ID: "${seriesId}".`,
     );
     return await this.seriesServie.closeAllBetsInSeries(seriesId, user);
+  }
+  @Get('/isUserGuessed/All')
+  async checkIfUserGuessedAll(
+    @GetUser() user: User,
+  ): Promise<{ [key: string]: boolean }> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to check if he guessed all bets.`,
+    );
+    return await this.seriesServie.checkIfUserGuessedAll(user);
   }
 }

@@ -36,7 +36,6 @@ export class SeriesRepository extends Repository<Series> {
       );
     }
     const series = await query.getMany();
-    console.log(series[0].bestOf7BetId.seriesScore);
     return series;
   }
   async getAllSeries(): Promise<Series[]> {

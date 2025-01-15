@@ -43,13 +43,13 @@ export class User {
   isActive: boolean;
 
   @OneToMany(() => BestOf7Guess, (bestOf7Guess) => bestOf7Guess.createdBy, {
-    eager: true,
+    eager: false,
   })
   @Exclude()
   bestOf7Guesses: BestOf7Guess[];
 
   @OneToMany(() => TeamWinGuess, (teamWinGuess) => teamWinGuess.createdBy, {
-    eager: true,
+    eager: false,
   })
   @Exclude()
   teamWinGuesses: TeamWinGuess[];
@@ -58,7 +58,7 @@ export class User {
     () => PlayerMatchupGuess,
     (playerMatchupGuess) => playerMatchupGuess.createdBy,
     {
-      eager: true,
+      eager: false,
     },
   )
   @Exclude()

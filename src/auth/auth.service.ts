@@ -15,6 +15,7 @@ import { User } from './user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ConfigService } from '@nestjs/config';
 import { Role } from './user-role.enum';
+import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 
 @Injectable()
 export class AuthService {
@@ -142,6 +143,19 @@ export class AuthService {
         error.stack,
       );
       throw error;
+    }
+  }
+  async checkIfGuessedForChampions(
+    stage: PlayoffsStage,
+    user: User,
+  ): Promise<boolean> {
+    try {
+      const foundUser = await this.usersRepository.getChampionsGuesses(user.id);
+      console.log(foundUser)
+      
+      return true;
+    } catch (error) {
+      this.logger.error(error)
     }
   }
 }
