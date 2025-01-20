@@ -24,6 +24,11 @@ import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-gues
 import { UpdateResultTeamGamesDto } from './dto/update-team-games-result.dto';
 import { UpdateGameDto } from './dto/update-game.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { BestOf7Bet } from 'src/best-of7-bet/bestOf7.entity';
+import { TeamWinBet } from 'src/team-win-bet/team-win-bet.entity';
+import { PlayerMatchupBet } from 'src/player-matchup-bet/player-matchup-bet.entity';
+import { Conference } from './conference.enum';
+import { Round } from './round.enum';
 
 @Controller('series')
 @UseGuards(JwtAuthGuard)
@@ -167,5 +172,42 @@ export class SeriesController {
       `User with username: "${user.username}" is attempting to check if he guessed all bets.`,
     );
     return await this.seriesServie.checkIfUserGuessedAll(user);
+  }
+  @Get('/:seriesId/getOverallPointsPerSeries')
+  async getPointsForUser(
+    @Param('seriesId') seriesId: string,
+    @GetUser() user: User,
+  ): Promise<number> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to get his points for series id:${seriesId}.`,
+    );
+    return await this.seriesServie.getPointsForUser(seriesId, user);
+  }
+  @Get('/getOverallPoints/allSeries')
+  async getPointsPerSeriesForUser(
+    @GetUser() user: User,
+  ): Promise<{ [key: string]: number }> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to get his points for all series.`,
+    );
+    return await this.seriesServie.getPointsPerSeriesForUser(user);
+  }
+  @Get('/getAll/bets')
+  async getAllBets(@GetUser() user: User): Promise<{
+    [key: string]: {
+      team1: string;
+      team2: string;
+      conference: Conference;
+      round: Round;
+      startDate: Date;
+      bestOf7Bet: BestOf7Bet;
+      teamWinBet: TeamWinBet;
+      playerMatchupBets: PlayerMatchupBet[];
+    };
+  }> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to get all bets`,
+    );
+    return await this.seriesServie.getAllBets();
   }
 }

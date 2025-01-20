@@ -45,13 +45,11 @@ export class User {
   @OneToMany(() => BestOf7Guess, (bestOf7Guess) => bestOf7Guess.createdBy, {
     eager: false,
   })
-  @Exclude()
   bestOf7Guesses: BestOf7Guess[];
 
   @OneToMany(() => TeamWinGuess, (teamWinGuess) => teamWinGuess.createdBy, {
     eager: false,
   })
-  @Exclude()
   teamWinGuesses: TeamWinGuess[];
 
   @OneToMany(
@@ -61,30 +59,26 @@ export class User {
       eager: false,
     },
   )
-  @Exclude()
   playerMatchupGuesses: PlayerMatchupGuess[];
 
   @OneToMany(
     () => ConferenceFinalGuess,
     (conferenceFinalGuesses) => conferenceFinalGuesses.createdBy,
     {
-      eager: true,
+      eager: false,
     },
   )
-  @Exclude()
   conferenceFinalGuesses: ConferenceFinalGuess[];
   @OneToMany(
     () => ChampionTeamGuess,
     (championTeamGuesses) => championTeamGuesses.createdBy,
     {
-      eager: true,
+      eager: false,
     },
   )
-  @Exclude()
   championTeamGuesses: ChampionTeamGuess[];
   @OneToMany(() => MVPGuess, (mvpGuess) => mvpGuess.createdBy, {
-    eager: true,
+    eager: false,
   })
-  @Exclude()
   mvpGuesses: MVPGuess[];
 }

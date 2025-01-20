@@ -65,14 +65,21 @@ export class PlayerMatchupBetService {
   async updateResultForSeries(
     matchup: PlayerMatchupBet,
   ): Promise<PlayerMatchupBet> {
+    let isResultChange = false;
     if (matchup.typeOfMatchup === 'UNDER/OVER') {
       const result = matchup.currentStats[0] < matchup.differential ? 1 : 2;
+      if (result != matchup.result) {
+        isResultChange = true;
+      }
       matchup.result = result;
     } else {
       const result =
         matchup.currentStats[0] > matchup.currentStats[1] + matchup.differential
           ? 1
           : 2;
+      if (result != matchup.result) {
+        isResultChange = true;
+      }
       matchup.result = result;
     }
     try {
@@ -80,11 +87,18 @@ export class PlayerMatchupBetService {
       this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);
       await Promise.all(
         savedBet.guesses.map(async (guess) => {
-          if (guess.guess === savedBet.result) {
-            await this.usersService.updateFantasyPoints(
-              guess.createdBy,
-              savedBet.fantasyPoints,
-            );
+          if (isResultChange) {
+            if (guess.guess === savedBet.result) {
+              await this.usersService.updateFantasyPoints(
+                guess.createdBy,
+                savedBet.fantasyPoints,
+              );
+            } else {
+              await this.usersService.updateFantasyPoints(
+                guess.createdBy,
+                -savedBet.fantasyPoints,
+              );
+            }
           }
         }),
       );

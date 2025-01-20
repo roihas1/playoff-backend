@@ -23,6 +23,11 @@ import { PlayerMatchupBetService } from 'src/player-matchup-bet/player-matchup-b
 import { UpdateGuessesDto } from './dto/update-guesses.dto';
 import { UpdateResultTeamGamesDto } from './dto/update-team-games-result.dto';
 import { UpdateGameDto } from './dto/update-game.dto';
+import { BestOf7Bet } from 'src/best-of7-bet/bestOf7.entity';
+import { PlayerMatchupBet } from 'src/player-matchup-bet/player-matchup-bet.entity';
+import { TeamWinBet } from 'src/team-win-bet/team-win-bet.entity';
+import { Conference } from './conference.enum';
+import { Round } from './round.enum';
 
 @Injectable()
 export class SeriesService {
@@ -312,7 +317,11 @@ export class SeriesService {
         series.bestOf7BetId.id,
       );
       const teamWin =
-        bestOf7Bet.seriesScore[0] > bestOf7Bet.seriesScore[1] ? 1 : 2;
+        bestOf7Bet.seriesScore[0] > bestOf7Bet.seriesScore[1]
+          ? 1
+          : bestOf7Bet.seriesScore[0] < bestOf7Bet.seriesScore[1]
+            ? 2
+            : 0;
       await this.teamWinBetService.updateResult(
         { result: teamWin },
         series.teamWinBetId.id,
@@ -362,6 +371,135 @@ export class SeriesService {
       });
 
       return result;
-    } catch (error) {}
+    } catch (error) {
+      this.logger.error(
+        `User: ${user.username} faild to check if he guessed all the bettings.`,
+      );
+      throw new InternalServerErrorException(
+        `User: ${user.username} faild to check if he guessed all the bettings.`,
+      );
+    }
+  }
+  async getPointsForUser(seriesId: string, user: User): Promise<number> {
+    try {
+      const series = await this.getSeriesByID(seriesId); // Assuming this is an optimized DB call
+      let userPoints = 0;
+
+      // Use map/filter only once and combine results
+      const teamWinGuess = series.teamWinBetId.guesses.find(
+        (guess) => guess.createdById === user.id,
+      );
+
+      if (teamWinGuess?.guess === series.teamWinBetId.result) {
+        const bestOf7Guess = series.bestOf7BetId.guesses.find(
+          (guess) =>
+            guess.createdById === user.id &&
+            series.bestOf7BetId.result === guess.guess,
+        );
+
+        userPoints += bestOf7Guess
+          ? series.bestOf7BetId.fantasyPoints +
+            series.teamWinBetId.fantasyPoints
+          : series.teamWinBetId.fantasyPoints;
+      }
+
+      // Process playerMatchupBets efficiently by reducing them
+      userPoints += series.playerMatchupBets.reduce((acc, matchup) => {
+        const guess = matchup.guesses.find(
+          (guess) =>
+            guess.createdById === user.id && matchup.result === guess.guess,
+        );
+        return acc + (guess ? matchup.fantasyPoints : 0);
+      }, 0);
+
+      return userPoints;
+    } catch (error) {
+      this.logger.error(
+        `User: ${user.username} failed to get points per series id: ${seriesId} "${error}".`,
+      );
+      throw new InternalServerErrorException(
+        `User: ${user.username} failed to get points per series id: ${seriesId}.`,
+      );
+    }
+  }
+  async getPointsPerSeriesForUser(
+    user: User,
+  ): Promise<{ [key: string]: number }> {
+    try {
+      const series = await this.getAllSeries();
+
+      // Use Promise.all to fetch points for all series in parallel
+      const result = await Promise.all(
+        series.map(async (single) => {
+          const points = await this.getPointsForUser(single.id, user);
+          return { [single.id]: points };
+        }),
+      );
+
+      // Convert the result array to an object
+      return result.reduce((acc, item) => ({ ...acc, ...item }), {});
+    } catch (error) {
+      this.logger.error(
+        `User: ${user.username} failed to get points for all series "${error}".`,
+      );
+      throw new InternalServerErrorException(
+        `User: ${user.username} failed to get points for all series.`,
+      );
+    }
+  }
+  async getAllBets(): Promise<{
+    [key: string]: {
+      team1: string;
+      team2: string;
+      conference: Conference;
+      round: Round;
+      startDate: Date;
+      bestOf7Bet: BestOf7Bet;
+      teamWinBet: TeamWinBet;
+      playerMatchupBets: PlayerMatchupBet[];
+    };
+  }> {
+    const bettingData: {
+      [key: string]: {
+        team1: string;
+        team2: string;
+        conference: Conference;
+        round: Round;
+        startDate: Date;
+        bestOf7Bet: BestOf7Bet;
+        teamWinBet: TeamWinBet;
+        playerMatchupBets: PlayerMatchupBet[];
+      };
+    } = {};
+
+    try {
+      const series = await this.getAllSeries();
+      series.forEach((s) => {
+        bettingData[s.id] = {
+          team1: s.team1,
+          team2: s.team2,
+          conference: s.conference,
+          round: s.round,
+          startDate: s.dateOfStart,
+          bestOf7Bet: {
+            ...s.bestOf7BetId,
+          },
+          teamWinBet: {
+            ...s.teamWinBetId,
+          },
+
+          playerMatchupBets: s.playerMatchupBets.map((bet) => ({
+            ...bet,
+          })),
+        };
+      });
+
+      return bettingData;
+    } catch (error) {
+      this.logger.error(`Failed to get all bets for all series "${error}".`);
+      throw new InternalServerErrorException(
+        `Failed to get all bets for all series`,
+      );
+    }
   }
 }

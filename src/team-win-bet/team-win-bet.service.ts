@@ -46,7 +46,12 @@ export class TeamWinBetService {
     id: string,
     bestOf7Bet?: BestOf7Bet,
   ): Promise<TeamWinBet> {
+    let isResultChange = false;
     const bet = await this.getTeamWinBetById(id);
+    if (bet.result != updateResultDto.result) {
+      console.log('is result change tam win');
+      isResultChange = true;
+    }
     bet.result = updateResultDto.result;
 
     try {
@@ -61,13 +66,23 @@ export class TeamWinBetService {
               users.push(g.createdBy);
             }
           });
-          if (guess.guess === savedBet.result) {
-            await this.usersService.updateFantasyPoints(
-              guess.createdBy,
-              users.find((user) => user.id === guess.createdById)
-                ? savedBet.fantasyPoints + bestOf7Bet.fantasyPoints
-                : savedBet.fantasyPoints,
-            );
+          if (isResultChange) {
+            if (guess.guess === savedBet.result) {
+              await this.usersService.updateFantasyPoints(
+                guess.createdBy,
+                users.find((user) => user.id === guess.createdById)
+                  ? savedBet.fantasyPoints + bestOf7Bet.fantasyPoints // if the user guessed right the best of 7 bet and the team who won.
+                  : savedBet.fantasyPoints,
+              );
+            } else {
+              
+              await this.usersService.updateFantasyPoints(
+                guess.createdBy,
+                users.find((user) => user.id === guess.createdById)
+                  ? -(savedBet.fantasyPoints + bestOf7Bet.fantasyPoints) // if the user guessed right the best of 7 bet and the team who won.
+                  : -savedBet.fantasyPoints,
+              );
+            }
           }
         }),
       );

@@ -1,5 +1,6 @@
 import {
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
   UnauthorizedException,
@@ -16,6 +17,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ConfigService } from '@nestjs/config';
 import { Role } from './user-role.enum';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
+import { classToPlain, instanceToPlain } from 'class-transformer';
 
 @Injectable()
 export class AuthService {
@@ -136,7 +138,9 @@ export class AuthService {
     try {
       user.fantasyPoints = user.fantasyPoints + points;
       await this.usersRepository.save(user);
-      this.logger.verbose(`User: ${user.username} points were updated.`);
+      this.logger.verbose(
+        `User: ${user.username} points were updated. added (${points})`,
+      );
     } catch (error) {
       this.logger.error(
         `Failed to update fantasy points to user:${user.username}`,
@@ -145,17 +149,36 @@ export class AuthService {
       throw error;
     }
   }
+
+  /// Unfinished function, need to see if neccessary
   async checkIfGuessedForChampions(
     stage: PlayoffsStage,
     user: User,
   ): Promise<boolean> {
     try {
       const foundUser = await this.usersRepository.getChampionsGuesses(user.id);
-      console.log(foundUser)
-      
+      console.log(foundUser);
+
       return true;
     } catch (error) {
-      this.logger.error(error)
+      this.logger.error(error);
+    }
+  }
+  async getUserGuesses(user: User): Promise<User> {
+    try {
+      const foundUser = await this.usersRepository.findOne({
+        where: { id: user.id },
+        relations: ['bestOf7Guesses', 'teamWinGuesses', 'playerMatchupGuesses'],
+      });
+      return foundUser;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get guesses of user:${user.username}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to get guesses of user:${user.username}`,
+      );
     }
   }
 }

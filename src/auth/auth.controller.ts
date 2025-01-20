@@ -106,4 +106,12 @@ export class AuthController {
     );
     return isGuess;
   }
+  @Get('/getUserGuesses')
+  @UseGuards(JwtAuthGuard)
+  async getUserGuesses(@GetUser() user: User): Promise<User> {
+    this.logger.verbose(
+      `User: ${user.username} is attempting get all guesses.`,
+    );
+    return await this.authService.getUserGuesses(user);
+  }
 }

@@ -241,6 +241,7 @@ export class ChampionsGuessService {
     conferenceFinalResult: string[],
     guesses: ConferenceFinalGuess[],
   ): Promise<void> {
+    let fantasyPoints = 0;
     await Promise.all(
       guesses.map(async (guess) => {
         if (
@@ -249,11 +250,19 @@ export class ChampionsGuessService {
           (guess.team2 === conferenceFinalResult[0] &&
             guess.team1 === conferenceFinalResult[1])
         ) {
-          await this.usersService.updateFantasyPoints(
-            guess.createdBy,
-            guess.fantasyPoints,
-          );
+          fantasyPoints = guess.conference === Conference.FINALS ? 12 : 10;
+        } else if (
+          guess.team1 === conferenceFinalResult[0] ||
+          guess.team1 === conferenceFinalResult[1] ||
+          guess.team2 === conferenceFinalResult[0] ||
+          guess.team2 === conferenceFinalResult[1]
+        ) {
+          fantasyPoints = guess.conference === Conference.FINALS ? 5 : 4;
         }
+        await this.usersService.updateFantasyPoints(
+          guess.createdBy,
+          fantasyPoints,
+        );
       }),
     );
   }
