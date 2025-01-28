@@ -14,6 +14,7 @@ import { SeriesService } from 'src/series/series.service';
 import { AuthService } from 'src/auth/auth.service';
 import { UpdateGameDto } from '../series/dto/update-game.dto';
 import { User } from 'src/auth/user.entity';
+import { BestOf7GuessService } from 'src/best-of7-guess/best-of7-guess.service';
 
 @Injectable()
 export class BestOf7BetService {
@@ -23,6 +24,8 @@ export class BestOf7BetService {
     @Inject(forwardRef(() => SeriesService))
     private seriesService: SeriesService,
     private usersService: AuthService,
+    @Inject(forwardRef(() => BestOf7GuessService))
+    private bestOf7GuessService: BestOf7GuessService,
   ) {}
 
   async createBestOf7Bet(
@@ -54,10 +57,17 @@ export class BestOf7BetService {
   }
 
   async deleteBestOf7Bet(id: string): Promise<void> {
-    const found = await this.getBestOf7betById(id);
     try {
+      const found = await this.getBestOf7betById(id);
+      await Promise.all(
+        found.guesses.map(async (guess) => {
+          await this.bestOf7GuessService.deleteGuess(guess.id);
+        }),
+      );
       await this.bestOf7BetRepository.delete(found.id);
-      this.logger.verbose(`Bet with ID "${id}" successfully deleted.`);
+      this.logger.verbose(
+        `best of 7 Bet with ID "${id}" successfully deleted.`,
+      );
     } catch (error) {
       this.logger.error(`Failed to delete bet with ID: "${id}".`, error.stack);
       throw error;

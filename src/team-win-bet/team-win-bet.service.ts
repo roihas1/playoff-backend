@@ -1,4 +1,10 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { TeamWinBetRepository } from './team-win-bet.repository';
 import { CreateTeamWinBetDto } from './dto/create-team-win-bet.dto';
 import { TeamWinBet } from './team-win-bet.entity';
@@ -7,6 +13,7 @@ import { UpdateFantasyPointsDto } from 'src/best-of7-bet/dto/update-fantasy-poin
 import { AuthService } from 'src/auth/auth.service';
 import { BestOf7Bet } from 'src/best-of7-bet/bestOf7.entity';
 import { User } from 'src/auth/user.entity';
+import { TeamWinGuessService } from 'src/team-win-guess/team-win-guess.service';
 
 @Injectable()
 export class TeamWinBetService {
@@ -14,6 +21,8 @@ export class TeamWinBetService {
   constructor(
     private teamWinBetRepository: TeamWinBetRepository,
     private usersService: AuthService,
+    @Inject(forwardRef(() => TeamWinGuessService))
+    private teamWinGuessSerive: TeamWinGuessService,
   ) {}
 
   async createTeamWinBet(
@@ -40,6 +49,24 @@ export class TeamWinBetService {
       );
     }
     return found;
+  }
+  async deleteBet(id: string): Promise<void> {
+    try {
+      const bet = await this.teamWinBetRepository.findOne({ where: { id } });
+      await Promise.all(
+        bet.guesses.map(async (guess) => {
+          await this.teamWinGuessSerive.deleteGuess(guess.id);
+        }),
+      );
+      await this.teamWinBetRepository.delete(bet.id);
+      this.logger.verbose(`Team win Bet with ID "${id}" successfully deleted.`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to delete team win bet with ID: "${id}".`,
+        error.stack,
+      );
+      throw error;
+    }
   }
   async updateResult(
     updateResultDto: UpdateResultDto,
@@ -75,7 +102,6 @@ export class TeamWinBetService {
                   : savedBet.fantasyPoints,
               );
             } else {
-              
               await this.usersService.updateFantasyPoints(
                 guess.createdBy,
                 users.find((user) => user.id === guess.createdById)

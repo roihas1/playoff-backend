@@ -6,6 +6,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -20,6 +21,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { Role } from './user-role.enum';
 import { LogoutCredentialsDto } from './dto/logout-credentials.dto';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
+import { GoogleAuthGuard } from './google-auth/google-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -27,7 +29,7 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('signup')
-  async signUp(@Body() authCredentialsDto: AuthCredentialsDto): Promise<void> {
+  async signUp(@Body() authCredentialsDto: AuthCredentialsDto): Promise<User> {
     this.logger.verbose(
       `User sign-up attempt with username: ${authCredentialsDto.username}`,
     );
@@ -53,6 +55,7 @@ export class AuthController {
     this.logger.verbose(
       `User loging out attempt with username: "${credentials.username}".`,
     );
+    
     return await this.authService.logout(credentials.username);
   }
   @Patch()
@@ -114,4 +117,17 @@ export class AuthController {
     );
     return await this.authService.getUserGuesses(user);
   }
+  
+  @Get('/google/login')
+  @UseGuards(GoogleAuthGuard)
+  googleLogin(){
+
+  }
+  @Get('/google-callback')
+  @UseGuards(GoogleAuthGuard)
+  async googleCallback(@Req() req){
+    console.log(req)
+
+  }
+
 }

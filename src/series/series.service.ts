@@ -73,7 +73,9 @@ export class SeriesService {
         seriesId: newSeries.id,
         fantasyPoints: 4,
       });
-      return newSeries;
+      return await this.seriesRepository.findOne({
+        where: { id: newSeries.id },
+      });
     } catch (error) {
       this.logger.error(`Failed to create new Series `);
       throw new InternalServerErrorException(`Failed to create new Series`);
@@ -102,11 +104,14 @@ export class SeriesService {
 
   async deleteSeries(id: string): Promise<void> {
     try {
+      const series = await this.getSeriesByID(id);
+      await this.bestOf7BetService.deleteBestOf7Bet(series.bestOf7BetId.id);
+      await this.teamWinBetService.deleteBet(series.teamWinBetId.id);
       await this.seriesRepository.delete(id);
       this.logger.verbose(`Series with ID: ${id} deleted succesfully.`);
       return;
     } catch (error) {
-      this.logger.error(`Series with ID: ${id} did not delete.`);
+      this.logger.error(`Series with ID: ${id} did not delete.${error.stack}`);
       throw new InternalServerErrorException(
         `Series with ID: ${id} was not deleted.`,
       );

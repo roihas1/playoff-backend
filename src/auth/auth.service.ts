@@ -28,12 +28,13 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  async signUp(authCredentialsDto: AuthCredentialsDto): Promise<void> {
+  async signUp(authCredentialsDto: AuthCredentialsDto): Promise<User> {
     try {
-      await this.usersRepository.createUser(authCredentialsDto);
+      const user = await this.usersRepository.createUser(authCredentialsDto);
       this.logger.verbose(
         `User "${authCredentialsDto.username}" signed up successfully.`,
       );
+      return user;
     } catch (error) {
       this.logger.error(
         `Failed to sign up user "${authCredentialsDto.username}".`,
@@ -180,5 +181,12 @@ export class AuthService {
         `Failed to get guesses of user:${user.username}`,
       );
     }
+  }
+  async validateGoogleUser(googleUser: AuthCredentialsDto): Promise<User> {
+    const user = await this.usersRepository.findOne({
+      where: { email: googleUser.email },
+    });
+    if (user) return user;
+    return await this.signUp(googleUser);
   }
 }

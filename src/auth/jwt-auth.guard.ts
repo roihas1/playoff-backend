@@ -13,8 +13,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
         throw new UnauthorizedException('Unauthorized access');
       }
     }
-
-    // Return the user if authenticated successfully
     return user;
   }
 }

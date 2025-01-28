@@ -14,7 +14,7 @@ export class UnauthorizedExceptionFilter implements ExceptionFilter {
       .status(401) // Set status code to 401
       .json({
         statusCode: 401,
-        message: 'Unauthorized access',
+        message: exception.message,
         error: exception.message,
       });
   }

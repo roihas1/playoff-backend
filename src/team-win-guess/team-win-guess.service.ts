@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { TeamWinGuess } from './team-win-guess.entity';
 import { TeamWinBetService } from 'src/team-win-bet/team-win-bet.service';
 import { TeamWinGuessRepository } from './team-win-guess.repository';
@@ -79,6 +84,21 @@ export class TeamWinGuessService {
         error.stack,
       );
       throw error;
+    }
+  }
+  async deleteGuess(id: string): Promise<void> {
+    try {
+      const found = await this.teamWinGuessRepository.findOne({
+        where: { id },
+      });
+      await this.teamWinGuessRepository.delete(found);
+      this.logger.verbose(`TeamWinGuess with ID: ${id} deleted succesfully.`);
+      return;
+    } catch (error) {
+      this.logger.error(`TeamWinGuess with ID: ${id} did not delete.`);
+      throw new InternalServerErrorException(
+        `TeamWinGuess with ID: ${id} did not delete.`,
+      );
     }
   }
 }

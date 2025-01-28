@@ -30,7 +30,7 @@ export class AuthCredentialsDto {
 
   @IsOptional()
   @IsEnum(Role)
-  role: Role;
+  role?: Role;
 
   @IsString()
   @IsEmail({}, { message: 'Invalid email address' })
