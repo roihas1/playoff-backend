@@ -80,7 +80,9 @@ export class TeamWinBetService {
       isResultChange = true;
     }
     bet.result = updateResultDto.result;
-
+    console.log(updateResultDto.result);
+    console.log(isResultChange);
+    console.log(bet.fantasyPoints);
     try {
       const savedBet = await this.teamWinBetRepository.save(bet);
 
@@ -94,6 +96,7 @@ export class TeamWinBetService {
             }
           });
           if (isResultChange) {
+            console.log(users);
             if (guess.guess === savedBet.result) {
               await this.usersService.updateFantasyPoints(
                 guess.createdBy,

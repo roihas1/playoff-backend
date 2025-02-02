@@ -30,6 +30,12 @@ export class Series {
     enum: Conference,
   })
   conference: Conference;
+  @Column({
+    type: 'timestamptz',
+    nullable: true,
+    default: () => "CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jerusalem'",
+  })
+  lastUpdate: Date;
 
   @Column({
     type: 'enum',
@@ -39,6 +45,8 @@ export class Series {
 
   @Column({ type: 'date' })
   dateOfStart: Date;
+  @Column({ type: 'time', nullable: true })
+  timeOfStart: string;
 
   @OneToOne(() => BestOf7Bet, (bestOf7Bet) => bestOf7Bet.series, {
     eager: true,

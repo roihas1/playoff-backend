@@ -20,7 +20,7 @@ export class AuthCredentialsDto {
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[\d!@#$%^&*()]).{8,}$/, {
     message: 'password is too weak!',
   })
-  password: string;
+  password?: string;
 
   @IsString()
   firstName: string;
@@ -35,4 +35,6 @@ export class AuthCredentialsDto {
   @IsString()
   @IsEmail({}, { message: 'Invalid email address' })
   email: string;
+  @IsString()
+  googleId?: string;
 }

@@ -7,6 +7,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -55,7 +56,7 @@ export class AuthController {
     this.logger.verbose(
       `User loging out attempt with username: "${credentials.username}".`,
     );
-    
+
     return await this.authService.logout(credentials.username);
   }
   @Patch()
@@ -117,17 +118,20 @@ export class AuthController {
     );
     return await this.authService.getUserGuesses(user);
   }
-  
+
   @Get('/google/login')
   @UseGuards(GoogleAuthGuard)
-  googleLogin(){
+  googleLogin() {}
 
-  }
   @Get('/google-callback')
   @UseGuards(GoogleAuthGuard)
-  async googleCallback(@Req() req){
-    console.log(req)
-
+  async googleCallback(@Req() req, @Res() res) {
+    console.log(req.user);
+    const response = await this.authService.loginWithGoogleOauth(
+      req.user.googleId,
+    );
+    res.redirect(
+      `http://localhost:5173/redirect?token=${response.accessToken}&username=${response.username}&tokenExpiry=${response.expiresIn}&userRole=${response.userRole}`,
+    );
   }
-
 }

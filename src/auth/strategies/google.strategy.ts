@@ -5,7 +5,7 @@ import googleOauthConfig from '../google-oauth.config';
 import { ConfigType } from '@nestjs/config';
 import { VerifiedCallback } from 'passport-jwt';
 import { AuthService } from '../auth.service';
-
+import { google } from 'googleapis';
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -17,7 +17,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy) {
       clientID: googleConfiguration.clientID,
       clientSecret: googleConfiguration.clientSecret,
       callbackURL: googleConfiguration.callbackURL,
-      scope: ['profile'],
+      scope: ['email', 'profile'],
     });
   }
 
@@ -27,13 +27,14 @@ export class GoogleStrategy extends PassportStrategy(Strategy) {
     profile: any,
     done: VerifiedCallback,
   ) {
-    console.log({ profile });
+    console.log(profile)
     const user = await this.authService.validateGoogleUser({
       email: profile.emails[0].value,
       firstName: profile.name.givenName,
       lastName: profile.name.familyName,
       password: '',
       username: profile.displayName.replace(' ', '_'),
+      googleId: profile.id,
     });
     done(null, user);
   }

@@ -43,10 +43,15 @@ export class PlayoffsStageService {
       return await this.playoffsStageRepo.createPlayoffsStage(
         createPlayoffsStageDto.name,
         createPlayoffsStageDto.startDate,
+        createPlayoffsStageDto.timeOfStart,
       );
     }
     if (createPlayoffsStageDto.startDate) {
       found.startDate = new Date(createPlayoffsStageDto.startDate);
+      await this.playoffsStageRepo.save(found);
+    }
+    if (createPlayoffsStageDto.startDate) {
+      found.timeOfStart = createPlayoffsStageDto.timeOfStart;
       await this.playoffsStageRepo.save(found);
     }
 

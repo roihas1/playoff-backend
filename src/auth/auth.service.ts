@@ -43,6 +43,33 @@ export class AuthService {
       throw error;
     }
   }
+  async loginWithGoogleOauth(googleId: string): Promise<{
+    accessToken: string;
+    expiresIn: number;
+    userRole: Role;
+    username: string;
+  }> {
+    try {
+      const user = await this.usersRepository.findOne({ where: { googleId } });
+      if (!user) {
+        this.logger.error(`User with google id"${googleId}" not found.`);
+        throw new NotFoundException(
+          `User with google id"${googleId}" not found.`,
+        );
+      }
+      user.isActive = true;
+      await this.usersRepository.save(user);
+      const username = user.username;
+      const payload: JwtPayload = { username };
+      const expiresIn = this.configService.get<number>('EXPIRE_IN') || 3600;
+      const accessToken = this.jwtService.sign(payload);
+
+      this.logger.verbose(
+        `User "${username}" signed in successfully and access token generated.`,
+      );
+      return { accessToken, expiresIn, userRole: user.role, username };
+    } catch (error) {}
+  }
   async signIn(authCredentialsDto: LoginDto): Promise<{
     accessToken: string;
     expiresIn: number;
@@ -184,7 +211,7 @@ export class AuthService {
   }
   async validateGoogleUser(googleUser: AuthCredentialsDto): Promise<User> {
     const user = await this.usersRepository.findOne({
-      where: { email: googleUser.email },
+      where: { googleId: googleUser.googleId },
     });
     if (user) return user;
     return await this.signUp(googleUser);

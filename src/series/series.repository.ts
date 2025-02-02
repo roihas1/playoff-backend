@@ -52,6 +52,7 @@ export class SeriesRepository extends Repository<Series> {
       round,
       conference: coast,
       dateOfStart,
+      timeOfStart,
     } = createSeriesDto;
     const series = this.create({
       team1,
@@ -61,6 +62,10 @@ export class SeriesRepository extends Repository<Series> {
       round,
       conference: coast,
       dateOfStart,
+      timeOfStart,
+      lastUpdate: new Date().toLocaleString('en-US', {
+        timeZone: 'Asia/Jerusalem',
+      }),
     });
 
     try {

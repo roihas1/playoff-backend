@@ -16,7 +16,7 @@ export class User {
   @Column({ unique: true })
   username: string;
 
-  @Column()
+  @Column({ nullable: true })
   @Exclude()
   password: string;
 
@@ -36,8 +36,11 @@ export class User {
   @Column()
   lastName: string;
 
-  @Column()
+  @Column({ unique: true })
   email: string;
+
+  @Column({ nullable: true })
+  googleId: string;
 
   @Column({ default: false })
   isActive: boolean;

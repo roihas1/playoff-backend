@@ -1,4 +1,4 @@
-import { IsDateString, IsEnum, IsOptional } from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
 import { PlayoffsStage } from '../playoffs-stage.enum';
 
 export class CreatePlayoffsStageDto {
@@ -8,4 +8,6 @@ export class CreatePlayoffsStageDto {
   @IsDateString()
   @IsOptional()
   startDate?: string;
+  @IsString()
+  timeOfStart?: string;
 }

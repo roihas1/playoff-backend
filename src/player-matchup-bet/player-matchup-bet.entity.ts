@@ -44,13 +44,16 @@ export class PlayerMatchupBet {
   @Column()
   player2: string;
 
-  @Column()
-  differential: number; // for player 1
+  @Column('float', { default: 0 })
+  differential: number; // for player 2
 
   @Column({ nullable: true })
   result: number;
   @Column('int', { array: true, nullable: true, default: [0, 0] })
-  currentStats: number[];
+  currentStats: number[]; // the overall stats for each player
+
+  @Column('int', { array: true, nullable: true, default: [0, 0] })
+  playerGames: number[]; // count the number of games a player played according to number of updates
 
   @OneToMany(
     () => PlayerMatchupGuess,

@@ -18,10 +18,12 @@ export class PlayoffsStageRepository extends Repository<PlayoffStage> {
   async createPlayoffsStage(
     name: string,
     startDate: string,
+    timeOfStart: string,
   ): Promise<PlayoffStage> {
     const stage = this.create({
       name,
       startDate,
+      timeOfStart,
     });
     try {
       const savedStage = this.save(stage);

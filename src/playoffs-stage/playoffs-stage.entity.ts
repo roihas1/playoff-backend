@@ -19,7 +19,10 @@ export class PlayoffStage {
   name: string; // e.g., 'Before Playoffs', 'Round 1', 'Round 2'
 
   @Column({ type: 'date', nullable: true })
-  startDate: Date; // Start date for the round
+  startDate: Date;
+
+  @Column({ type: 'time', nullable: true })
+  timeOfStart: string;
 
   @OneToMany(() => ConferenceFinalGuess, (guess) => guess.stage)
   conferenceFinalGuesses: ConferenceFinalGuess[];

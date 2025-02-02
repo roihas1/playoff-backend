@@ -19,4 +19,6 @@ export class CreateSeriesDto {
   conference: Conference;
   @IsDateString()
   dateOfStart: string;
+  @IsString()
+  timeOfStart: string;
 }

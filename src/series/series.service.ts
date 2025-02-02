@@ -28,6 +28,7 @@ import { PlayerMatchupBet } from 'src/player-matchup-bet/player-matchup-bet.enti
 import { TeamWinBet } from 'src/team-win-bet/team-win-bet.entity';
 import { Conference } from './conference.enum';
 import { Round } from './round.enum';
+import { UpdateSeriesTimeDto } from './dto/update-series-time.dto';
 
 @Injectable()
 export class SeriesService {
@@ -71,7 +72,7 @@ export class SeriesService {
       });
       await this.teamWinBetService.createTeamWinBet({
         seriesId: newSeries.id,
-        fantasyPoints: 4,
+        fantasyPoints: 6,
       });
       return await this.seriesRepository.findOne({
         where: { id: newSeries.id },
@@ -318,6 +319,7 @@ export class SeriesService {
   async closeAllBetsInSeries(seriesId: string, user: User): Promise<void> {
     try {
       const series = await this.getSeriesByID(seriesId);
+      series.lastUpdate = new Date();
       const bestOf7Bet = await this.bestOf7BetService.updateResultForSeries(
         series.bestOf7BetId.id,
       );
@@ -337,6 +339,7 @@ export class SeriesService {
           await this.playerMatcupBetService.updateResultForSeries(matchup);
         }),
       );
+      await this.seriesRepository.save(series);
     } catch (error) {
       this.logger.error(
         `User: ${user.username} faild to close all bets results to series: ${seriesId}`,
@@ -504,6 +507,66 @@ export class SeriesService {
       this.logger.error(`Failed to get all bets for all series "${error}".`);
       throw new InternalServerErrorException(
         `Failed to get all bets for all series`,
+      );
+    }
+  }
+  async updateSeriesTime(
+    seriesId: string,
+    updateSeriesTimeDto: UpdateSeriesTimeDto,
+  ): Promise<void> {
+    try {
+      const series = await this.getSeriesByID(seriesId);
+      if (updateSeriesTimeDto.dateOfStart) {
+        series.dateOfStart = new Date(updateSeriesTimeDto.dateOfStart);
+      }
+      if (updateSeriesTimeDto.timeOfStart) {
+        series.timeOfStart = updateSeriesTimeDto.timeOfStart;
+      }
+      await this.seriesRepository.save(series);
+    } catch (error) {
+      this.logger.error(`Failed to update series time. "${error}".`);
+      throw new InternalServerErrorException(`Failed to update series time.`);
+    }
+  }
+  private calculatePercentage(guesses, value: number): number {
+    const totalGuesses = guesses.length;
+    const guessCount = guesses.filter((guess) => guess.guess === value).length;
+    const percentage = (guessCount / totalGuesses) * 100;
+    return percentage;
+  }
+
+  async getGuessesPercentage(seriesId: string): Promise<{
+    teamWin: { 1: number; 2: number };
+    playerMatchup: { [key: string]: { 1: number; 2: number } };
+  }> {
+    try {
+      const res: {
+        teamWin: { 1: number; 2: number };
+        playerMatchup: { [key: string]: { 1: number; 2: number } };
+      } = { teamWin: { 1: 0, 2: 0 }, playerMatchup: {} };
+      const series = await this.getSeriesByID(seriesId);
+      const teamWin1Precentage = this.calculatePercentage(
+        series.teamWinBetId.guesses,
+        1,
+      );
+      const teamWin2Percentage = this.calculatePercentage(
+        series.teamWinBetId.guesses,
+        2,
+      );
+      res['teamWin'] = { 1: teamWin1Precentage, 2: teamWin2Percentage };
+      const playerMatchup = {};
+      series.playerMatchupBets.map((bet) => {
+        const value1 = this.calculatePercentage(bet.guesses, 1);
+        const value2 = this.calculatePercentage(bet.guesses, 2);
+        playerMatchup[bet.id] = { 1: value1, 2: value2 };
+      });
+      res['playerMatchup'] = playerMatchup;
+
+      return res;
+    } catch (error) {
+      this.logger.error(`Failed to get guesses percentage. "${error}".`);
+      throw new InternalServerErrorException(
+        `Failed to get guesses percentage.`,
       );
     }
   }

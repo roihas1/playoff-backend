@@ -117,17 +117,33 @@ export class PlayerMatchupBetService {
     id: string,
   ): Promise<PlayerMatchupBet> {
     const bet = await this.getPlayerMatchupBetById(id);
+    if (updateFieldsDto.currentStats) {
+      console.log(updateFieldsDto.currentStats);
+      // update the number of games for each player by the updates for his stats.
+      bet.playerGames[0] +=
+        updateFieldsDto.currentStats[0] > bet.currentStats[0]
+          ? 1
+          : updateFieldsDto.currentStats[0] === bet.currentStats[0]
+            ? 0
+            : -1;
+      bet.playerGames[1] +=
+        updateFieldsDto.currentStats[1] > bet.currentStats[1]
+          ? 1
+          : updateFieldsDto.currentStats[1] === bet.currentStats[1]
+            ? 0
+            : -1;
+    }
     Object.assign(bet, updateFieldsDto);
 
     try {
       const savedBet = await this.playerMatcupBetRepository.save(bet);
       this.logger.verbose(
-        `Bet with ID "${id}" successfully updated the fields.`,
+        `PlayerMatchupBet with ID "${id}" successfully updated the fields.`,
       );
       return savedBet;
     } catch (error) {
       this.logger.error(
-        `Failed to update bet fields with ID: "${id}".`,
+        `Failed to update PlayerMatchupBet fields with ID: "${id}".`,
         error.stack,
       );
       throw error;

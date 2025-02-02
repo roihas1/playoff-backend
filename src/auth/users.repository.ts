@@ -14,18 +14,27 @@ export class UsersRepository extends Repository<User> {
     super(User, dataSource.createEntityManager());
   }
   async createUser(authCredentialsDto: AuthCredentialsDto): Promise<User> {
-    const { username, password, role, firstName, lastName, email } =
+    const { username, password, role, firstName, lastName, email, googleId } =
       authCredentialsDto;
 
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
+    let uniqueUsername = username;
+    let counter = 1;
+
+    // Check if username already exists, if it does, append a number
+    while (await this.findOne({ where: { username: uniqueUsername } })) {
+      uniqueUsername = `${username}_${counter}`;
+      counter++;
+    }
     const user = this.create({
-      username,
+      username: uniqueUsername,
       password: hashedPassword,
       role: role,
       firstName: firstName,
       lastName: lastName,
       email,
+      googleId,
     });
     try {
       return await this.save(user);
@@ -38,7 +47,6 @@ export class UsersRepository extends Repository<User> {
     }
   }
   async getChampionsGuesses(id: string): Promise<any> {
-    
     const query = this.createQueryBuilder('user')
       .leftJoinAndSelect(
         'user.conferenceFinalGuesses',
@@ -50,7 +58,7 @@ export class UsersRepository extends Repository<User> {
       .leftJoinAndSelect('championTeamGuesses.stage', 'playoffsStage2')
       .leftJoinAndSelect('mvpGuesses.stage', 'playoffsStage3') // Join and select related data
       .where('user.id = :id', { id });
-      
+
     const res = await query.getOne();
     return res;
   }
