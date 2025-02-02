@@ -30,6 +30,9 @@ import { PlayerMatchupBet } from 'src/player-matchup-bet/player-matchup-bet.enti
 import { Conference } from './conference.enum';
 import { Round } from './round.enum';
 import { UpdateSeriesTimeDto } from './dto/update-series-time.dto';
+import { Roles } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Role } from 'src/auth/user-role.enum';
 
 @Controller('series')
 @UseGuards(JwtAuthGuard)
@@ -49,6 +52,8 @@ export class SeriesController {
   }
 
   @Post()
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async createSeries(
     @Body() createSeriesDto: CreateSeriesDto,
     @GetUser() user: User,
@@ -81,6 +86,8 @@ export class SeriesController {
   }
 
   @Delete('/:id')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async deleteSeries(
     @Param('id') id: string,
     @GetUser() user: User,
@@ -129,6 +136,8 @@ export class SeriesController {
     return guesses;
   }
   @Patch('/:seriesId/updateResult')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateResultTeamGames(
     @Param('seriesId') seriesId: string,
     @Body() updateResultTeamGamesDto: UpdateResultTeamGamesDto,
@@ -144,6 +153,8 @@ export class SeriesController {
     );
   }
   @Patch('/:seriesId/updateGame')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateGameResult(
     @Param('seriesId') id: string,
     @Body() updateGame: UpdateGameDto,
@@ -156,6 +167,8 @@ export class SeriesController {
   }
 
   @Patch('/:seriesId/closeBets')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async closeAllBetsInSeries(
     @Param('seriesId') seriesId: string,
     @GetUser() user: User,
@@ -212,6 +225,8 @@ export class SeriesController {
     return await this.seriesServie.getAllBets();
   }
   @Patch('/:seriesId/updateTime')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateSeriesTime(
     @Param('seriesId') seriesId: string,
     @GetUser() user: User,

@@ -15,6 +15,9 @@ import { User } from '../auth/user.entity';
 import { GetUser } from '../auth/get-user.decorator';
 import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFantasyPointsDto } from 'src/best-of7-bet/dto/update-fantasy-points.dto';
+import { Roles } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Role } from 'src/auth/user-role.enum';
 
 @Controller('team-win-bet')
 @UseGuards(AuthGuard())
@@ -23,6 +26,8 @@ export class TeamWinBetController {
   constructor(private teamWinBetService: TeamWinBetService) {}
 
   @Post()
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async createTeamWinBet(
     @Body() createTeamWinBetDto: CreateTeamWinBetDto,
     @GetUser() user: User,
@@ -33,6 +38,8 @@ export class TeamWinBetController {
     return await this.teamWinBetService.createTeamWinBet(createTeamWinBetDto);
   }
   @Patch('/:id/result')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateResult(
     @Param('id') id: string,
     @Body() updateResultDto: UpdateResultDto,
@@ -44,6 +51,8 @@ export class TeamWinBetController {
     return await this.teamWinBetService.updateResult(updateResultDto, id);
   }
   @Patch('/:id/updateFSP')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateFantasyPoints(
     @Param('id') id: string,
     @Body() updateFantasyPointsDto: UpdateFantasyPointsDto,

@@ -16,6 +16,9 @@ import { User } from 'src/auth/user.entity';
 import { PlayerMatchupBet } from './player-matchup-bet.entity';
 import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFieldsDto } from './dto/update-fields.dto';
+import { Roles } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Role } from 'src/auth/user-role.enum';
 
 @Controller('player-matchup-bet')
 @UseGuards(AuthGuard())
@@ -26,6 +29,8 @@ export class PlayerMatchupBetController {
   constructor(private playerMatchupBetService: PlayerMatchupBetService) {}
 
   @Post()
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async createPlayerMatchupBet(
     @Body() createPlayerMatchupBetDto: CreatePlayerMatchupBetDto,
     @GetUser() user: User,
@@ -38,6 +43,8 @@ export class PlayerMatchupBetController {
     );
   }
   @Delete('/:id/delete')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async deleteBet(
     @Param('id') id: string,
     @GetUser() user: User,
@@ -49,6 +56,8 @@ export class PlayerMatchupBetController {
   }
 
   @Patch('/:id/result')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateResult(
     @Param('id') id: string,
     @Body() updateResultDto: UpdateResultDto,
@@ -61,6 +70,8 @@ export class PlayerMatchupBetController {
   }
 
   @Patch('/:id/update')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateFields(
     @Body() updateFieldsDto: UpdateFieldsDto,
     @Param('id') id: string,

@@ -20,6 +20,9 @@ import { CloseGuessesDto } from './dto/close-guesses.dto';
 import { ChampionTeamGuess } from 'src/champions-guess/entities/champion-team-guess.entity';
 import { ConferenceFinalGuess } from 'src/champions-guess/entities/conference-final-guess.entity';
 import { MVPGuess } from 'src/champions-guess/entities/mvp-guess.entity';
+import { Roles } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Role } from 'src/auth/user-role.enum';
 export interface PriorGuesses {
   conferenceFinalGuesses: {
     id: string;
@@ -62,6 +65,8 @@ export class PlayoffsStageController {
     return !check;
   }
   @Post()
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async createPlayoffsStage(
     @Body() createPlayoffsStageDto: CreatePlayoffsStageDto,
     @GetUser() user: User,
@@ -76,6 +81,8 @@ export class PlayoffsStageController {
     );
   }
   @Patch('/closeGuess')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async closeGuesses(
     @Body() closeGuessesDto: CloseGuessesDto,
     @GetUser() user: User,

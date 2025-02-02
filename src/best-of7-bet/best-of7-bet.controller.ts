@@ -18,6 +18,9 @@ import { User } from '../auth/user.entity';
 import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFantasyPointsDto } from './dto/update-fantasy-points.dto';
 import { UpdateGameDto } from '../series/dto/update-game.dto';
+import { Roles } from 'src/auth/roles.decorator';
+import { Role } from 'src/auth/user-role.enum';
+import { RolesGuard } from 'src/auth/roles.guard';
 
 @Controller('best-of7-bet')
 @UseGuards(AuthGuard())
