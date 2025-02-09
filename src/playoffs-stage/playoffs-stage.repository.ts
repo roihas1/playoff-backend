@@ -67,4 +67,21 @@ export class PlayoffsStageRepository extends Repository<PlayoffStage> {
       throw new InternalServerErrorException(`Failed to get all stages`);
     }
   }
+  async getPassedStages(): Promise<string[]> {
+    const query = this.createQueryBuilder('playoff-stage');
+    const date = new Date();
+    const currentDate = date.toISOString().slice(0, 10);
+    const currentTime = date.toTimeString().slice(0, 8);
+    query.where(
+      'playoff-stage.startDate < :currentDate  OR (playoff-stage.startDate <= :currentDate AND playoff-stage.timeOfStart < :currentTime) ',
+      {
+        currentDate,
+        currentTime,
+      },
+    );
+    const stages = await query.getMany();
+    const res = stages.map((stage) => stage.name);
+    console.log(res);
+    return res;
+  }
 }

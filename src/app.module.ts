@@ -29,6 +29,10 @@ import { MVPGuess } from './champions-guess/entities/mvp-guess.entity';
 import { ConferenceFinalGuess } from './champions-guess/entities/conference-final-guess.entity';
 import { ChampionTeamGuess } from './champions-guess/entities/champion-team-guess.entity';
 import { PlayoffStage } from './playoffs-stage/playoffs-stage.entity';
+import { SpontaneousBetModule } from './spontaneous-bet/spontaneous-bet.module';
+import { SpontaneousBet } from './spontaneous-bet/spontaneousBet.entity';
+import { SpontaneousGuessModule } from './spontaneous-guess/spontaneous-guess.module';
+import { SpontaneousGuess } from './spontaneous-guess/spontaneous-guess.entity';
 
 @Module({
   imports: [
@@ -56,6 +60,8 @@ import { PlayoffStage } from './playoffs-stage/playoffs-stage.entity';
             ConferenceFinalGuess,
             ChampionTeamGuess,
             PlayoffStage,
+            SpontaneousBet,
+            SpontaneousGuess,
           ],
           synchronize: true,
           host: configService.get('DB_HOST'),
@@ -76,6 +82,8 @@ import { PlayoffStage } from './playoffs-stage/playoffs-stage.entity';
     AssetsModule,
     ChampionsGuessModule,
     PlayoffsStageModule,
+    SpontaneousBetModule,
+    SpontaneousGuessModule,
   ],
   controllers: [AppController],
   providers: [

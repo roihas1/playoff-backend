@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Conference } from './conference.enum';
 import { Round } from './round.enum';
+import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 
 @Entity()
 export class Series {
@@ -69,4 +70,13 @@ export class Series {
     },
   )
   playerMatchupBets: PlayerMatchupBet[];
+  @OneToMany(
+    () => SpontaneousBet,
+    (spontaneousBet) => spontaneousBet.seriesId,
+    {
+      cascade: true, // Automatically saves related PlayerMatchupBet entities
+      eager: true, // Automatically loads related PlayerMatchupBet entities
+    },
+  )
+  spontaneousBets: SpontaneousBet[];
 }

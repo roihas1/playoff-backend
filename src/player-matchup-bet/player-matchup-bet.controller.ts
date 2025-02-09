@@ -9,7 +9,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { PlayerMatchupBetService } from './player-matchup-bet.service';
-import { AuthGuard } from '@nestjs/passport';
 import { CreatePlayerMatchupBetDto } from './dto/create-player-matchup-bet.dto';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { User } from 'src/auth/user.entity';
@@ -19,9 +18,10 @@ import { UpdateFieldsDto } from './dto/update-fields.dto';
 import { Roles } from 'src/auth/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Role } from 'src/auth/user-role.enum';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 
 @Controller('player-matchup-bet')
-@UseGuards(AuthGuard())
+@UseGuards(JwtAuthGuard)
 export class PlayerMatchupBetController {
   private logger = new Logger('PlayerMatchupBetController', {
     timestamp: true,

@@ -106,7 +106,7 @@ export class PlayoffsStageController {
       `User: ${user.username} attempt to get his champions guesses`,
     );
 
-    return await this.playoffsStageService.getUserGuesses(stage, user);
+    return await this.playoffsStageService.getUserGuesses(stage, user.id);
   }
   @Get('/getGuesses/:stage')
   async getPriorGuesses(
@@ -116,7 +116,27 @@ export class PlayoffsStageController {
     this.logger.verbose(
       `User: ${user.username} attempt to get his prior champions guesses`,
     );
-    console.log(stage);
     return await this.playoffsStageService.getPriorGuesses(stage, user);
+  }
+  @Get('/getUserGuesses/:stage/:userId')
+  async getUserGuessesById(
+    @Param('stage') stage: PlayoffsStage,
+    @Param('userId') userId: string,
+    @GetUser() user: User,
+  ): Promise<{
+    conferenceFinalGuesses: ConferenceFinalGuess[];
+    championTeamGuesses: ChampionTeamGuess[];
+    mvpGuesses: MVPGuess[];
+  }> {
+    this.logger.verbose(
+      `User: ${user.username} attempt to get ${userId} champions guesses`,
+    );
+    return await this.playoffsStageService.getUserGuesses(stage, userId);
+  }
+
+  @Get('/passedStages')
+  async getPassedStages(@GetUser() user: User): Promise<string[]> {
+    this.logger.verbose(`User: ${user.username} attempt to get passed stages.`);
+    return await this.playoffsStageService.getPassedStages();
   }
 }

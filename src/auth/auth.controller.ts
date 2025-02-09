@@ -87,6 +87,30 @@ export class AuthController {
     );
     return await this.authService.getAllUsers();
   }
+
+  @Get('/standings')
+  @UseGuards(JwtAuthGuard)
+  async getPaginatedUsers(
+    @GetUser() user: User,
+    @Query('cursorPoints') cursorPoints?: number,
+    @Query('cursorId') cursorId?: string,
+    @Query('prevCursorPoints') prevCursorPoints?: number,
+    @Query('prevCursorId') prevCursorId?: string,
+    @Query('limit') limit: number = 10,
+  ) {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to get paginated users with limit ${limit} and cursorId: ${cursorId}`,
+    );
+    return await this.authService.getUsersWithCursor(
+      cursorPoints && cursorId
+        ? { points: Number(cursorPoints), id: cursorId }
+        : undefined,
+      prevCursorPoints && prevCursorId
+        ? { points: Number(prevCursorPoints), id: prevCursorId }
+        : undefined,
+      limit,
+    );
+  }
   @Get('/user')
   @UseGuards(JwtAuthGuard)
   async getUser(@GetUser() user: User): Promise<User> {

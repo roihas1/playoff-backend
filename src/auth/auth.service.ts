@@ -17,7 +17,6 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ConfigService } from '@nestjs/config';
 import { Role } from './user-role.enum';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
-import { classToPlain, instanceToPlain } from 'class-transformer';
 
 @Injectable()
 export class AuthService {
@@ -159,6 +158,23 @@ export class AuthService {
       return users;
     } catch (error) {
       this.logger.error(`Failed to get all users.`, error.stack);
+      throw error;
+    }
+  }
+  async getUsersWithCursor(
+    cursor?: { points: number; id: string },
+    prevCursor?: { points: number; id: string },
+    limit: number = 15,
+  ) {
+    try {
+      const response = await this.usersRepository.getUsersWithCursor(
+        limit,
+        cursor,
+        prevCursor,
+      );
+      return response;
+    } catch (error) {
+      this.logger.error(`Failed to get users with cursor.`, error.stack);
       throw error;
     }
   }

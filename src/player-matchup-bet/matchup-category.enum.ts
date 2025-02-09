@@ -9,4 +9,6 @@ export enum MatchupCategory {
   FIELD_GOAL_PERCENTAGE = 'Field Goal Percentage',
   FREE_THROW_PERCENTAGE = 'Free Throw Percentage',
   MINUTES_PLAYED = 'Minutes Played',
+  DOUBLE_DOUBLE = 'Double Double',
+  TRIPLE_DOUBLE = 'Triple Double',
 }

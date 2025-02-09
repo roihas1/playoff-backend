@@ -20,7 +20,8 @@ export class SeriesRepository extends Repository<Series> {
     const { round, coast, team } = filters;
     const query = this.createQueryBuilder('series')
       .leftJoinAndSelect('series.playerMatchupBets', 'playerMatchupBet')
-      .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet');
+      .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
+      .leftJoinAndSelect('series.spontaneousBets', 'spontaneousBet');
     if (round) {
       query.andWhere('series.round = :round', { round });
     }
