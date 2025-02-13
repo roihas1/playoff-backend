@@ -10,6 +10,7 @@ import { PlayerMatchupGuessModule } from 'src/player-matchup-guess/player-matchu
 import { TeamWinBetModule } from 'src/team-win-bet/team-win-bet.module';
 import { BestOf7BetModule } from 'src/best-of7-bet/best-of7-bet.module';
 import { PlayerMatchupBetModule } from 'src/player-matchup-bet/player-matchup-bet.module';
+import { SpontaneousBetModule } from 'src/spontaneous-bet/spontaneous-bet.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { PlayerMatchupBetModule } from 'src/player-matchup-bet/player-matchup-be
     TeamWinBetModule,
     BestOf7BetModule,
     PlayerMatchupBetModule,
+    SpontaneousBetModule,
   ],
   controllers: [SeriesController],
   providers: [SeriesService, SeriesRepository],

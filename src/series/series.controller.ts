@@ -33,6 +33,8 @@ import { UpdateSeriesTimeDto } from './dto/update-series-time.dto';
 import { Roles } from 'src/auth/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Role } from 'src/auth/user-role.enum';
+import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
+import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 
 @Controller('series')
 @UseGuards(JwtAuthGuard)
@@ -217,6 +219,7 @@ export class SeriesController {
       bestOf7Bet: BestOf7Bet;
       teamWinBet: TeamWinBet;
       playerMatchupBets: PlayerMatchupBet[];
+      spontaneousBets: SpontaneousBet[];
     };
   }> {
     this.logger.verbose(
@@ -244,10 +247,22 @@ export class SeriesController {
   ): Promise<{
     teamWin: { 1: number; 2: number };
     playerMatchup: { [key: string]: { 1: number; 2: number } };
+    spontaneousMacthups: { [key: string]: { 1: number; 2: number } };
   }> {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get guesses percentages , id:${seriesId}`,
     );
     return await this.seriesServie.getGuessesPercentage(seriesId);
+  }
+
+  @Get('/:seriesId/getSpontaneousGuesses')
+  async getSpontaneousGuesses(
+    @Param('seriesId') seriesId: string,
+    @GetUser() user: User,
+  ): Promise<SpontaneousGuess[]> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to get spontaneous guesses  , id:${seriesId}`,
+    );
+    return await this.seriesServie.getSpontaneousGuesses(seriesId, user);
   }
 }

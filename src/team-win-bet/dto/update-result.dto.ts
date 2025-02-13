@@ -1,6 +1,7 @@
-import { IsNumber } from 'class-validator';
+import { IsIn, IsNumber } from 'class-validator';
 
 export class UpdateResultDto {
   @IsNumber()
+  @IsIn([1, 2])
   result: number;
 }

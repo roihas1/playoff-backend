@@ -29,6 +29,9 @@ import { TeamWinBet } from 'src/team-win-bet/team-win-bet.entity';
 import { Conference } from './conference.enum';
 import { Round } from './round.enum';
 import { UpdateSeriesTimeDto } from './dto/update-series-time.dto';
+import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
+import { SpontaneousBetService } from 'src/spontaneous-bet/spontaneous-bet.service';
+import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 
 @Injectable()
 export class SeriesService {
@@ -41,6 +44,7 @@ export class SeriesService {
     private teamWinBetService: TeamWinBetService,
     private bestOf7BetService: BestOf7BetService,
     private playerMatcupBetService: PlayerMatchupBetService,
+    private spontaneousBetService: SpontaneousBetService,
   ) {}
 
   async getAllSeries(): Promise<Series[]> {
@@ -206,7 +210,7 @@ export class SeriesService {
           return guess.createdById === user.id;
         }),
       );
-
+      console.log(playerMatchupGuesses);
       const flattenedPlayerMatchupGuesses = playerMatchupGuesses.flat();
       return {
         teamWinGuess: teamWinGuess[0],
@@ -366,11 +370,17 @@ export class SeriesService {
             bet.guesses.filter((guess) => guess.createdById === user.id) || []
           );
         });
-
+        const spontaneousGuesses = element.spontaneousBets.flatMap((bet) => {
+          return (
+            bet.guesses.filter((guess) => guess.createdById === user.id) || []
+          );
+        });
+        console.log(spontaneousGuesses);
         if (
           bestOf7Guess.length > 0 &&
           teamWinGuess.length > 0 &&
-          playerMatchupGuess.length === element.playerMatchupBets.length
+          playerMatchupGuess.length === element.playerMatchupBets.length &&
+          spontaneousGuesses.length === element.spontaneousBets.length
         ) {
           result[element.id] = true;
         } else {
@@ -381,7 +391,7 @@ export class SeriesService {
       return result;
     } catch (error) {
       this.logger.error(
-        `User: ${user.username} faild to check if he guessed all the bettings.`,
+        `User: ${user.username} faild to check if he guessed all the bettings.${error.stack}`,
       );
       throw new InternalServerErrorException(
         `User: ${user.username} faild to check if he guessed all the bettings.`,
@@ -465,6 +475,7 @@ export class SeriesService {
       bestOf7Bet: BestOf7Bet;
       teamWinBet: TeamWinBet;
       playerMatchupBets: PlayerMatchupBet[];
+      spontaneousBets: SpontaneousBet[];
     };
   }> {
     const bettingData: {
@@ -477,6 +488,7 @@ export class SeriesService {
         bestOf7Bet: BestOf7Bet;
         teamWinBet: TeamWinBet;
         playerMatchupBets: PlayerMatchupBet[];
+        spontaneousBets: SpontaneousBet[];
       };
     } = {};
 
@@ -499,6 +511,7 @@ export class SeriesService {
           playerMatchupBets: s.playerMatchupBets.map((bet) => ({
             ...bet,
           })),
+          spontaneousBets: s.spontaneousBets.map((bet) => ({ ...bet })),
         };
       });
 
@@ -529,6 +542,7 @@ export class SeriesService {
     }
   }
   private calculatePercentage(guesses, value: number): number {
+ 
     const totalGuesses = guesses.length;
     const guessCount = guesses.filter((guess) => guess.guess === value).length;
     const percentage = (guessCount / totalGuesses) * 100;
@@ -538,12 +552,18 @@ export class SeriesService {
   async getGuessesPercentage(seriesId: string): Promise<{
     teamWin: { 1: number; 2: number };
     playerMatchup: { [key: string]: { 1: number; 2: number } };
+    spontaneousMacthups: { [key: string]: { 1: number; 2: number } };
   }> {
     try {
       const res: {
         teamWin: { 1: number; 2: number };
         playerMatchup: { [key: string]: { 1: number; 2: number } };
-      } = { teamWin: { 1: 0, 2: 0 }, playerMatchup: {} };
+        spontaneousMacthups: { [key: string]: { 1: number; 2: number } };
+      } = {
+        teamWin: { 1: 0, 2: 0 },
+        playerMatchup: {},
+        spontaneousMacthups: {},
+      };
       const series = await this.getSeriesByID(seriesId);
       const teamWin1Precentage = this.calculatePercentage(
         series.teamWinBetId.guesses,
@@ -561,12 +581,44 @@ export class SeriesService {
         playerMatchup[bet.id] = { 1: value1, 2: value2 };
       });
       res['playerMatchup'] = playerMatchup;
+      const spontaneous = {};
 
+      series.spontaneousBets.map((bet) => {
+        const value1 = this.calculatePercentage(bet.guesses, 1);
+       
+        const value2 = this.calculatePercentage(bet.guesses, 2);
+        spontaneous[bet.id] = { 1: value1, 2: value2 };
+      });
+     
+      res['spontaneousMacthups'] = spontaneous;
       return res;
     } catch (error) {
       this.logger.error(`Failed to get guesses percentage. "${error}".`);
       throw new InternalServerErrorException(
         `Failed to get guesses percentage.`,
+      );
+    }
+  }
+  async getSpontaneousGuesses(
+    seriesId: string,
+    user: User,
+  ): Promise<SpontaneousGuess[]> {
+    try {
+      const series = await this.getSeriesByID(seriesId);
+
+      const spontaneousBets = await Promise.all(
+        series.spontaneousBets.map(async (bet) => {
+          return await this.spontaneousBetService.getBetById(bet.id);
+        }),
+      );
+      const guesses = spontaneousBets.map((bet) =>
+        bet.guesses.filter((guess) => guess.createdBy.id === user.id),
+      );
+      return guesses.flat();
+    } catch (error) {
+      this.logger.error(`Failed to get spontaneous guesses  "${error}".`);
+      throw new InternalServerErrorException(
+        `Failed to get spontaneous guesses.`,
       );
     }
   }

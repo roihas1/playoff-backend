@@ -8,6 +8,7 @@ import { SpontaneousGuess } from './spontaneous-guess.entity';
 import { CreateSpontaneousGuessDto } from './dto/create-spontaneous-guess.dto';
 import { User } from 'src/auth/user.entity';
 import { SpontaneousBetService } from 'src/spontaneous-bet/spontaneous-bet.service';
+import { UpdateSpontaneousGuessesDto } from './dto/update-spontaneous-guess.dto';
 
 @Injectable()
 export class SpontaneousGuessService {
@@ -46,6 +47,31 @@ export class SpontaneousGuessService {
       );
       throw new InternalServerErrorException(
         `Failed to create new spontaneous guess`,
+      );
+    }
+  }
+  async createOrUpdateGuesses(
+    updateGuessesDto: UpdateSpontaneousGuessesDto,
+    user: User,
+  ): Promise<void> {
+    try {
+      const { spontaneousGuesses } = updateGuessesDto;
+      await Promise.all(
+        Array.from(
+          Object.keys(spontaneousGuesses).map(async (key) => {
+            return await this.createSpontaneousGuess(
+              { guess: spontaneousGuesses[key], spontaneousBetId: key },
+              user,
+            );
+          }),
+        ),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to create or update new spontaneous guesses ${error.stack}`,
+      );
+      throw new InternalServerErrorException(
+        `Failed to create or update new spontaneous guesses`,
       );
     }
   }

@@ -118,18 +118,19 @@ export class PlayerMatchupBetService {
   ): Promise<PlayerMatchupBet> {
     const bet = await this.getPlayerMatchupBetById(id);
     if (updateFieldsDto.currentStats) {
+      console.log(updateFieldsDto.currentStats);
       // update the number of games for each player by the updates for his stats.
       bet.playerGames[0] +=
-        updateFieldsDto.currentStats[0] > bet.currentStats[0]
-          ? 1
-          : updateFieldsDto.currentStats[0] === bet.currentStats[0]
-            ? 0
+        updateFieldsDto.currentStats[0] === 100
+          ? 0
+          : updateFieldsDto.currentStats[0] >= bet.currentStats[0]
+            ? 1
             : -1;
       bet.playerGames[1] +=
-        updateFieldsDto.currentStats[1] > bet.currentStats[1]
-          ? 1
-          : updateFieldsDto.currentStats[1] === bet.currentStats[1]
-            ? 0
+        updateFieldsDto.currentStats[1] === 100
+          ? 0
+          : updateFieldsDto.currentStats[1] >= bet.currentStats[1]
+            ? 1
             : -1;
     }
     Object.assign(bet, updateFieldsDto);

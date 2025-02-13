@@ -7,6 +7,7 @@ import {
 import { SpontaneousBetRepo } from './spontaneous-bet.repository';
 import { SpontaneousBet } from './spontaneousBet.entity';
 import { CreateSpontaneousBetDto } from './dto/create-spontaneous-bet.dto';
+import { UpdateBetFieldsDto } from './dto/update-fields.dto';
 
 @Injectable()
 export class SpontaneousBetService {
@@ -55,7 +56,7 @@ export class SpontaneousBetService {
       if (!found) {
         this.logger.error(`SpontaneousBet with ID ${betId} not found.`);
         throw new NotFoundException(
-          `PlayerMatchupBet with ID ${betId} not found.`,
+          `SpontaneousBet with ID ${betId} not found.`,
         );
       }
       return found;
@@ -64,11 +65,29 @@ export class SpontaneousBetService {
       throw new InternalServerErrorException(`Failed to get spontaneous bet.`);
     }
   }
-  async updateBetFields(updateBetFieldsDto, betId): Promise<SpontaneousBet> {
+  async updateBetFields(
+    updateBetFieldsDto: UpdateBetFieldsDto,
+    betId: string,
+  ): Promise<SpontaneousBet> {
     try {
       const bet = await this.spontaneousBetRepo.findOne({
         where: { id: betId },
       });
+      if (updateBetFieldsDto.currentStats) {
+        // update the number of games for each player by the updates for his stats.
+        bet.playerGames[0] +=
+          updateBetFieldsDto.currentStats[0] === 100
+            ? 0
+            : updateBetFieldsDto.currentStats[0] >= bet.currentStats[0]
+              ? 1
+              : -1;
+        bet.playerGames[1] +=
+          updateBetFieldsDto.currentStats[1] === 100
+            ? 0
+            : updateBetFieldsDto.currentStats[1] >= bet.currentStats[1]
+              ? 1
+              : -1;
+      }
 
       Object.assign(bet, updateBetFieldsDto);
 

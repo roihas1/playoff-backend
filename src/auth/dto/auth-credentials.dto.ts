@@ -36,5 +36,6 @@ export class AuthCredentialsDto {
   @IsEmail({}, { message: 'Invalid email address' })
   email: string;
   @IsString()
+  @IsOptional()
   googleId?: string;
 }
