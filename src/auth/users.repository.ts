@@ -66,15 +66,20 @@ export class UsersRepository extends Repository<User> {
     limit: number,
     cursor?: { points: number; id: string },
     prevCursor?: { points: number; id: string },
+    leagueId?: string,
   ) {
     // const query = this.createQueryBuilder('user');
     const order = prevCursor ? 'ASC' : 'DESC';
     const newLimit: number = Number(limit) + 1;
     const query = this.createQueryBuilder('user')
+      .leftJoin('user.privateLeagues', 'league')
       .orderBy('user.fantasyPoints', order)
       .addOrderBy('user.id', order)
       .take(newLimit);
 
+    if (leagueId) {
+      query.andWhere('league.id = :leagueId', { leagueId }); // ✅ Filter by leagueId
+    }
     if (prevCursor) {
       // Fetch previous users in ASC order
       query.where(

@@ -2,17 +2,14 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
-
   IsNumber,
   IsOptional,
   IsString,
-
 } from 'class-validator';
 import { MatchupCategory } from 'src/player-matchup-bet/matchup-category.enum';
 import { PlayerMatchupType } from 'src/player-matchup-bet/player-matchup-type.enum';
 
 export class UpdateBetFieldsDto {
-
   @IsEnum(PlayerMatchupType)
   @IsOptional()
   typeOfMatchup?: PlayerMatchupType;

@@ -97,6 +97,7 @@ export class AuthController {
     @Query('prevCursorPoints') prevCursorPoints?: number,
     @Query('prevCursorId') prevCursorId?: string,
     @Query('limit') limit: number = 10,
+    @Query('leagueId') leagueId?: string,
   ) {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get paginated users with limit ${limit} and cursorId: ${cursorId}`,
@@ -109,6 +110,7 @@ export class AuthController {
         ? { points: Number(prevCursorPoints), id: prevCursorId }
         : undefined,
       limit,
+      leagueId,
     );
   }
   @Get('/user')

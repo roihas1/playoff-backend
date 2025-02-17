@@ -17,6 +17,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ConfigService } from '@nestjs/config';
 import { Role } from './user-role.enum';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
+import { PrivateLeague } from 'src/private-league/private-league.entity';
 
 @Injectable()
 export class AuthService {
@@ -140,7 +141,7 @@ export class AuthService {
       throw new NotFoundException(`User with ID ${user.id} not found`);
     }
     try {
-      await this.usersRepository.delete(found);
+      await this.usersRepository.delete(found.id);
       this.logger.verbose(`User with ID "${user.id}" successfully deleted.`);
     } catch (error) {
       this.logger.error(
@@ -165,12 +166,14 @@ export class AuthService {
     cursor?: { points: number; id: string },
     prevCursor?: { points: number; id: string },
     limit: number = 15,
+    leagueId?: string,
   ) {
     try {
       const response = await this.usersRepository.getUsersWithCursor(
         limit,
         cursor,
         prevCursor,
+        leagueId,
       );
       return response;
     } catch (error) {
@@ -231,5 +234,18 @@ export class AuthService {
     });
     if (user) return user;
     return await this.signUp(googleUser);
+  }
+
+  async getAllUserLeagues(user: User): Promise<PrivateLeague[]> {
+    try {
+      const found = await this.usersRepository.findOne({
+        where: { id: user.id },
+        relations: ['privateLeagues'],
+      });
+      return found.privateLeagues;
+    } catch (error) {
+      this.logger.error(`Failed to get all user leagues. ${error.stack}`);
+      throw new InternalServerErrorException(`Failed to get all user leagues.`);
+    }
   }
 }

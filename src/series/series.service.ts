@@ -542,7 +542,6 @@ export class SeriesService {
     }
   }
   private calculatePercentage(guesses, value: number): number {
- 
     const totalGuesses = guesses.length;
     const guessCount = guesses.filter((guess) => guess.guess === value).length;
     const percentage = (guessCount / totalGuesses) * 100;
@@ -585,11 +584,11 @@ export class SeriesService {
 
       series.spontaneousBets.map((bet) => {
         const value1 = this.calculatePercentage(bet.guesses, 1);
-       
+
         const value2 = this.calculatePercentage(bet.guesses, 2);
         spontaneous[bet.id] = { 1: value1, 2: value2 };
       });
-     
+
       res['spontaneousMacthups'] = spontaneous;
       return res;
     } catch (error) {

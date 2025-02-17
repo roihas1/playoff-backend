@@ -33,6 +33,8 @@ import { SpontaneousBetModule } from './spontaneous-bet/spontaneous-bet.module';
 import { SpontaneousBet } from './spontaneous-bet/spontaneousBet.entity';
 import { SpontaneousGuessModule } from './spontaneous-guess/spontaneous-guess.module';
 import { SpontaneousGuess } from './spontaneous-guess/spontaneous-guess.entity';
+import { PrivateLeagueModule } from './private-league/private-league.module';
+import { PrivateLeague } from './private-league/private-league.entity';
 
 @Module({
   imports: [
@@ -62,6 +64,7 @@ import { SpontaneousGuess } from './spontaneous-guess/spontaneous-guess.entity';
             PlayoffStage,
             SpontaneousBet,
             SpontaneousGuess,
+            PrivateLeague,
           ],
           synchronize: true,
           host: configService.get('DB_HOST'),
@@ -84,6 +87,7 @@ import { SpontaneousGuess } from './spontaneous-guess/spontaneous-guess.entity';
     PlayoffsStageModule,
     SpontaneousBetModule,
     SpontaneousGuessModule,
+    PrivateLeagueModule,
   ],
   controllers: [AppController],
   providers: [

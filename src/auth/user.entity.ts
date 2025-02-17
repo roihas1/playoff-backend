@@ -1,4 +1,10 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  ManyToMany,
+  OneToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { Role } from './user-role.enum';
 import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
@@ -7,6 +13,7 @@ import { ConferenceFinalGuess } from 'src/champions-guess/entities/conference-fi
 import { ChampionTeamGuess } from 'src/champions-guess/entities/champion-team-guess.entity';
 import { MVPGuess } from 'src/champions-guess/entities/mvp-guess.entity';
 import { Exclude } from 'class-transformer';
+import { PrivateLeague } from 'src/private-league/private-league.entity';
 
 @Entity()
 export class User {
@@ -84,4 +91,14 @@ export class User {
     eager: false,
   })
   mvpGuesses: MVPGuess[];
+
+  @ManyToMany(() => PrivateLeague, (privateLeague) => privateLeague.users, {
+    eager: false,
+  })
+  privateLeagues: PrivateLeague[];
+
+  @OneToMany(() => PrivateLeague, (league) => league.admin, {
+    eager: false,
+  })
+  adminLeagues: PrivateLeague[];
 }
