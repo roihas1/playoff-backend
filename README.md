@@ -1,8 +1,7 @@
 
 ---
 
-## 📌 **Backend (`playoff-backend/README.md`)**
-```md
+
 # 🏀 NBA Playoff Prediction App - Backend
 
 Welcome to the **NBA Playoff Prediction App** backend repository! This is a **NestJS + PostgreSQL** API that handles user authentication, predictions, match results, and leaderboard calculations.
@@ -26,11 +25,5 @@ Welcome to the **NBA Playoff Prediction App** backend repository! This is a **Ne
 - **Deployment:** Docker + Nginx Reverse Proxy
 - **API Docs:** Swagger
 
----
 
-## 📦 Installation & Setup
 
-### 1️⃣ Clone the repository
-```sh
-git clone https://github.com/yourusername/playoff-backend.git
-cd playoff-backend
