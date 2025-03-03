@@ -35,6 +35,7 @@ import { SpontaneousGuessModule } from './spontaneous-guess/spontaneous-guess.mo
 import { SpontaneousGuess } from './spontaneous-guess/spontaneous-guess.entity';
 import { PrivateLeagueModule } from './private-league/private-league.module';
 import { PrivateLeague } from './private-league/private-league.entity';
+import { AppDataSource } from './data-source';
 
 @Module({
   imports: [
@@ -47,32 +48,14 @@ import { PrivateLeague } from './private-league/private-league.entity';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => {
+        if (!AppDataSource.isInitialized) {
+          await AppDataSource.initialize();
+          console.log('AppDataSource has been initialized!');
+        }
         return {
-          type: 'postgres',
-          entities: [
-            User,
-            Series,
-            BestOf7Bet,
-            TeamWinBet,
-            PlayerMatchupBet,
-            BestOf7Guess,
-            TeamWinGuess,
-            PlayerMatchupGuess,
-            MVPGuess,
-            ConferenceFinalGuess,
-            ChampionTeamGuess,
-            PlayoffStage,
-            SpontaneousBet,
-            SpontaneousGuess,
-            PrivateLeague,
-          ],
-          synchronize: true,
-          host: configService.get('DB_HOST'),
-          port: configService.get('DB_PORT'),
-          username: configService.get('DB_USERNAME'),
-          password: configService.get('DB_PASSWORD'),
-          database: configService.get('DB_DATABASE'),
+          ...AppDataSource.options,
         };
+   
       },
     }),
     SeriesModule,

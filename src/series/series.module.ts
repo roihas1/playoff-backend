@@ -23,6 +23,7 @@ import { SpontaneousBetModule } from 'src/spontaneous-bet/spontaneous-bet.module
     BestOf7BetModule,
     PlayerMatchupBetModule,
     SpontaneousBetModule,
+    AuthModule,
   ],
   controllers: [SeriesController],
   providers: [SeriesService, SeriesRepository],

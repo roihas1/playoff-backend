@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: playoff-backend
+    ports:
+      - '3000:3000'
+    depends_on:
+      - db
+    environment:
+      - STAGE=dev
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run start
+    restart: always
+    networks:
+      - app-network
+
+  db:
+    image: postgres:15
+    container_name: playoff-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: rHas9697
+      POSTGRES_DB: playoffDB
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+volumes:
+  pgdata:
+
+networks:
+  app-network:
+    driver: bridge
+

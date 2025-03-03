@@ -6,6 +6,7 @@ import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFieldsDto } from './dto/update-fields.dto';
 import { User } from 'src/auth/user.entity';
 import { AuthService } from 'src/auth/auth.service';
+import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
 
 @Injectable()
 export class PlayerMatchupBetService {
@@ -62,50 +63,87 @@ export class PlayerMatchupBetService {
       throw error;
     }
   }
+  private calculatePointsForGuess(
+    guess: PlayerMatchupGuess,
+    savedBet: PlayerMatchupBet,
+    previousResult: number,
+  ): number {
+    let points = 0;
+    const isGuessCorrectNow = guess.guess === savedBet.result;
+    const wasGuessCorrectBefore = guess.guess === previousResult;
+
+    if (isGuessCorrectNow && !wasGuessCorrectBefore) {
+      points += savedBet.fantasyPoints;
+    } else if (!isGuessCorrectNow && wasGuessCorrectBefore) {
+      points -= savedBet.fantasyPoints;
+    } else {
+      points = 0;
+    }
+    console.log(
+      `PLayer matchup bet Calculated Points for User: ${guess.createdById}, Points: ${points}`,
+    );
+    return points;
+  }
   async updateResultForSeries(
     matchup: PlayerMatchupBet,
   ): Promise<PlayerMatchupBet> {
-    let isResultChange = false;
+    const previousResult = matchup.result;
     if (matchup.typeOfMatchup === 'UNDER/OVER') {
-      const result = matchup.currentStats[0] < matchup.differential ? 1 : 2;
-      if (result != matchup.result) {
-        isResultChange = true;
-      }
+      const result =
+        matchup.currentStats[0] > matchup.currentStats[1] + matchup.differential
+          ? 1
+          : matchup.currentStats[0] ===
+              matchup.currentStats[1] + matchup.differential
+            ? 0
+            : 2;
       matchup.result = result;
     } else {
       const result =
         matchup.currentStats[0] > matchup.currentStats[1] + matchup.differential
           ? 1
-          : 2;
-      if (result != matchup.result) {
-        isResultChange = true;
-      }
+          : matchup.currentStats[0] ===
+              matchup.currentStats[1] + matchup.differential
+            ? 0
+            : 2;
       matchup.result = result;
     }
     try {
       const savedBet = await this.playerMatcupBetRepository.save(matchup);
       this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);
-      await Promise.all(
-        savedBet.guesses.map(async (guess) => {
-          if (isResultChange) {
-            if (guess.guess === savedBet.result) {
-              await this.usersService.updateFantasyPoints(
-                guess.createdBy,
-                savedBet.fantasyPoints,
-              );
-            } else {
-              await this.usersService.updateFantasyPoints(
-                guess.createdBy,
-                -savedBet.fantasyPoints,
-              );
-            }
-          }
-        }),
-      );
+
+      // for (const guess of savedBet.guesses) {
+      //   const points = this.calculatePointsForGuess(
+      //     guess,
+      //     savedBet,
+      //     previousResult,
+      //   );
+      //   if (points !== 0) {
+      //     await this.usersService.updateFantasyPoints(guess.createdBy, points);
+      //   }
+      // }
+
       return savedBet;
     } catch (error) {
       this.logger.error(
         `Failed to update bet with ID: "${matchup.id}".`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async getUserGuessForMatchup(
+    playerMatchupBet: PlayerMatchupBet,
+    userId: string,
+  ): Promise<PlayerMatchupGuess> {
+    try {
+      const guess = playerMatchupBet.guesses.filter(
+        (g) => g.createdById === userId,
+      );
+      return guess[0];
+    } catch (error) {
+      this.logger.error(
+        `Failed to get user guess for bet with ID: "${playerMatchupBet.id}" and user:${userId}.`,
         error.stack,
       );
       throw error;

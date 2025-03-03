@@ -17,6 +17,7 @@ import { ConferenceFinalGuess } from 'src/champions-guess/entities/conference-fi
 import { ChampionTeamGuess } from 'src/champions-guess/entities/champion-team-guess.entity';
 import { MVPGuess } from 'src/champions-guess/entities/mvp-guess.entity';
 import { PriorGuesses, PriorGuessesByStage } from './playoffs-stage.controller';
+import { AuthService } from 'src/auth/auth.service';
 
 @Injectable()
 export class PlayoffsStageService {
@@ -25,6 +26,7 @@ export class PlayoffsStageService {
     private playoffsStageRepo: PlayoffsStageRepository,
     @Inject(forwardRef(() => ChampionsGuessService))
     private championGuessService: ChampionsGuessService,
+    private authService: AuthService,
   ) {}
 
   async createPlayoffsStage(
@@ -125,31 +127,68 @@ export class PlayoffsStageService {
           (guess) => guess.conference === 'Finals',
         );
 
-      stages.map(async (stage) => {
-        if (stage.name === 'Before playoffs') {
-          await this.championGuessService.updatePointsConferenceFinalsForUser(
-            easternConferenceFinal,
-            easternConferenceFinalGuesses,
-          );
-          await this.championGuessService.updatePointsConferenceFinalsForUser(
-            westernConferenceFinal,
-            westernConferenceFinalGuesses,
-          );
-          await this.championGuessService.updatePointsConferenceFinalsForUser(
-            finals,
-            finalsGuesses,
-          );
-        }
-        await this.championGuessService.updatePointsForUserChampionTeam(
-          championTeam,
-          stage.championTeamGuesses,
+      const users = await this.authService.getAllUsers();
+
+      users.map(async (user) => {
+        let totalPoints = 0;
+
+        const eastPoints = this.championGuessService.checkPointsForUser(
+          easternConferenceFinal,
+          easternConferenceFinalGuesses,
+          user.id,
         );
-        await this.championGuessService.updatePointsForUserMVP(
+        console.log(
+          `user:${user.username} got ${eastPoints} from east finals team`,
+        );
+        totalPoints += eastPoints;
+        const westPoints = this.championGuessService.checkPointsForUser(
+          westernConferenceFinal,
+          westernConferenceFinalGuesses,
+          user.id,
+        );
+        console.log(
+          `user:${user.username} got ${westPoints} from west finals team`,
+        );
+        totalPoints += westPoints;
+        const finalsPoints = this.championGuessService.checkPointsForUser(
+          finals,
+          finalsGuesses,
+          user.id,
+        );
+        console.log(
+          `user:${user.username} got ${finalsPoints} from finals team`,
+        );
+        totalPoints += finalsPoints;
+
+        const championTeamPoints =
+          this.championGuessService.checkChampionTeamPointsForUser(
+            championTeam,
+            stages.flatMap((stage) =>
+              stage.championTeamGuesses.filter(
+                (guess) => guess.createdBy.id === user.id,
+              ),
+            ),
+          );
+        console.log(
+          `user:${user.username} got ${championTeamPoints} from champion team`,
+        );
+        totalPoints += championTeamPoints;
+
+        const mvpPoints = this.championGuessService.checkMVPPointsForUser(
           mvp,
-          stage.mvpGuesses,
+          stages.flatMap((stage) =>
+            stage.mvpGuesses.filter((guess) => guess.createdBy.id === user.id),
+          ),
         );
+        console.log(`user:${user.username} got ${mvpPoints} from mvp guesses`);
+        totalPoints += mvpPoints;
+
+        if (totalPoints > 0) {
+          await this.authService.updateFantasyPoints(user, totalPoints);
+        }
       });
-      // this.logger.verbose('Closing champions guesses succeed');
+
+      this.logger.verbose('Closing champions guesses succeed');
     } catch (error) {
       this.logger.error('Failed to close champions guesses');
       throw error;

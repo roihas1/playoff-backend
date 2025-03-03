@@ -44,7 +44,7 @@ export class TeamWinBetController {
     @Param('id') id: string,
     @Body() updateResultDto: UpdateResultDto,
     @GetUser() user: User,
-  ): Promise<TeamWinBet> {
+  ): Promise<void> {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to update TeamWinBet result with ID: "${id}".`,
     );

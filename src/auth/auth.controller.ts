@@ -87,6 +87,17 @@ export class AuthController {
     );
     return await this.authService.getAllUsers();
   }
+  @Get('/search')
+  @UseGuards(JwtAuthGuard)
+  async searchUsers(
+    @Query('query') query: string,
+    @GetUser() user: User,
+  ): Promise<User[]> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to serach users ${query}`,
+    );
+    return await this.authService.searchUsers(query);
+  }
 
   @Get('/standings')
   @UseGuards(JwtAuthGuard)
@@ -152,7 +163,6 @@ export class AuthController {
   @Get('/google-callback')
   @UseGuards(GoogleAuthGuard)
   async googleCallback(@Req() req, @Res() res) {
-    console.log(req.user);
     const response = await this.authService.loginWithGoogleOauth(
       req.user.googleId,
     );

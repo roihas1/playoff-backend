@@ -81,7 +81,6 @@ export class PlayoffsStageRepository extends Repository<PlayoffStage> {
     );
     const stages = await query.getMany();
     const res = stages.map((stage) => stage.name);
-    console.log(res);
     return res;
   }
 }

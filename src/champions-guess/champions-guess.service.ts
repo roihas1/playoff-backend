@@ -217,13 +217,13 @@ export class ChampionsGuessService {
         mvpGuess.player,
         playoffsStage,
         user,
-        mvpGuess.fantasyPoints,
+        2,
       );
       const champTeamNewGuess = await this.createChampTeamGuess(
         champTeamGuess.team,
         playoffsStage,
         user,
-        champTeamGuess.fantasyPoints,
+        4,
       );
       return {
         champTeamGuess: champTeamNewGuess,
@@ -235,6 +235,53 @@ export class ChampionsGuessService {
         'Failed to update champion guesses. Please try again later.',
       );
     }
+  }
+  checkChampionTeamPointsForUser(
+    championTeam: string,
+    guesses: ChampionTeamGuess[],
+  ): number {
+    let fantasyPoints = 0;
+    guesses.forEach((guess) => {
+      fantasyPoints += guess.team === championTeam ? guess.fantasyPoints : 0;
+    });
+    return fantasyPoints;
+  }
+  checkMVPPointsForUser(mvp: string, guesses: MVPGuess[]): number {
+    let fantasyPoints = 0;
+    guesses.forEach((guess) => {
+      fantasyPoints += guess.player === mvp ? guess.fantasyPoints : 0;
+    });
+    return fantasyPoints;
+  }
+
+  checkPointsForUser(
+    conferenceFinalResult: string[],
+    conferenceFinalGuesses: ConferenceFinalGuess[],
+    userId: string,
+  ): number {
+    let fantasyPoints = 0;
+    const userGuess = conferenceFinalGuesses.filter(
+      (guess) => guess.createdBy.id === userId,
+    )[0];
+    if (userGuess) {
+      if (
+        (userGuess.team1 === conferenceFinalResult[0] &&
+          userGuess.team2 === conferenceFinalResult[1]) ||
+        (userGuess.team2 === conferenceFinalResult[0] &&
+          userGuess.team1 === conferenceFinalResult[1])
+      ) {
+        fantasyPoints = userGuess.conference === Conference.FINALS ? 12 : 10;
+      } else if (
+        userGuess.team1 === conferenceFinalResult[0] ||
+        userGuess.team1 === conferenceFinalResult[1] ||
+        userGuess.team2 === conferenceFinalResult[0] ||
+        userGuess.team2 === conferenceFinalResult[1]
+      ) {
+        fantasyPoints = userGuess.conference === Conference.FINALS ? 5 : 4;
+      }
+    }
+
+    return fantasyPoints;
   }
 
   async updatePointsConferenceFinalsForUser(

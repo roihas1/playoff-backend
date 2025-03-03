@@ -32,6 +32,7 @@ import { UpdateSeriesTimeDto } from './dto/update-series-time.dto';
 import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
 import { SpontaneousBetService } from 'src/spontaneous-bet/spontaneous-bet.service';
 import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
+import { AuthService } from 'src/auth/auth.service';
 
 @Injectable()
 export class SeriesService {
@@ -45,6 +46,7 @@ export class SeriesService {
     private bestOf7BetService: BestOf7BetService,
     private playerMatcupBetService: PlayerMatchupBetService,
     private spontaneousBetService: SpontaneousBetService,
+    private authService: AuthService,
   ) {}
 
   async getAllSeries(): Promise<Series[]> {
@@ -320,10 +322,46 @@ export class SeriesService {
       );
     }
   }
+  private calculatePointsForGuess(guess, savedBet, previousResult): number {
+    let points = 0;
+
+    const isGuessCorrectNow = guess.guess === savedBet.result;
+    const wasGuessCorrectBefore = guess.guess === previousResult;
+
+    // Correct Now, Incorrect Before → Add Points
+    if (isGuessCorrectNow && !wasGuessCorrectBefore) {
+      points += savedBet.fantasyPoints;
+    }
+
+    // Case 2: Incorrect Now, Correct Before → Subtract Points
+    else if (!isGuessCorrectNow && wasGuessCorrectBefore) {
+      points -= savedBet.fantasyPoints;
+    }
+
+    // Case 3 & 4: No Change → No Points Added or Subtracted
+    // - Both Correct or Both Incorrect
+    else {
+      points = 0;
+    }
+
+    console.log(
+      `Calculated Points for User: ${guess.createdById}, Points: ${points}`,
+    );
+    return points;
+  }
   async closeAllBetsInSeries(seriesId: string, user: User): Promise<void> {
     try {
-      const series = await this.getSeriesByID(seriesId);
+      let series = await this.getSeriesByID(seriesId);
       series.lastUpdate = new Date();
+      const prevTeamWinResult = series.teamWinBetId.result;
+      const prevMatchupResult = series.playerMatchupBets.reduce(
+        (acc, matchup) => {
+          acc[matchup.id] = matchup.result;
+          return acc;
+        },
+        {},
+      );
+
       const bestOf7Bet = await this.bestOf7BetService.updateResultForSeries(
         series.bestOf7BetId.id,
       );
@@ -333,23 +371,192 @@ export class SeriesService {
           : bestOf7Bet.seriesScore[0] < bestOf7Bet.seriesScore[1]
             ? 2
             : 0;
+      const isSeriesFinished =
+        bestOf7Bet.seriesScore[0] === 4 || bestOf7Bet.seriesScore[1] === 4;
       await this.teamWinBetService.updateResult(
         { result: teamWin },
         series.teamWinBetId.id,
+        isSeriesFinished,
         bestOf7Bet,
       );
-      await Promise.all(
-        series.playerMatchupBets.map(async (matchup) => {
-          await this.playerMatcupBetService.updateResultForSeries(matchup);
-        }),
-      );
-      await this.seriesRepository.save(series);
+
+      for (const matchup of series.playerMatchupBets) {
+        await this.playerMatcupBetService.updateResultForSeries(matchup);
+      }
+      for (const matchup of series.spontaneousBets) {
+        await this.spontaneousBetService.updateResultForSeries(matchup);
+      }
+
+      const users = await this.authService.getAllUsers();
+      series = await this.getSeriesByID(seriesId);
+      users.map(async (user) => {
+        let totalPoints = 0;
+
+        // Calculate points for Team Win Bet
+        if (series.teamWinBetId) {
+          if (isSeriesFinished) {
+            const userGuess = await this.bestOf7BetService.getUserGuess(
+              series.bestOf7BetId,
+              user.id,
+            );
+            if (userGuess && userGuess.guess === bestOf7Bet.result) {
+              console.log(`added bestof7 points`);
+              totalPoints += bestOf7Bet.fantasyPoints;
+            }
+          }
+          const userGuess = await this.teamWinBetService.getUserGuess(
+            series.teamWinBetId,
+            user.id,
+          );
+          if (userGuess) {
+            totalPoints += this.calculatePointsForGuess(
+              userGuess,
+              series.teamWinBetId,
+              prevTeamWinResult,
+            );
+            console.log(`added teamwin points ${totalPoints}`);
+          }
+        }
+
+        // Calculate points for Player Matchup Bets
+        for (const matchup of series.playerMatchupBets) {
+          const userMatchupGuess =
+            await this.playerMatcupBetService.getUserGuessForMatchup(
+              matchup,
+              user.id,
+            );
+          if (userMatchupGuess) {
+            totalPoints += this.calculatePointsForGuess(
+              userMatchupGuess,
+              matchup,
+              prevMatchupResult[matchup.id],
+            );
+            console.log(`added matchup points ${totalPoints}`);
+          }
+        }
+        for (const matchup of series.spontaneousBets) {
+          const userMatchupGuess =
+            await this.spontaneousBetService.getUserGuessForMatchup(
+              matchup,
+              user.id,
+            );
+          if (userMatchupGuess) {
+            totalPoints += this.calculatePointsForGuess(
+              userMatchupGuess,
+              matchup,
+              prevMatchupResult[matchup.id],
+            );
+            console.log(`added matchup points ${totalPoints}`);
+          }
+        }
+
+        // If the user earned any points, update them
+        if (totalPoints !== 0) {
+          await this.authService.updateFantasyPoints(user, totalPoints);
+          this.logger.verbose(
+            `User: ${user.username} earned ${totalPoints} points for series: ${seriesId}`,
+          );
+        }
+      });
+
+      // Wait for all updates to complete
+      // await Promise.all(updatePromises);
+
+      await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
     } catch (error) {
       this.logger.error(
         `User: ${user.username} faild to close all bets results to series: ${seriesId}`,
+        error.stack,
       );
       throw new InternalServerErrorException(
         `User: ${user.username} faild to close all bets results to series: ${seriesId}`,
+      );
+    }
+  }
+  async getAllMissingBets(user: User): Promise<{
+    [key: string]: {
+      seriesName: string;
+      gamesAndWinner: boolean;
+      playerMatchup: PlayerMatchupBet[];
+      spontaneousBets: SpontaneousBet[];
+    };
+  }> {
+    try {
+      const series = await this.getAllSeries();
+      const result: {
+        [key: string]: {
+          seriesName: string;
+          gamesAndWinner: boolean;
+          playerMatchup: PlayerMatchupBet[];
+          spontaneousBets: SpontaneousBet[];
+        };
+      } = {};
+
+      series.forEach((element) => {
+        if (!result[element.id]) {
+          result[element.id] = {
+            seriesName: `${element.team1} vs ${element.team2}`,
+            gamesAndWinner: false,
+            playerMatchup: [],
+            spontaneousBets: [],
+          };
+        }
+        if (new Date(element.dateOfStart) > new Date()) {
+          // Check if user has made a Best of 7 guess
+          const bestOf7Guess = element.bestOf7BetId.guesses.some(
+            (guess) => guess.createdById === user.id,
+          );
+
+          // Check if user has made a Team Win guess
+          const teamWinGuess = element.teamWinBetId.guesses.some(
+            (guess) => guess.createdById === user.id,
+          );
+
+          // If user hasn't made either bet, mark as missing
+          if (!bestOf7Guess || !teamWinGuess) {
+            result[element.id].gamesAndWinner = true;
+          }
+
+          // Check missing player matchup bets
+          element.playerMatchupBets.forEach((bet) => {
+            const hasUserGuessed = bet.guesses.some(
+              (guess) => guess.createdById === user.id,
+            );
+            if (!hasUserGuessed) {
+              result[element.id].playerMatchup.push(bet);
+            }
+          });
+        }
+
+        // Check missing spontaneous bets
+        element.spontaneousBets.forEach((bet) => {
+          if (new Date(bet.startTime) > new Date()) {
+            const hasUserGuessed = bet.guesses.some(
+              (guess) => guess.createdById === user.id,
+            );
+            if (!hasUserGuessed) {
+              result[element.id].spontaneousBets.push(bet);
+            }
+          }
+        });
+      });
+      Object.keys(result).forEach((key) => {
+        if (
+          result[key].gamesAndWinner === false &&
+          result[key].playerMatchup.length === 0 &&
+          result[key].spontaneousBets.length === 0
+        ) {
+          delete result[key]; // Remove key from the object
+        }
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `User: ${user.username} faild to get all his missing bets.${error.stack}`,
+      );
+      throw new InternalServerErrorException(
+        `User: ${user.username} faild to get all his missing bets.`,
       );
     }
   }
@@ -375,7 +582,6 @@ export class SeriesService {
             bet.guesses.filter((guess) => guess.createdById === user.id) || []
           );
         });
-        console.log(spontaneousGuesses);
         if (
           bestOf7Guess.length > 0 &&
           teamWinGuess.length > 0 &&
@@ -400,7 +606,7 @@ export class SeriesService {
   }
   async getPointsForUser(seriesId: string, user: User): Promise<number> {
     try {
-      const series = await this.getSeriesByID(seriesId); // Assuming this is an optimized DB call
+      const series = await this.getSeriesByID(seriesId);
       let userPoints = 0;
 
       // Use map/filter only once and combine results
@@ -429,6 +635,15 @@ export class SeriesService {
         );
         return acc + (guess ? matchup.fantasyPoints : 0);
       }, 0);
+      if (series.spontaneousBets) {
+        userPoints += series.spontaneousBets.reduce((acc, matchup) => {
+          const guess = matchup.guesses.find(
+            (guess) =>
+              guess.createdById === user.id && matchup.result === guess.guess,
+          );
+          return acc + (guess ? matchup.fantasyPoints : 0);
+        }, 0);
+      }
 
       return userPoints;
     } catch (error) {

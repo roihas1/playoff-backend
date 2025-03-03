@@ -8,6 +8,8 @@ import { SpontaneousBetRepo } from './spontaneous-bet.repository';
 import { SpontaneousBet } from './spontaneousBet.entity';
 import { CreateSpontaneousBetDto } from './dto/create-spontaneous-bet.dto';
 import { UpdateBetFieldsDto } from './dto/update-fields.dto';
+import { UpdateResultDto } from 'src/player-matchup-bet/dto/update-result.dto';
+import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
 
 @Injectable()
 export class SpontaneousBetService {
@@ -46,7 +48,72 @@ export class SpontaneousBetService {
       );
     }
   }
+  async getUserGuessForMatchup(
+    playerMatchupBet: SpontaneousBet,
+    userId: string,
+  ): Promise<SpontaneousGuess> {
+    try {
+      const guess = playerMatchupBet.guesses.filter(
+        (g) => g.createdById === userId,
+      );
+      return guess[0];
+    } catch (error) {
+      this.logger.error(
+        `Failed to get user guess for bet with ID: "${playerMatchupBet.id}" and user:${userId}.`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+  async getPlayerMatchupBetById(id: string): Promise<SpontaneousBet> {
+    const found = await this.spontaneousBetRepo.findOne({
+      where: {
+        id,
+      },
+      relations: ['guesses', 'guesses.createdBy', 'guesses', 'guesses.bet'],
+    });
+    if (!found) {
+      this.logger.error(`Spontaneous bet with ID ${id} not found.`);
+      throw new NotFoundException(`Spontaneous bet with ID ${id} not found.`);
+    }
+    return found;
+  }
+  async updateResultForSeries(
+    matchup: SpontaneousBet,
+  ): Promise<SpontaneousBet> {
+    const previousResult = matchup.result;
+    if (matchup.typeOfMatchup === 'UNDER/OVER') {
+      const result =
+        matchup.currentStats[0] > matchup.currentStats[1] + matchup.differential
+          ? 1
+          : matchup.currentStats[0] ===
+              matchup.currentStats[1] + matchup.differential
+            ? 0
+            : 2;
+      matchup.result = result;
+    } else {
+      const result =
+        matchup.currentStats[0] > matchup.currentStats[1] + matchup.differential
+          ? 1
+          : matchup.currentStats[0] ===
+              matchup.currentStats[1] + matchup.differential
+            ? 0
+            : 2;
+      matchup.result = result;
+    }
+    try {
+      const savedBet = await this.spontaneousBetRepo.save(matchup);
+      this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);
 
+      return savedBet;
+    } catch (error) {
+      this.logger.error(
+        `Failed to update bet with ID: "${matchup.id}".`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
   async getBetById(betId: string): Promise<SpontaneousBet> {
     try {
       const found = await this.spontaneousBetRepo.findOne({

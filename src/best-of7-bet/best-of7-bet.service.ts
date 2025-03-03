@@ -15,6 +15,7 @@ import { AuthService } from 'src/auth/auth.service';
 import { UpdateGameDto } from '../series/dto/update-game.dto';
 import { User } from 'src/auth/user.entity';
 import { BestOf7GuessService } from 'src/best-of7-guess/best-of7-guess.service';
+import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 
 @Injectable()
 export class BestOf7BetService {
@@ -106,16 +107,7 @@ export class BestOf7BetService {
     try {
       const savedBet = await this.bestOf7BetRepository.save(bet);
       this.logger.verbose(`BestOf7 Bet with ID "${id}" successfully updated.`);
-      // await Promise.all(
-      //   savedBet.guesses.map(async (guess) => {
-      //     if (guess.guess === savedBet.result) {
-      //       await this.usersService.updateFantasyPoints(
-      //         guess.createdBy,
-      //         savedBet.fantasyPoints,
-      //       );
-      //     }
-      //   }),
-      // );
+
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
@@ -134,6 +126,21 @@ export class BestOf7BetService {
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
+      throw error;
+    }
+  }
+  async getUserGuess(
+    bestOf7Bet: BestOf7Bet,
+    userId: string,
+  ): Promise<BestOf7Guess> {
+    try {
+      const guess = bestOf7Bet.guesses.filter((g) => g.createdById === userId);
+      return guess[0];
+    } catch (error) {
+      this.logger.error(
+        `Failed to get user guess for bet with ID: "${bestOf7Bet.id}" and user:${userId}.`,
+        error.stack,
+      );
       throw error;
     }
   }

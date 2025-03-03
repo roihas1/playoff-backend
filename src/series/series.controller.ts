@@ -180,6 +180,20 @@ export class SeriesController {
     );
     return await this.seriesServie.closeAllBetsInSeries(seriesId, user);
   }
+  @Get('/bets/allMissingBets')
+  async getAllMissingBets(@GetUser() user: User): Promise<{
+    [key: string]: {
+      seriesName: string;
+      gamesAndWinner: boolean;
+      playerMatchup: PlayerMatchupBet[];
+      spontaneousBets: SpontaneousBet[];
+    };
+  }> {
+    this.logger.verbose(
+      `User with username: "${user.username}" is attempting to get all his missing bets.`,
+    );
+    return await this.seriesServie.getAllMissingBets(user);
+  }
   @Get('/isUserGuessed/All')
   async checkIfUserGuessedAll(
     @GetUser() user: User,

@@ -9,7 +9,7 @@ import { UsersRepository } from './users.repository';
 
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { LoginDto } from './dto/login.dto';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './jwt-payload.interface';
 import { User } from './user.entity';
@@ -183,14 +183,10 @@ export class AuthService {
   }
   async updateFantasyPoints(user: User, points: number): Promise<void> {
     try {
-      user.fantasyPoints = user.fantasyPoints + points;
-      await this.usersRepository.save(user);
-      this.logger.verbose(
-        `User: ${user.username} points were updated. added (${points})`,
-      );
+      await this.usersRepository.updateFantasyPoints(user, points);
     } catch (error) {
       this.logger.error(
-        `Failed to update fantasy points to user:${user.username}`,
+        `Failed to update fantasy points for user:${user.username}`,
         error.stack,
       );
       throw error;
@@ -246,6 +242,32 @@ export class AuthService {
     } catch (error) {
       this.logger.error(`Failed to get all user leagues. ${error.stack}`);
       throw new InternalServerErrorException(`Failed to get all user leagues.`);
+    }
+  }
+  async searchUsers(query: string): Promise<User[]> {
+    try {
+      if (!query) return [];
+      return this.usersRepository
+        .createQueryBuilder('user')
+        .where('LOWER(user.firstName) LIKE :query', {
+          query: `%${query.toLowerCase()}%`,
+        })
+        .orWhere('LOWER(user.lastName) LIKE :query', {
+          query: `%${query.toLowerCase()}%`,
+        })
+        .orWhere(
+          "LOWER(CONCAT(user.firstName, ' ', user.lastName)) LIKE :query",
+          { query: `%${query.toLowerCase()}%` },
+        )
+        .orWhere('LOWER(user.username) LIKE :query', {
+          query: `%${query.toLowerCase()}%`,
+        })
+        .orderBy('user.firstName', 'ASC')
+        .limit(10) // Limit the number of results for performance
+        .getMany();
+    } catch (error) {
+      this.logger.error(`Failed to search for users. ${error.stack}`);
+      throw new InternalServerErrorException(`Failed to search for users.`);
     }
   }
 }

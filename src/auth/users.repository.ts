@@ -2,14 +2,17 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { User } from './user.entity';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
+import { AppDataSource } from 'src/data-source';
 
 @Injectable()
 export class UsersRepository extends Repository<User> {
+  private logger = new Logger('UsersRepository', { timestamp: true });
   constructor(dataSource: DataSource) {
     super(User, dataSource.createEntityManager());
   }
@@ -144,5 +147,47 @@ export class UsersRepository extends Repository<User> {
     }
 
     return { data: users, nextCursor, prevCursor: newPrevCursor };
+  }
+
+  async updateFantasyPoints(user: User, points: number): Promise<void> {
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    // Start the transaction
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      console.log(
+        `Before user id: ${user.id} ${user.fantasyPoints} added ${points}`,
+      );
+
+      user.fantasyPoints += points;
+
+      console.log(
+        `After user id: ${user.id} ${user.fantasyPoints} added ${points}`,
+      );
+
+      // Use queryRunner to ensure the operation is part of the transaction
+      await queryRunner.manager.update(User, user.id, {
+        fantasyPoints: user.fantasyPoints,
+      });
+
+      // Commit the transaction explicitly
+      await queryRunner.commitTransaction();
+      this.logger.verbose(
+        `User: ${user.username} points were updated. added (${points})`,
+      );
+    } catch (error) {
+      // Rollback on error
+      await queryRunner.rollbackTransaction();
+      this.logger.error(
+        `Failed to update fantasy points for user:${user.username}`,
+        error.stack,
+      );
+      throw error;
+    } finally {
+      // Release the query runner
+      await queryRunner.release();
+    }
   }
 }
