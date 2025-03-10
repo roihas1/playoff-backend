@@ -13,10 +13,10 @@ RUN npm rebuild bcrypt --build-from-source
 
 ENV PORT=3000
 
-ENV Stage=dev
+ENV Stage=prod
 
 # Copy the specific environment file
-COPY .env.stage.dev .env.stage.dev
+COPY .env.stage.prod .env.stage.prod
 
 EXPOSE 3000
 

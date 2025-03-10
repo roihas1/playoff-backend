@@ -8,10 +8,10 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "cross-env STAGE=dev nest start",
+    "start": "cross-env STAGE=prod nest start",
     "start:dev": "cross-env STAGE=dev nest start --watch",
     "start:debug": "cross-env STAGE=dev nest start --debug --watch",
-    "start:prod": "STAGE=prod node dist/main",
+    "start:prod": "cross-env STAGE=prod node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "STAGE=dev jest",
     "test:watch": "jest --watch",
