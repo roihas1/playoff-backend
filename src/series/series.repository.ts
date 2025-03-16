@@ -69,7 +69,6 @@ export class SeriesRepository extends Repository<Series> {
       conference: coast,
       dateOfStart,
       timeOfStart,
-    
     });
 
     try {

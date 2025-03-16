@@ -10,6 +10,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import googleOauthConfig from './google-oauth.config';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { AppLogger } from 'src/logging/logger.service';
 
 @Module({
   imports: [
@@ -29,7 +30,13 @@ import { GoogleStrategy } from './strategies/google.strategy';
     TypeOrmModule.forFeature([User]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, UsersRepository, JwtStrategy, GoogleStrategy],
+  providers: [
+    AuthService,
+    UsersRepository,
+    JwtStrategy,
+    GoogleStrategy,
+    AppLogger,
+  ],
   exports: [JwtStrategy, PassportModule, AuthService],
 })
 export class AuthModule {}

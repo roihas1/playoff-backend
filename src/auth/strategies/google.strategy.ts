@@ -5,7 +5,7 @@ import googleOauthConfig from '../google-oauth.config';
 import { ConfigType } from '@nestjs/config';
 import { VerifiedCallback } from 'passport-jwt';
 import { AuthService } from '../auth.service';
-import { google } from 'googleapis';
+
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -27,7 +27,6 @@ export class GoogleStrategy extends PassportStrategy(Strategy) {
     profile: any,
     done: VerifiedCallback,
   ) {
-    console.log(profile);
     const user = await this.authService.validateGoogleUser({
       email: profile.emails[0].value,
       firstName: profile.name.givenName,

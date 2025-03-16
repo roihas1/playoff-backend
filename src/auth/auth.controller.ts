@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Inject,
   Patch,
   Post,
   Query,
@@ -23,16 +24,22 @@ import { Role } from './user-role.enum';
 import { LogoutCredentialsDto } from './dto/logout-credentials.dto';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 import { GoogleAuthGuard } from './google-auth/google-auth.guard';
+import { AppLogger } from 'src/logging/logger.service';
 
 @Controller('auth')
 export class AuthController {
   private logger = new Logger('AuthController', { timestamp: true });
-  constructor(private authService: AuthService) {}
+
+  constructor(
+    private authService: AuthService,
+    // private readonly logger: AppLogger, // Inject properly
+  ) {}
 
   @Post('signup')
   async signUp(@Body() authCredentialsDto: AuthCredentialsDto): Promise<User> {
     this.logger.verbose(
       `User sign-up attempt with username: ${authCredentialsDto.username}`,
+      'AuthController',
     );
     return await this.authService.signUp(authCredentialsDto);
   }
@@ -44,8 +51,9 @@ export class AuthController {
     userRole: Role;
     username: string;
   }> {
-    this.logger.verbose(
+    this.logger.log(
       `User sign-in attempt with username: "${authCredentialsDto.username}"`,
+      'AuthController',
     );
     return await this.authService.signIn(authCredentialsDto);
   }
@@ -55,10 +63,12 @@ export class AuthController {
   async logout(@Body() credentials: LogoutCredentialsDto): Promise<void> {
     this.logger.verbose(
       `User loging out attempt with username: "${credentials.username}".`,
+      'AuthController',
     );
 
     return await this.authService.logout(credentials.username);
   }
+
   @Patch()
   @UseGuards(JwtAuthGuard)
   async updateUser(
@@ -67,6 +77,7 @@ export class AuthController {
   ) {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to update user with ID: "${user.id}".`,
+      'AuthController',
     );
     return this.authService.updateUser(user.id, updateUserDto);
   }
@@ -76,6 +87,7 @@ export class AuthController {
   async deleteUser(@GetUser() user: User): Promise<void> {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to delete user with ID: "${user.id}".`,
+      'AuthController',
     );
     return await this.authService.deleteUser(user);
   }
@@ -84,6 +96,7 @@ export class AuthController {
   async getAllUsers(@GetUser() user: User): Promise<User[]> {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get all users.`,
+      'AuthController',
     );
     return await this.authService.getAllUsers();
   }
@@ -95,6 +108,7 @@ export class AuthController {
   ): Promise<User[]> {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to serach users ${query}`,
+      'AuthController',
     );
     return await this.authService.searchUsers(query);
   }
@@ -112,6 +126,7 @@ export class AuthController {
   ) {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get paginated users with limit ${limit} and cursorId: ${cursorId}`,
+      'AuthController',
     );
     return await this.authService.getUsersWithCursor(
       cursorPoints && cursorId
@@ -129,6 +144,7 @@ export class AuthController {
   async getUser(@GetUser() user: User): Promise<User> {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get his user object`,
+      'AuthController',
     );
     return user;
   }
@@ -140,6 +156,7 @@ export class AuthController {
   ): Promise<boolean> {
     this.logger.verbose(
       `User: ${user.username} checking if he has guessed already.`,
+      'AuthController',
     );
     const isGuess = await this.authService.checkIfGuessedForChampions(
       stage,
@@ -152,6 +169,7 @@ export class AuthController {
   async getUserGuesses(@GetUser() user: User): Promise<User> {
     this.logger.verbose(
       `User: ${user.username} is attempting get all guesses.`,
+      'AuthController',
     );
     return await this.authService.getUserGuesses(user);
   }

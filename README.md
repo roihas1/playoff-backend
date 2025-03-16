@@ -1,4 +1,3 @@
-
 ---
 
 
@@ -18,12 +17,10 @@ Welcome to the **NBA Playoff Prediction App** backend repository! This is a **Ne
 ---
 
 ## 🏗️ Tech Stack
+
 - **Backend:** NestJS (TypeScript)
 - **Database:** PostgreSQL
 - **ORM:** TypeORM
 - **Authentication:** JWT & Google OAuth
 - **Deployment:** Docker + Nginx Reverse Proxy
 - **API Docs:** Swagger
-
-
-
