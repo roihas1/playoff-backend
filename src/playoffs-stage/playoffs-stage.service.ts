@@ -216,7 +216,13 @@ export class PlayoffsStageService {
           'conferenceFinalGuesses.createdBy',
         ],
       });
-
+      if (!stageObj) {
+        return {
+          conferenceFinalGuesses: [],
+          championTeamGuesses: [],
+          mvpGuesses: [],
+        };
+      }
       let conferenceFinalGuesses = [];
       if (stage === 'Before playoffs') {
         conferenceFinalGuesses = stageObj.conferenceFinalGuesses.filter(

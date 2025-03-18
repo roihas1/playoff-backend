@@ -99,7 +99,7 @@ export class AuthService {
     const payload: JwtPayload = { username };
     const expiresIn = this.configService.get<number>('EXPIRE_IN') || 3600;
     const accessToken = this.jwtService.sign(payload);
-
+    console.log(expiresIn);
     this.logger.verbose(
       `User "${username}" signed in successfully and access token generated.`,
     );

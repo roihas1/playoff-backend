@@ -38,9 +38,10 @@ import { AppLogger } from './logging/logger.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: process.env.STAGE
-        ? [`.env.stage.${process.env.STAGE}`]
-        : undefined,
+      envFilePath:
+        process.env.STAGE === 'prod'
+          ? [`.env.stage.${process.env.STAGE}`]
+          : undefined,
       validationSchema: configValidationSchema,
     }),
     AuthModule,
