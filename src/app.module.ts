@@ -39,7 +39,7 @@ import { AppLogger } from './logging/logger.service';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath:
-        process.env.STAGE === 'prod'
+        process.env.STAGE !== 'prod'
           ? [`.env.stage.${process.env.STAGE}`]
           : undefined,
       validationSchema: configValidationSchema,

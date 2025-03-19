@@ -9,6 +9,7 @@
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
+    "start:manual": "cross-env STAGE=dev DB_HOST=127.0.0.1 DB_PORT=5432 DB_USERNAME=postgres DB_PASSWORD=rHas9697 DB_DATABASE=playoffDB JWT_SECRET=secrect51 EXIPRE_IN=2000 nest start",
     "start:dev": "cross-env STAGE=dev nest start --watch",
     "start:debug": "cross-env STAGE=dev nest start --debug --watch",
     "start:prod": "cross-env STAGE=prod node dist/main",
