@@ -8,12 +8,6 @@ import { AppLogger } from './logging/logger.service';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const logger = app.get(AppLogger);
-  console.log('DB_HOST:', process.env.DB_HOST);
-  console.log('DB_PORT:', process.env.DB_PORT);
-  console.log('DB_USERNAME:', process.env.DB_USERNAME);
-  console.log('DB_DATABASE:', process.env.DB_DATABASE);
-  console.log('STAGE:', process.env.STAGE);
-  
   const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
   app.enableCors({
     origin: allowedOrigin,

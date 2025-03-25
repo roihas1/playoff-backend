@@ -20,6 +20,8 @@ services:
         GOOGLE_CALLBACK_URL: "http://example.com/auth/google-callback"
         FRONTEND_URL: "<forntend_url>"
     restart: always
+    volumes:
+       - ./logs:/app/logs 
     networks:
       - app-network
 
