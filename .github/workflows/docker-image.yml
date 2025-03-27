@@ -15,6 +15,10 @@ jobs:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
+      - name: 🧮 Get commit count
+        id: get_commit_count
+        run: echo "count=$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
+
       - name: 🔑 Log in to Docker Hub
         uses: docker/login-action@v2
         with:
@@ -23,11 +27,13 @@ jobs:
 
       - name: 🏗 Build Docker Image
         run: |
+          TAG=1.0.${{ steps.get_commit_count.outputs.count }}
           docker build -t ${{ secrets.DOCKER_USERNAME }}/playoff-backend:latest .
-          docker tag ${{ secrets.DOCKER_USERNAME }}/playoff-backend:latest ${{ secrets.DOCKER_USERNAME }}/playoff-backend:${{ github.sha }}
+          docker tag ${{ secrets.DOCKER_USERNAME }}/playoff-backend:latest ${{ secrets.DOCKER_USERNAME }}/playoff-backend:$TAG
 
       - name: 📤 Push Docker Image to Docker Hub
         if: github.ref == 'refs/heads/master'  # ✅ Push only if on master branch
         run: |
+          TAG=1.0.${{ steps.get_commit_count.outputs.count }}
           docker push ${{ secrets.DOCKER_USERNAME }}/playoff-backend:latest
-          docker push ${{ secrets.DOCKER_USERNAME }}/playoff-backend:${{ github.sha }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/playoff-backend:$TAG
