@@ -24,6 +24,7 @@ import { LogoutCredentialsDto } from './dto/logout-credentials.dto';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 import { GoogleAuthGuard } from './google-auth/google-auth.guard';
 import { AppLogger } from 'src/logging/logger.service';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('auth')
 export class AuthController {
@@ -180,11 +181,12 @@ export class AuthController {
   @Get('/google-callback')
   @UseGuards(GoogleAuthGuard)
   async googleCallback(@Req() req, @Res() res) {
+    const configService = new ConfigService();
     const response = await this.authService.loginWithGoogleOauth(
       req.user.googleId,
     );
     res.redirect(
-      `http://localhost:5173/redirect?token=${response.accessToken}&username=${response.username}&tokenExpiry=${response.expiresIn}&userRole=${response.userRole}`,
+      `${configService.get<string>('GOOGLE_CALLBACK_URL')}/redirect?token=${response.accessToken}&username=${response.username}&tokenExpiry=${response.expiresIn}&userRole=${response.userRole}`,
     );
   }
 }
