@@ -186,7 +186,7 @@ export class AuthController {
       req.user.googleId,
     );
     res.redirect(
-      `${configService.get<string>('GOOGLE_CALLBACK_URL')}/redirect?token=${response.accessToken}&username=${response.username}&tokenExpiry=${response.expiresIn}&userRole=${response.userRole}`,
+      `${configService.get<string>('FRONTEND_URL')}/redirect?token=${response.accessToken}&username=${response.username}&tokenExpiry=${response.expiresIn}&userRole=${response.userRole}`,
     );
   }
 }
