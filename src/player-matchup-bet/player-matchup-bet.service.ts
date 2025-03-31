@@ -90,16 +90,17 @@ export class PlayerMatchupBetService {
     const previousResult = matchup.result;
     if (matchup.typeOfMatchup === 'UNDER/OVER') {
       const result =
-        matchup.currentStats[0] > matchup.currentStats[1] + matchup.differential
+        matchup.currentStats[0] / matchup.playerGames[0] > matchup.differential
           ? 1
-          : matchup.currentStats[0] ===
-              matchup.currentStats[1] + matchup.differential
+          : matchup.currentStats[0] / matchup.playerGames[0] ===
+              matchup.differential
             ? 0
             : 2;
       matchup.result = result;
     } else {
       const result =
-        matchup.currentStats[0] > matchup.currentStats[1] + matchup.differential
+        matchup.currentStats[0] / matchup.playerGames[0] >
+        matchup.currentStats[1] / matchup.playerGames[1] + matchup.differential
           ? 1
           : matchup.currentStats[0] ===
               matchup.currentStats[1] + matchup.differential

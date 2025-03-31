@@ -112,6 +112,14 @@ export class SeriesService {
   async deleteSeries(id: string): Promise<void> {
     try {
       const series = await this.getSeriesByID(id);
+      if (
+        series.playerMatchupBets.length > 0 ||
+        series.spontaneousBets.length > 0
+      ) {
+        throw new InternalServerErrorException(
+          `Please Delete player matchup first!`,
+        );
+      }
       await this.bestOf7BetService.deleteBestOf7Bet(series.bestOf7BetId.id);
       await this.teamWinBetService.deleteBet(series.teamWinBetId.id);
       await this.seriesRepository.delete(id);
