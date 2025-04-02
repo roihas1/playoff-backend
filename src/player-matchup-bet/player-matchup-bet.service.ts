@@ -90,7 +90,7 @@ export class PlayerMatchupBetService {
     const previousResult = matchup.result;
     if (matchup.typeOfMatchup === 'UNDER/OVER') {
       const result =
-        matchup.currentStats[0] / matchup.playerGames[0] > matchup.differential
+        matchup.currentStats[0] / matchup.playerGames[0] < matchup.differential
           ? 1
           : matchup.currentStats[0] / matchup.playerGames[0] ===
               matchup.differential
