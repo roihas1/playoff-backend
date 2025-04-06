@@ -143,7 +143,8 @@ export class UserSeriesPointsService {
       this.logger.error(`Cron job failed: ${error.message}`, error.stack);
     }
   }
-  @Cron(CronExpression.EVERY_DAY_AT_6PM)
+  // @Cron(CronExpression.EVERY_DAY_AT_6PM)
+  @Cron('15 15 * * *') // 15:15 UTC = 18:15 Israel time
   async handleDailyPointsUpdate() {
     this.logger.log('Starting daily user-series-points update...');
     try {

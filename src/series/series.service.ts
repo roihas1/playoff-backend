@@ -875,6 +875,51 @@ export class SeriesService {
       );
     }
   }
+  async getAllSeriesNoGuesses(): Promise<Series[]> {
+    return await this.seriesRepository
+      .createQueryBuilder('series')
+      .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
+      .leftJoinAndSelect('series.teamWinBetId', 'teamWinBet')
+      .leftJoinAndSelect('series.playerMatchupBets', 'matchup')
+      .leftJoinAndSelect('series.spontaneousBets', 'spontaneous')
+      .select([
+        'series.id',
+        'series.team1',
+        'series.team2',
+        'series.conference',
+        'series.round',
+        'series.dateOfStart',
+
+        // BestOf7Bet (no guesses)
+        'bestOf7Bet.id',
+        'bestOf7Bet.result',
+        'bestOf7Bet.fantasyPoints',
+
+        // TeamWinBet (no guesses)
+        'teamWinBet.id',
+        'teamWinBet.result',
+        'teamWinBet.fantasyPoints',
+
+        // PlayerMatchupBets (no guesses)
+        'matchup.id',
+        'matchup.result',
+        'matchup.typeOfMatchup',
+        'matchup.categories',
+        'matchup.fantasyPoints',
+        'matchup.player1',
+        'matchup.player2',
+        'matchup.differential',
+        'matchup.currentStats',
+        'matchup.playerGames',
+
+        // SpontaneousBets (no guesses)
+        'spontaneous.id',
+        'spontaneous.result',
+        'spontaneous.fantasyPoints',
+      ])
+      .getMany();
+  }
+
   async getAllBets(): Promise<{
     [key: string]: {
       team1: string;
@@ -903,7 +948,8 @@ export class SeriesService {
     } = {};
 
     try {
-      const series = await this.getAllSeries();
+      const series = await this.getAllSeriesNoGuesses();
+
       series.forEach((s) => {
         bettingData[s.id] = {
           team1: s.team1,
