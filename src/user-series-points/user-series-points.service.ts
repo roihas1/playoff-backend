@@ -143,7 +143,7 @@ export class UserSeriesPointsService {
       this.logger.error(`Cron job failed: ${error.message}`, error.stack);
     }
   }
-  @Cron(CronExpression.EVERY_DAY_AT_4PM)
+  @Cron(CronExpression.EVERY_DAY_AT_6PM)
   async handleDailyPointsUpdate() {
     this.logger.log('Starting daily user-series-points update...');
     try {
