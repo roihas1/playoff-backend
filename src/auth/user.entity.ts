@@ -14,6 +14,8 @@ import { ChampionTeamGuess } from 'src/champions-guess/entities/champion-team-gu
 import { MVPGuess } from 'src/champions-guess/entities/mvp-guess.entity';
 import { Exclude } from 'class-transformer';
 import { PrivateLeague } from 'src/private-league/private-league.entity';
+import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
+import { UserSeriesPoints } from 'src/user-series-points/user-series-points.entity';
 
 @Entity()
 export class User {
@@ -70,6 +72,14 @@ export class User {
     },
   )
   playerMatchupGuesses: PlayerMatchupGuess[];
+  @OneToMany(
+    () => SpontaneousGuess,
+    (spontaneousGuess) => spontaneousGuess.createdBy,
+    {
+      eager: false,
+    },
+  )
+  spontaneousGuesses: SpontaneousGuess[];
 
   @OneToMany(
     () => ConferenceFinalGuess,
@@ -101,4 +111,7 @@ export class User {
     eager: false,
   })
   adminLeagues: PrivateLeague[];
+
+  @OneToMany(() => UserSeriesPoints, (usp) => usp.user)
+  seriesPoints: UserSeriesPoints[];
 }

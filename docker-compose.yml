@@ -7,21 +7,21 @@ services:
     env_file:
       - .env.stage.prod
     environment:
-        STAGE: "example-dev"
-        DB_HOST: "example-localhost"
-        DB_PORT: "5432"
-        DB_USERNAME: "example-user"
-        DB_PASSWORD: "example-password"
-        DB_DATABASE: "exampleDB"
-        JWT_SECRET: "example-secret"
-        EXPIRE_IN: "3600"  
-        GOOGLE_CLIENT_ID: "random-google-client-id"
-        GOOGLE_SECRET: "random-google-secret"
-        GOOGLE_CALLBACK_URL: "http://example.com/auth/google-callback"
-        FRONTEND_URL: "<forntend_url>"
+      STAGE: 'example-dev'
+      DB_HOST: 'example-localhost'
+      DB_PORT: '5432'
+      DB_USERNAME: 'example-user'
+      DB_PASSWORD: 'example-password'
+      DB_DATABASE: 'exampleDB'
+      JWT_SECRET: 'example-secret'
+      EXPIRE_IN: '3600'
+      GOOGLE_CLIENT_ID: 'random-google-client-id'
+      GOOGLE_SECRET: 'random-google-secret'
+      GOOGLE_CALLBACK_URL: 'http://example.com/auth/google-callback'
+      FRONTEND_URL: '<forntend_url>'
     restart: always
     volumes:
-       - ./logs:/app/logs 
+      - ./logs:/app/logs
     networks:
       - app-network
 

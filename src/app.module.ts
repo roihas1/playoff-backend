@@ -33,9 +33,12 @@ import { PrivateLeagueModule } from './private-league/private-league.module';
 
 import { AppDataSource } from './data-source';
 import { AppLogger } from './logging/logger.service';
+import { UserSeriesPointsModule } from './user-series-points/user-series-points.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath:
@@ -71,6 +74,7 @@ import { AppLogger } from './logging/logger.service';
     SpontaneousBetModule,
     SpontaneousGuessModule,
     PrivateLeagueModule,
+    UserSeriesPointsModule,
   ],
   controllers: [AppController],
   providers: [

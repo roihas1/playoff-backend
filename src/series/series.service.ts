@@ -33,6 +33,7 @@ import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity
 import { SpontaneousBetService } from 'src/spontaneous-bet/spontaneous-bet.service';
 import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 import { AuthService } from 'src/auth/auth.service';
+import { Between } from 'typeorm';
 
 @Injectable()
 export class SeriesService {
@@ -220,7 +221,7 @@ export class SeriesService {
           return guess.createdById === user.id;
         }),
       );
-      console.log(playerMatchupGuesses);
+
       const flattenedPlayerMatchupGuesses = playerMatchupGuesses.flat();
       return {
         teamWinGuess: teamWinGuess[0],
@@ -612,12 +613,15 @@ export class SeriesService {
       );
     }
   }
-  async getPointsForUser(seriesId: string, user: User): Promise<number> {
+  async getPointsForUser(series: Series, user: User): Promise<number> {
     try {
-      const series = await this.getSeriesByID(seriesId);
+      // const series = await this.getSeriesByID(seriesId);
       let userPoints = 0;
 
       // Use map/filter only once and combine results
+      // const teamWinGuess = user.teamWinGuesses.find(
+      //   (guess) => guess.createdById === user.id,
+      // );
       const teamWinGuess = series.teamWinBetId.guesses.find(
         (guess) => guess.createdById === user.id,
       );
@@ -656,32 +660,215 @@ export class SeriesService {
       return userPoints;
     } catch (error) {
       this.logger.error(
-        `User: ${user.username} failed to get points per series id: ${seriesId} "${error}".`,
+        `User: ${user.username} failed to get points per series id: ${series.id} "${error}".`,
       );
       throw new InternalServerErrorException(
-        `User: ${user.username} failed to get points per series id: ${seriesId}.`,
+        `User: ${user.username} failed to get points per series id: ${series.id}.`,
       );
     }
   }
+  async getPlainSeries(): Promise<Series[]> {
+    const baseSeries = await this.seriesRepository.find({
+      select: ['id', 'dateOfStart', 'timeOfStart'],
+    });
+
+    return baseSeries;
+  }
+  async calculatePointsForUserSeries(
+    user: User,
+    seriesMap: {
+      [seriesId: string]: {
+        teamWin?: { id: string; result: number; fantasyPoints: number };
+        bestOf7?: { id: string; result: number; fantasyPoints: number };
+        matchupBets?: { id: string; result: number; fantasyPoints: number }[];
+        spontaneousBets?: {
+          id: string;
+          result: number;
+          fantasyPoints: number;
+        }[];
+      };
+    },
+  ): Promise<{ [seriesId: string]: number }> {
+    const userSeriesPoints: { [seriesId: string]: number } = {};
+
+    for (const [seriesId, bets] of Object.entries(seriesMap)) {
+      let points = 0;
+      // === TeamWin Guess ===
+      const teamWinGuess = user.teamWinGuesses.find(
+        (g) => g.betId === bets.teamWin?.id,
+      );
+      const teamWinCorrect =
+        teamWinGuess?.guess === bets.teamWin?.result &&
+        bets.teamWin?.result !== null;
+
+      if (teamWinCorrect) {
+        points += bets.teamWin?.fantasyPoints || 0;
+      }
+
+      // === BestOf7 Guess ===
+      const bestOf7Guess = user.bestOf7Guesses.find(
+        (g) => g.betId === bets.bestOf7?.id,
+      );
+      const bestOf7Correct =
+        bestOf7Guess?.guess === bets.bestOf7?.result &&
+        bets.bestOf7?.result !== null;
+
+      if (bestOf7Correct) {
+        points += bets.bestOf7?.fantasyPoints || 0;
+      }
+
+      // === Player Matchup Guesses ===
+      for (const matchup of bets.matchupBets ?? []) {
+        const guess = user.playerMatchupGuesses.find(
+          (g) => g.betId === matchup.id,
+        );
+        if (guess?.guess === matchup.result && matchup.result !== null) {
+          points += matchup.fantasyPoints || 0;
+        }
+      }
+
+      // === Spontaneous Guesses ===
+      for (const spontaneous of bets.spontaneousBets ?? []) {
+        const guess = user.spontaneousGuesses.find(
+          (g) => g.betId === spontaneous.id,
+        );
+        if (
+          guess?.guess === spontaneous.result &&
+          spontaneous.result !== null
+        ) {
+          points += spontaneous.fantasyPoints || 0;
+        }
+      }
+
+      userSeriesPoints[seriesId] = points;
+    }
+
+    return userSeriesPoints;
+  }
+  buildSeriesMap(
+    bestOf7: {
+      id: string;
+      result: number;
+      fantasyPoints: number;
+      seriesId: string;
+    }[],
+    teamWin: {
+      id: string;
+      result: number;
+      fantasyPoints: number;
+      seriesId: string;
+    }[],
+    matchupBets: {
+      id: string;
+      result: number;
+      fantasyPoints: number;
+      seriesId: string;
+    }[],
+    spontaneous: {
+      id: string;
+      result: number;
+      fantasyPoints: number;
+      seriesId: string;
+    }[],
+  ): {
+    [seriesId: string]: {
+      teamWin?: { id: string; result: number; fantasyPoints: number };
+      bestOf7?: { id: string; result: number; fantasyPoints: number };
+      matchupBets?: { id: string; result: number; fantasyPoints: number }[];
+      spontaneousBets?: { id: string; result: number; fantasyPoints: number }[];
+    };
+  } {
+    const seriesMap: {
+      [seriesId: string]: {
+        teamWin?: { id: string; result: number; fantasyPoints: number };
+        bestOf7?: { id: string; result: number; fantasyPoints: number };
+        matchupBets?: { id: string; result: number; fantasyPoints: number }[];
+        spontaneousBets?: {
+          id: string;
+          result: number;
+          fantasyPoints: number;
+        }[];
+      };
+    } = {};
+
+    const ensureSeries = (seriesId: string) => {
+      if (!seriesMap[seriesId]) {
+        seriesMap[seriesId] = {};
+      }
+    };
+
+    for (const bet of bestOf7) {
+      ensureSeries(bet.seriesId);
+      seriesMap[bet.seriesId].bestOf7 = {
+        id: bet.id,
+        result: bet.result,
+        fantasyPoints: bet.fantasyPoints,
+      };
+    }
+
+    for (const bet of teamWin) {
+      ensureSeries(bet.seriesId);
+      seriesMap[bet.seriesId].teamWin = {
+        id: bet.id,
+        result: bet.result,
+        fantasyPoints: bet.fantasyPoints,
+      };
+    }
+
+    for (const bet of matchupBets) {
+      ensureSeries(bet.seriesId);
+      if (!seriesMap[bet.seriesId].matchupBets) {
+        seriesMap[bet.seriesId].matchupBets = [];
+      }
+      seriesMap[bet.seriesId].matchupBets.push({
+        id: bet.id,
+        result: bet.result,
+        fantasyPoints: bet.fantasyPoints,
+      });
+    }
+
+    for (const bet of spontaneous) {
+      ensureSeries(bet.seriesId);
+      if (!seriesMap[bet.seriesId].spontaneousBets) {
+        seriesMap[bet.seriesId].spontaneousBets = [];
+      }
+      seriesMap[bet.seriesId].spontaneousBets.push({
+        id: bet.id,
+        result: bet.result,
+        fantasyPoints: bet.fantasyPoints,
+      });
+    }
+
+    return seriesMap;
+  }
+
   async getPointsPerSeriesForUser(
     user: User,
   ): Promise<{ [key: string]: number }> {
     try {
-      const series = await this.getAllSeries();
+      const userWithGuesses = await this.authService.getUserGuesses(user);
 
-      // Use Promise.all to fetch points for all series in parallel
-      const result = await Promise.all(
-        series.map(async (single) => {
-          const points = await this.getPointsForUser(single.id, user);
-          return { [single.id]: points };
-        }),
+      const bestOf7 = await this.bestOf7BetService.getAllWithResults();
+
+      const teamWin = await this.teamWinBetService.getAllWithResults();
+      const matchupBets = await this.playerMatcupBetService.getAllWithResults();
+      const spontaneous = await this.spontaneousBetService.getAllWithResults();
+      const seriesMap = this.buildSeriesMap(
+        bestOf7,
+        teamWin,
+        matchupBets,
+        spontaneous,
       );
 
-      // Convert the result array to an object
-      return result.reduce((acc, item) => ({ ...acc, ...item }), {});
+      const userPointsPerSeries = await this.calculatePointsForUserSeries(
+        userWithGuesses,
+        seriesMap,
+      );
+
+      return userPointsPerSeries;
     } catch (error) {
       this.logger.error(
-        `User: ${user.username} failed to get points for all series "${error}".`,
+        `User: ${user.username} failed to get points for all series "${error} ${error.stack}".`,
       );
       throw new InternalServerErrorException(
         `User: ${user.username} failed to get points for all series.`,

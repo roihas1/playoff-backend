@@ -5,6 +5,7 @@ import {
   Entity,
   ManyToOne,
   PrimaryGeneratedColumn,
+  RelationId,
   Unique,
 } from 'typeorm';
 import { Exclude, Expose } from 'class-transformer';
@@ -31,4 +32,6 @@ export class BestOf7Guess {
   get createdById(): string {
     return this.createdBy?.id;
   }
+  @RelationId((guess: BestOf7Guess) => guess.bet)
+  betId: string;
 }

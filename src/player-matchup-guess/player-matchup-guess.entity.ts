@@ -6,6 +6,7 @@ import {
   Entity,
   ManyToOne,
   PrimaryGeneratedColumn,
+  RelationId,
   Unique,
 } from 'typeorm';
 
@@ -21,6 +22,8 @@ export class PlayerMatchupGuess {
     { eager: false, onDelete: 'SET NULL' },
   )
   bet: PlayerMatchupBet;
+  @RelationId((guess: PlayerMatchupGuess) => guess.bet)
+  betId: string;
 
   @ManyToOne(() => User, (user) => user.playerMatchupGuesses, { eager: true })
   @Exclude({ toPlainOnly: true })

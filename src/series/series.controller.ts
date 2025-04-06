@@ -203,16 +203,16 @@ export class SeriesController {
     );
     return await this.seriesServie.checkIfUserGuessedAll(user);
   }
-  @Get('/:seriesId/getOverallPointsPerSeries')
-  async getPointsForUser(
-    @Param('seriesId') seriesId: string,
-    @GetUser() user: User,
-  ): Promise<number> {
-    this.logger.verbose(
-      `User with username: "${user.username}" is attempting to get his points for series id:${seriesId}.`,
-    );
-    return await this.seriesServie.getPointsForUser(seriesId, user);
-  }
+  // @Get('/:seriesId/getOverallPointsPerSeries')
+  // async getPointsForUser(
+  //   @Param('seriesId') seriesId: string,
+  //   @GetUser() user: User,
+  // ): Promise<number> {
+  //   this.logger.verbose(
+  //     `User with username: "${user.username}" is attempting to get his points for series id:${seriesId}.`,
+  //   );
+  //   return await this.seriesServie.getPointsForUser(seriesId, user);
+  // }
   @Get('/getOverallPoints/allSeries')
   async getPointsPerSeriesForUser(
     @GetUser() user: User,

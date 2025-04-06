@@ -211,7 +211,12 @@ export class AuthService {
     try {
       const foundUser = await this.usersRepository.findOne({
         where: { id: user.id },
-        relations: ['bestOf7Guesses', 'teamWinGuesses', 'playerMatchupGuesses'],
+        relations: [
+          'bestOf7Guesses',
+          'teamWinGuesses',
+          'playerMatchupGuesses',
+          'spontaneousGuesses',
+        ],
       });
       return foundUser;
     } catch (error) {

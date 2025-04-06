@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { TransformInterceptor } from './transform.interceptor';
 import { UnauthorizedExceptionFilter } from './filters/unauthorizedException.Filter';
 import { AppLogger } from './logging/logger.service';
+import * as crypto from 'crypto';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,6 +14,10 @@ async function bootstrap() {
     origin: allowedOrigin,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
+  });
+
+  Object.defineProperty(global, 'crypto', {
+    value: crypto,
   });
 
   app.useLogger(logger);

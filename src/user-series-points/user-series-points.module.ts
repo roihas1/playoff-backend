@@ -1,0 +1,20 @@
+import { Module } from '@nestjs/common';
+import { UserSeriesPointsService } from './user-series-points.service';
+import { UserSeriesPointsController } from './user-series-points.controller';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UserSeriesPointsRepository } from './user-series-points.repository';
+import { SeriesModule } from 'src/series/series.module';
+import { AuthModule } from 'src/auth/auth.module';
+import { ScheduleModule } from '@nestjs/schedule';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([UserSeriesPointsRepository]),
+    SeriesModule,
+    AuthModule,
+    ScheduleModule,
+  ],
+  providers: [UserSeriesPointsService, UserSeriesPointsRepository],
+  controllers: [UserSeriesPointsController],
+})
+export class UserSeriesPointsModule {}

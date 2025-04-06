@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Logger,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Logger, Post, UseGuards } from '@nestjs/common';
 import { SpontaneousGuessService } from './spontaneous-guess.service';
 import { SpontaneousGuess } from './spontaneous-guess.entity';
 import { GetUser } from 'src/auth/get-user.decorator';

@@ -8,7 +8,6 @@ import { SpontaneousBetRepo } from './spontaneous-bet.repository';
 import { SpontaneousBet } from './spontaneousBet.entity';
 import { CreateSpontaneousBetDto } from './dto/create-spontaneous-bet.dto';
 import { UpdateBetFieldsDto } from './dto/update-fields.dto';
-import { UpdateResultDto } from 'src/player-matchup-bet/dto/update-result.dto';
 import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
 
 @Injectable()
@@ -32,6 +31,22 @@ export class SpontaneousBetService {
       );
     }
   }
+  async getAllWithResults(): Promise<
+    { id: string; result: number; seriesId: string; fantasyPoints: number }[]
+  > {
+    const raw = await this.spontaneousBetRepo
+      .createQueryBuilder('bet')
+      .select([
+        'bet.id AS id',
+        'bet.result AS result',
+        'bet.seriesId AS "seriesId"',
+        'bet.fantasyPoints AS "fantasyPoints"',
+      ])
+      .getRawMany();
+
+    return raw;
+  }
+
   async getAllSeriesSpontaneousBets(
     seriesId: string,
   ): Promise<SpontaneousBet[]> {

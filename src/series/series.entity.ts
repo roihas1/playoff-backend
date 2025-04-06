@@ -11,6 +11,7 @@ import {
 import { Conference } from './conference.enum';
 import { Round } from './round.enum';
 import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
+import { UserSeriesPoints } from 'src/user-series-points/user-series-points.entity';
 
 @Entity()
 export class Series {
@@ -79,4 +80,6 @@ export class Series {
     },
   )
   spontaneousBets: SpontaneousBet[];
+  @OneToMany(() => UserSeriesPoints, (usp) => usp.series)
+  userPoints: UserSeriesPoints[];
 }

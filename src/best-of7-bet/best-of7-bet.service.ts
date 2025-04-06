@@ -2,6 +2,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -40,6 +41,28 @@ export class BestOf7BetService {
       series,
       createBestOf7BetDto.fantasyPoints,
     );
+  }
+  async getAllWithResults(): Promise<
+    { id: string; result: number; seriesId: string; fantasyPoints: number }[]
+  > {
+    try {
+      const raw = await this.bestOf7BetRepository
+        .createQueryBuilder('bet')
+        .leftJoin('bet.series', 'series')
+        .select([
+          'bet.id AS id',
+          'bet.result AS result',
+          'bet.fantasyPoints AS "fantasyPoints"',
+          'series.id AS "seriesId"',
+        ])
+        .getRawMany();
+      return raw;
+    } catch (error) {
+      this.logger.error(`faild to get all bets, series and results ${error}`);
+      throw new InternalServerErrorException(
+        `faild to get all bets, series and results`,
+      );
+    }
   }
 
   async getBestOf7betById(bestOf7BetId: string): Promise<BestOf7Bet> {

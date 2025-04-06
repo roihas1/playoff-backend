@@ -5,6 +5,7 @@ import {
   Entity,
   ManyToOne,
   PrimaryGeneratedColumn,
+  RelationId,
   Unique,
 } from 'typeorm';
 import { TeamWinBet } from 'src/team-win-bet/team-win-bet.entity';
@@ -19,6 +20,8 @@ export class TeamWinGuess {
     eager: false,
   })
   bet: TeamWinBet;
+  @RelationId((guess: TeamWinGuess) => guess.bet)
+  betId: string;
 
   @ManyToOne(() => User, (user) => user.teamWinGuesses, { eager: true })
   @Exclude({ toPlainOnly: true })

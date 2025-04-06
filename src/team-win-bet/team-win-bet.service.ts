@@ -34,6 +34,20 @@ export class TeamWinBetService {
       createTeamWinBetDto,
     );
   }
+  async getAllWithResults(): Promise<
+    { id: string; result: number; seriesId: string; fantasyPoints: number }[]
+  > {
+    const raw = await this.teamWinBetRepository
+      .createQueryBuilder('bet')
+      .select([
+        'bet.id AS id',
+        'bet.result AS result',
+        'bet.seriesId AS "seriesId"',
+        'bet.fantasyPoints AS "fantasyPoints"',
+      ])
+      .getRawMany();
+    return raw;
+  }
 
   async getTeamWinBetById(teamWinBetId: string): Promise<TeamWinBet> {
     this.logger.verbose(
