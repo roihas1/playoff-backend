@@ -12,7 +12,7 @@ import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-gues
 export class PlayerMatchupBetService {
   private logger = new Logger('PlayerMatchupBetService', { timestamp: true });
   constructor(
-    private playerMatcupBetRepository: PlayerMatchupBetRepository,
+    private playerMatchupBetRepository: PlayerMatchupBetRepository,
     private usersService: AuthService,
   ) {}
 
@@ -20,12 +20,12 @@ export class PlayerMatchupBetService {
     createPlayerMatchupBetDto: CreatePlayerMatchupBetDto,
   ): Promise<PlayerMatchupBet> {
     this.logger.verbose(`Trying to create PlayerMatchupBet.`);
-    return await this.playerMatcupBetRepository.createPlayerMatchupBet(
+    return await this.playerMatchupBetRepository.createPlayerMatchupBet(
       createPlayerMatchupBetDto,
     );
   }
   async getPlayerMatchupBetById(id: string): Promise<PlayerMatchupBet> {
-    const found = await this.playerMatcupBetRepository.findOne({
+    const found = await this.playerMatchupBetRepository.findOne({
       where: {
         id,
       },
@@ -45,7 +45,7 @@ export class PlayerMatchupBetService {
     const bet = await this.getPlayerMatchupBetById(id);
     bet.result = updateResultDto.result;
     try {
-      const savedBet = await this.playerMatcupBetRepository.save(bet);
+      const savedBet = await this.playerMatchupBetRepository.save(bet);
       this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
       await Promise.all(
         savedBet.guesses.map(async (guess) => {
@@ -87,7 +87,7 @@ export class PlayerMatchupBetService {
   async getAllWithResults(): Promise<
     { id: string; result: number; seriesId: string; fantasyPoints: number }[]
   > {
-    const raw = await this.playerMatcupBetRepository
+    const raw = await this.playerMatchupBetRepository
       .createQueryBuilder('bet')
 
       .select([
@@ -99,6 +99,23 @@ export class PlayerMatchupBetService {
       .getRawMany();
 
     return raw;
+  }
+  async getActiveBets(): Promise<any[]> {
+    const bets = await this.playerMatchupBetRepository
+      .createQueryBuilder('bet')
+      .select([
+        'bet.id AS id',
+        'bet.result AS result',
+        'bet.player1 AS player1',
+        'bet.player2 AS player2',
+        'bet.seriesId AS "seriesId"', // Corrected the reference to seriesId
+        'bet.fantasyPoints AS "fantasyPoints"',
+      ])
+      .leftJoin('bet.seriesId', 'series') // Join with the series table
+      .where('series.dateOfStart > :now', { now: new Date() }) // Check if the series date is in the future
+      .getRawMany();
+
+    return bets;
   }
 
   async updateResultForSeries(
@@ -126,7 +143,7 @@ export class PlayerMatchupBetService {
       matchup.result = result;
     }
     try {
-      const savedBet = await this.playerMatcupBetRepository.save(matchup);
+      const savedBet = await this.playerMatchupBetRepository.save(matchup);
       this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);
 
       // for (const guess of savedBet.guesses) {
@@ -192,7 +209,7 @@ export class PlayerMatchupBetService {
     Object.assign(bet, updateFieldsDto);
 
     try {
-      const savedBet = await this.playerMatcupBetRepository.save(bet);
+      const savedBet = await this.playerMatchupBetRepository.save(bet);
       this.logger.verbose(
         `PlayerMatchupBet with ID "${id}" successfully updated the fields.`,
       );
@@ -209,7 +226,7 @@ export class PlayerMatchupBetService {
   async deleteBet(id: string, user: User): Promise<void> {
     try {
       // Check if the bet exists before trying to delete it
-      const bet = await this.playerMatcupBetRepository.findOne({
+      const bet = await this.playerMatchupBetRepository.findOne({
         where: { id },
       });
 
@@ -220,7 +237,7 @@ export class PlayerMatchupBetService {
       }
 
       // Proceed with deletion
-      await this.playerMatcupBetRepository.delete(id);
+      await this.playerMatchupBetRepository.delete(id);
 
       // Optionally log success
       this.logger.verbose(

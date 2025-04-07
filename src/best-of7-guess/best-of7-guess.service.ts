@@ -30,7 +30,7 @@ export class BestOf7GuessService {
     const found = await this.bestOf7GuessRepository.findOne({
       where: {
         createdBy: user,
-        bet: bestOf7Bet,
+        bet: { id: bestOf7Bet.id },
       },
     });
     if (found) {

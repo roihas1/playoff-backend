@@ -31,6 +31,21 @@ export class SpontaneousBetService {
       );
     }
   }
+  async getActiveBets(): Promise<SpontaneousBet[]> {
+    return await this.spontaneousBetRepo
+      .createQueryBuilder('bet')
+      .select([
+        'bet.id AS id',
+        'bet.result AS result',
+        'bet.player1 AS player1',
+        'bet.player2 AS player2',
+        'bet.seriesId AS "seriesId"',
+        'bet.fantasyPoints AS "fantasyPoints"',
+      ])
+      .leftJoin('bet.seriesId', 'series') // Join with the series table
+      .where('series.dateOfStart > :now', { now: new Date() }) // Check if the series date is in the future
+      .getRawMany();
+  }
   async getAllWithResults(): Promise<
     { id: string; result: number; seriesId: string; fantasyPoints: number }[]
   > {

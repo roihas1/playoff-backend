@@ -35,6 +35,7 @@ import { AppDataSource } from './data-source';
 import { AppLogger } from './logging/logger.service';
 import { UserSeriesPointsModule } from './user-series-points/user-series-points.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { UserMissingBetsModule } from './user-missing-bets/user-missing-bets.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     SpontaneousGuessModule,
     PrivateLeagueModule,
     UserSeriesPointsModule,
+    UserMissingBetsModule,
   ],
   controllers: [AppController],
   providers: [

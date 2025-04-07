@@ -1,4 +1,5 @@
 import {
+  ConsoleLogger,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -33,7 +34,6 @@ import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity
 import { SpontaneousBetService } from 'src/spontaneous-bet/spontaneous-bet.service';
 import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 import { AuthService } from 'src/auth/auth.service';
-import { Between } from 'typeorm';
 
 @Injectable()
 export class SeriesService {
@@ -176,7 +176,7 @@ export class SeriesService {
       }
     } catch (error) {
       this.logger.error(
-        `Series with ID: ${seriesId} did not update the guesses.`,
+        `Series with ID: ${seriesId} did not update the guesses. ${error.stack}`,
       );
       throw new InternalServerErrorException(
         `Series with ID: ${seriesId} did not update the guesses.`,
@@ -482,93 +482,202 @@ export class SeriesService {
       );
     }
   }
-  async getAllMissingBets(user: User): Promise<{
-    [key: string]: {
+  // async getAllMissingBets(user: User): Promise<{
+  //   [key: string]: {
+  //     seriesName: string;
+  //     gamesAndWinner: boolean;
+  //     playerMatchup: PlayerMatchupBet[];
+  //     spontaneousBets: SpontaneousBet[];
+  //   };
+  // }> {
+  //   try {
+  //     console.time();
+  //     const series = await this.getAllSeries();
+  //     const result: {
+  //       [key: string]: {
+  //         seriesName: string;
+  //         gamesAndWinner: boolean;
+  //         playerMatchup: PlayerMatchupBet[];
+  //         spontaneousBets: SpontaneousBet[];
+  //       };
+  //     } = {};
+
+  //     series.forEach((element) => {
+  //       if (!result[element.id]) {
+  //         result[element.id] = {
+  //           seriesName: `${element.team1} vs ${element.team2}`,
+  //           gamesAndWinner: false,
+  //           playerMatchup: [],
+  //           spontaneousBets: [],
+  //         };
+  //       }
+  //       if (new Date(element.dateOfStart) > new Date()) {
+  //         // Check if user has made a Best of 7 guess
+  //         const bestOf7Guess = element.bestOf7BetId.guesses.some(
+  //           (guess) => guess.createdById === user.id,
+  //         );
+
+  //         // Check if user has made a Team Win guess
+  //         const teamWinGuess = element.teamWinBetId.guesses.some(
+  //           (guess) => guess.createdById === user.id,
+  //         );
+
+  //         // If user hasn't made either bet, mark as missing
+  //         if (!bestOf7Guess || !teamWinGuess) {
+  //           result[element.id].gamesAndWinner = true;
+  //         }
+
+  //         // Check missing player matchup bets
+  //         element.playerMatchupBets.forEach((bet) => {
+  //           const hasUserGuessed = bet.guesses.some(
+  //             (guess) => guess.createdById === user.id,
+  //           );
+  //           if (!hasUserGuessed) {
+  //             result[element.id].playerMatchup.push(bet);
+  //           }
+  //         });
+  //       }
+
+  //       // Check missing spontaneous bets
+  //       element.spontaneousBets.forEach((bet) => {
+  //         if (new Date(bet.startTime) > new Date()) {
+  //           const hasUserGuessed = bet.guesses.some(
+  //             (guess) => guess.createdById === user.id,
+  //           );
+  //           if (!hasUserGuessed) {
+  //             result[element.id].spontaneousBets.push(bet);
+  //           }
+  //         }
+  //       });
+  //     });
+  //     Object.keys(result).forEach((key) => {
+  //       if (
+  //         result[key].gamesAndWinner === false &&
+  //         result[key].playerMatchup.length === 0 &&
+  //         result[key].spontaneousBets.length === 0
+  //       ) {
+  //         delete result[key]; // Remove key from the object
+  //       }
+  //     });
+  //     console.timeEnd()
+  //     return result;
+  //   } catch (error) {
+  //     this.logger.error(
+  //       `User: ${user.username} faild to get all his missing bets.${error.stack}`,
+  //     );
+  //     throw new InternalServerErrorException(
+  //       `User: ${user.username} faild to get all his missing bets.`,
+  //     );
+  //   }
+  // }
+  async getSeriesNamesAndIds(): Promise<{
+    [seriesId: string]: { team1: string; team2: string };
+  }> {
+    const series = await this.seriesRepository
+      .createQueryBuilder('series')
+      .select(['series.id', 'series.team1', 'series.team2'])
+      .getMany();
+
+    const seriesMap: { [seriesId: string]: { team1: string; team2: string } } =
+      {};
+
+    series.forEach((s) => {
+      seriesMap[s.id] = {
+        team1: s.team1,
+        team2: s.team2,
+      };
+    });
+
+    return seriesMap;
+  }
+
+  async getOptimizedMissingBets(user: User): Promise<{
+    [seriesId: string]: {
       seriesName: string;
       gamesAndWinner: boolean;
-      playerMatchup: PlayerMatchupBet[];
-      spontaneousBets: SpontaneousBet[];
+      playerMatchup: any[];
+      spontaneousBets: any[];
     };
   }> {
     try {
-      const series = await this.getAllSeries();
+      const userWithGuesses = await this.authService.getUserGuesses(user);
+      const series = await this.getSeriesNamesAndIds();
+      const bestOf7GuessIds = new Set(
+        userWithGuesses.bestOf7Guesses.map((g) => g.betId),
+      );
+      // const teamWinGuessIds = new Set(
+      //   userWithGuesses.teamWinGuesses.map((g) => g.betId),
+      // );
+      const matchupGuessIds = new Set(
+        userWithGuesses.playerMatchupGuesses.map((g) => g.betId),
+      );
+      const spontaneousGuessIds = new Set(
+        userWithGuesses.spontaneousGuesses.map((g) => g.betId),
+      );
+
+      const [bestOf7, matchupBets, spontaneous] = await Promise.all([
+        this.bestOf7BetService.getActiveBets(),
+        // this.teamWinBetService.getActiveBets(),
+        this.playerMatcupBetService.getActiveBets(),
+        this.spontaneousBetService.getActiveBets(),
+      ]);
       const result: {
-        [key: string]: {
+        [seriesId: string]: {
           seriesName: string;
           gamesAndWinner: boolean;
-          playerMatchup: PlayerMatchupBet[];
-          spontaneousBets: SpontaneousBet[];
+          playerMatchup: any[];
+          spontaneousBets: any[];
         };
       } = {};
-
-      series.forEach((element) => {
-        if (!result[element.id]) {
-          result[element.id] = {
-            seriesName: `${element.team1} vs ${element.team2}`,
-            gamesAndWinner: false,
-            playerMatchup: [],
-            spontaneousBets: [],
-          };
-        }
-        if (new Date(element.dateOfStart) > new Date()) {
-          // Check if user has made a Best of 7 guess
-          const bestOf7Guess = element.bestOf7BetId.guesses.some(
-            (guess) => guess.createdById === user.id,
-          );
-
-          // Check if user has made a Team Win guess
-          const teamWinGuess = element.teamWinBetId.guesses.some(
-            (guess) => guess.createdById === user.id,
-          );
-
-          // If user hasn't made either bet, mark as missing
-          if (!bestOf7Guess || !teamWinGuess) {
-            result[element.id].gamesAndWinner = true;
+      for (const bet of bestOf7) {
+        if (!bestOf7GuessIds.has(bet.id)) {
+          if (!result[bet.seriesId]) {
+            result[bet.seriesId] = {
+              seriesName: `${series[bet.seriesId].team1} vs ${series[bet.seriesId].team2}`,
+              gamesAndWinner: true,
+              playerMatchup: [],
+              spontaneousBets: [],
+            };
           }
-
-          // Check missing player matchup bets
-          element.playerMatchupBets.forEach((bet) => {
-            const hasUserGuessed = bet.guesses.some(
-              (guess) => guess.createdById === user.id,
-            );
-            if (!hasUserGuessed) {
-              result[element.id].playerMatchup.push(bet);
-            }
-          });
         }
-
-        // Check missing spontaneous bets
-        element.spontaneousBets.forEach((bet) => {
-          if (new Date(bet.startTime) > new Date()) {
-            const hasUserGuessed = bet.guesses.some(
-              (guess) => guess.createdById === user.id,
-            );
-            if (!hasUserGuessed) {
-              result[element.id].spontaneousBets.push(bet);
-            }
+      }
+      for (const bet of matchupBets) {
+        if (!matchupGuessIds.has(bet.id)) {
+          if (!result[bet.seriesId]) {
+            result[bet.seriesId] = {
+              seriesName: `${series[bet.seriesId].team1} vs ${series[bet.seriesId].team2}`,
+              gamesAndWinner: false,
+              playerMatchup: [],
+              spontaneousBets: [],
+            };
           }
-        });
-      });
-      Object.keys(result).forEach((key) => {
-        if (
-          result[key].gamesAndWinner === false &&
-          result[key].playerMatchup.length === 0 &&
-          result[key].spontaneousBets.length === 0
-        ) {
-          delete result[key]; // Remove key from the object
+          result[bet.seriesId].playerMatchup.push(bet);
         }
-      });
+      }
+      for (const bet of spontaneous) {
+        if (!spontaneousGuessIds.has(bet.id)) {
+          if (!result[bet.seriesId]) {
+            result[bet.seriesId] = {
+              seriesName: `${series[bet.seriesId].team1} vs ${series[bet.seriesId].team2}`,
+              gamesAndWinner: false,
+              playerMatchup: [],
+              spontaneousBets: [],
+            };
+          }
+          result[bet.seriesId].spontaneousBets.push(bet);
+        }
+      }
 
       return result;
     } catch (error) {
       this.logger.error(
-        `User: ${user.username} faild to get all his missing bets.${error.stack}`,
+        `Failed to compute missing bets for ${user.username}`,
+        error.stack,
       );
-      throw new InternalServerErrorException(
-        `User: ${user.username} faild to get all his missing bets.`,
-      );
+      throw new InternalServerErrorException('Failed to compute missing bets.');
     }
   }
+
   async checkIfUserGuessedAll(user: User): Promise<{ [key: string]: boolean }> {
     try {
       const series = await this.getAllSeries();

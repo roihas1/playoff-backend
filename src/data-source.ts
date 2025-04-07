@@ -17,6 +17,7 @@ import { SpontaneousBet } from './spontaneous-bet/spontaneousBet.entity';
 import { SpontaneousGuess } from './spontaneous-guess/spontaneous-guess.entity';
 import { PrivateLeague } from './private-league/private-league.entity';
 import { UserSeriesPoints } from './user-series-points/user-series-points.entity';
+import { UserMissingBet } from './user-missing-bets/user-missing-bets.entity';
 ConfigModule.forRoot({
   isGlobal: true,
   envFilePath: [`.env.stage.${process.env.STAGE}`],
@@ -47,6 +48,7 @@ export const AppDataSource = new DataSource({
     SpontaneousGuess,
     PrivateLeague,
     UserSeriesPoints,
+    UserMissingBet,
   ],
   synchronize: true,
   logging: false,

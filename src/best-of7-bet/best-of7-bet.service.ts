@@ -42,6 +42,31 @@ export class BestOf7BetService {
       createBestOf7BetDto.fantasyPoints,
     );
   }
+  async getActiveBets(): Promise<
+    {
+      id: string;
+      fantasyPoints: number;
+      seriesScore: number;
+      result: number;
+      seriesId: string;
+    }[]
+  > {
+    const raw = await this.bestOf7BetRepository
+      .createQueryBuilder('bet')
+      .innerJoin('bet.series', 'series')
+      .where('series.dateOfStart > :now', { now: new Date() })
+      .select([
+        'bet.id AS id',
+        'bet.fantasyPoints AS fantasyPoints',
+        'bet.seriesScore AS seriesScore',
+        'bet.result AS result',
+        'series.id AS "seriesId"',
+      ])
+      .getRawMany();
+
+    return raw;
+  }
+
   async getAllWithResults(): Promise<
     { id: string; result: number; seriesId: string; fantasyPoints: number }[]
   > {

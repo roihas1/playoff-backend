@@ -110,6 +110,23 @@ export class TeamWinBetService {
     );
     return points;
   }
+  // async getActiveBets(): Promise<any[]> {
+  //   const bets = await this.teamWinBetRepository
+  //     .createQueryBuilder('bet')
+  //     .leftJoin('bet.series', 'series')
+  //     .addSelect(['series.team1', 'series.team2', 'series.id'])
+  //     .where('series.dateOfStart > :now', { now: new Date() })
+  //     .getMany();
+
+  //   return bets.map((bet) => ({
+  //     id: bet.id,
+  //     fantasyPoints: bet.fantasyPoints,
+  //     result: bet.result,
+  //     team1Name: bet.seriesId,
+  //     team2Name: bet.series.team2,
+  //     seriesId: bet.series.id,
+  //   }));
+  // }
 
   async updateResult(
     updateResultDto: UpdateResultDto,

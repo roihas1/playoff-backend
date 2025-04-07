@@ -192,7 +192,7 @@ export class SeriesController {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get all his missing bets.`,
     );
-    return await this.seriesServie.getAllMissingBets(user);
+    return await this.seriesServie.getOptimizedMissingBets(user);
   }
   @Get('/isUserGuessed/All')
   async checkIfUserGuessedAll(
