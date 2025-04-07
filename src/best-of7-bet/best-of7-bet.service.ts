@@ -42,6 +42,20 @@ export class BestOf7BetService {
       createBestOf7BetDto.fantasyPoints,
     );
   }
+  async getAllBets(): Promise<
+    {
+      id: string;
+      seriesId: string;
+    }[]
+  > {
+    const raw = await this.bestOf7BetRepository
+      .createQueryBuilder('bet')
+      .innerJoin('bet.series', 'series')
+      .select(['bet.id AS id', 'series.id AS "seriesId"'])
+      .getRawMany();
+
+    return raw;
+  }
   async getActiveBets(): Promise<
     {
       id: string;

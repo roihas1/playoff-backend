@@ -46,6 +46,14 @@ export class SpontaneousBetService {
       .where('series.dateOfStart > :now', { now: new Date() }) // Check if the series date is in the future
       .getRawMany();
   }
+  async getAllBets(): Promise<{ id: string; seriesId: string }[]> {
+    const raw = await this.spontaneousBetRepo
+      .createQueryBuilder('bet')
+      .select(['bet.id AS id', 'bet.seriesId AS "seriesId"'])
+      .getRawMany();
+
+    return raw;
+  }
   async getAllWithResults(): Promise<
     { id: string; result: number; seriesId: string; fantasyPoints: number }[]
   > {

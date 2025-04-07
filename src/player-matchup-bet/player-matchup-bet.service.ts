@@ -84,6 +84,14 @@ export class PlayerMatchupBetService {
     );
     return points;
   }
+  async getAllBets(): Promise<{ id: string; seriesId: string }[]> {
+    const raw = await this.playerMatchupBetRepository
+      .createQueryBuilder('bet')
+      .select(['bet.id AS id', 'bet.seriesIdId AS "seriesId"'])
+      .getRawMany();
+
+    return raw;
+  }
   async getAllWithResults(): Promise<
     { id: string; result: number; seriesId: string; fantasyPoints: number }[]
   > {

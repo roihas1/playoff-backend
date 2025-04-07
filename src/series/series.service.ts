@@ -677,51 +677,130 @@ export class SeriesService {
       throw new InternalServerErrorException('Failed to compute missing bets.');
     }
   }
-
-  async checkIfUserGuessedAll(user: User): Promise<{ [key: string]: boolean }> {
+  async checkIfUserGuessedAll(
+    user: User,
+  ): Promise<{ [seriesId: string]: boolean }> {
     try {
-      const series = await this.getAllSeries();
-      const result: { [key: string]: boolean } = {};
-      series.map((element) => {
-        const bestOf7Guess = element.bestOf7BetId.guesses.filter((guess) => {
-          return guess.createdById === user.id;
-        });
+      const { bestOf7GuessIds, matchupGuessIds, spontaneousGuessIds } =
+        await this.authService.getUserGuessesForCheck(user.id);
 
-        const teamWinGuess = element.teamWinBetId.guesses.filter(
-          (guess) => guess.createdById === user.id,
+      const [bestOf7, matchupBets, spontaneous] = await Promise.all([
+        this.bestOf7BetService.getAllBets(),
+        // this.teamWinBetService.getActiveBets(),
+        this.playerMatcupBetService.getAllBets(),
+        this.spontaneousBetService.getAllBets(),
+      ]);
+
+      const betsBySeries: {
+        [seriesId: string]: {
+          bestOf7?: string;
+          // teamWin?: string;
+          matchup: string[];
+          spontaneous: string[];
+        };
+      } = {};
+
+      // Organize bets per series
+      for (const bet of bestOf7) {
+        if (!betsBySeries[bet.seriesId])
+          betsBySeries[bet.seriesId] = { matchup: [], spontaneous: [] };
+        betsBySeries[bet.seriesId].bestOf7 = bet.id;
+      }
+
+      // for (const bet of teamWin) {
+      //   if (!betsBySeries[bet.seriesId])
+      //     betsBySeries[bet.seriesId] = { matchup: [], spontaneous: [] };
+      //   betsBySeries[bet.seriesId].teamWin = bet.id;
+      // }
+
+      for (const bet of matchupBets) {
+        if (!betsBySeries[bet.seriesId])
+          betsBySeries[bet.seriesId] = { matchup: [], spontaneous: [] };
+        betsBySeries[bet.seriesId].matchup.push(bet.id);
+      }
+
+      for (const bet of spontaneous) {
+        if (!betsBySeries[bet.seriesId])
+          betsBySeries[bet.seriesId] = { matchup: [], spontaneous: [] };
+        betsBySeries[bet.seriesId].spontaneous.push(bet.id);
+      }
+
+      // Check if all bets are guessed
+      const result: { [seriesId: string]: boolean } = {};
+
+      for (const [seriesId, bets] of Object.entries(betsBySeries)) {
+        const guessedAllBestOf7 = bets.bestOf7
+          ? bestOf7GuessIds.has(bets.bestOf7)
+          : true;
+
+        const guessedAllMatchups = bets.matchup.every((id) =>
+          matchupGuessIds.has(id),
         );
-        const playerMatchupGuess = element.playerMatchupBets.flatMap((bet) => {
-          return (
-            bet.guesses.filter((guess) => guess.createdById === user.id) || []
-          );
-        });
-        const spontaneousGuesses = element.spontaneousBets.flatMap((bet) => {
-          return (
-            bet.guesses.filter((guess) => guess.createdById === user.id) || []
-          );
-        });
-        if (
-          bestOf7Guess.length > 0 &&
-          teamWinGuess.length > 0 &&
-          playerMatchupGuess.length === element.playerMatchupBets.length &&
-          spontaneousGuesses.length === element.spontaneousBets.length
-        ) {
-          result[element.id] = true;
-        } else {
-          result[element.id] = false;
-        }
-      });
+        const guessedAllSpontaneous = bets.spontaneous.every((id) =>
+          spontaneousGuessIds.has(id),
+        );
+
+        result[seriesId] =
+          guessedAllBestOf7 && guessedAllMatchups && guessedAllSpontaneous;
+      }
 
       return result;
     } catch (error) {
       this.logger.error(
-        `User: ${user.username} faild to check if he guessed all the bettings.${error.stack}`,
+        `Failed to determine if user ${user.username} completed all bets.`,
+        error.stack,
       );
       throw new InternalServerErrorException(
-        `User: ${user.username} faild to check if he guessed all the bettings.`,
+        `Could not verify complete guesses for user ${user.username}`,
       );
     }
   }
+
+  // async checkIfUserGuessedAll(user: User): Promise<{ [key: string]: boolean }> {
+  //   try {
+
+  //     const series = await this.getAllSeries();
+  //     const result: { [key: string]: boolean } = {};
+  //     series.map((element) => {
+  //       const bestOf7Guess = element.bestOf7BetId.guesses.filter((guess) => {
+  //         return guess.createdById === user.id;
+  //       });
+
+  //       const teamWinGuess = element.teamWinBetId.guesses.filter(
+  //         (guess) => guess.createdById === user.id,
+  //       );
+  //       const playerMatchupGuess = element.playerMatchupBets.flatMap((bet) => {
+  //         return (
+  //           bet.guesses.filter((guess) => guess.createdById === user.id) || []
+  //         );
+  //       });
+  //       const spontaneousGuesses = element.spontaneousBets.flatMap((bet) => {
+  //         return (
+  //           bet.guesses.filter((guess) => guess.createdById === user.id) || []
+  //         );
+  //       });
+  //       if (
+  //         bestOf7Guess.length > 0 &&
+  //         teamWinGuess.length > 0 &&
+  //         playerMatchupGuess.length === element.playerMatchupBets.length &&
+  //         spontaneousGuesses.length === element.spontaneousBets.length
+  //       ) {
+  //         result[element.id] = true;
+  //       } else {
+  //         result[element.id] = false;
+  //       }
+  //     });
+
+  //     return result;
+  //   } catch (error) {
+  //     this.logger.error(
+  //       `User: ${user.username} faild to check if he guessed all the bettings.${error.stack}`,
+  //     );
+  //     throw new InternalServerErrorException(
+  //       `User: ${user.username} faild to check if he guessed all the bettings.`,
+  //     );
+  //   }
+  // }
   async getPointsForUser(series: Series, user: User): Promise<number> {
     try {
       // const series = await this.getSeriesByID(seriesId);

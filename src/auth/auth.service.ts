@@ -207,6 +207,37 @@ export class AuthService {
       this.logger.error(error);
     }
   }
+  async getUserGuessesForCheck(userId: string) {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+      select: { id: true },
+      relations: [
+        'bestOf7Guesses',
+        'playerMatchupGuesses',
+        'spontaneousGuesses',
+      ],
+      loadRelationIds: {
+        relations: [
+          'bestOf7Guesses.bet',
+          'playerMatchupGuesses.bet',
+          'spontaneousGuesses.bet',
+        ],
+      },
+    });
+
+    return {
+      bestOf7GuessIds: new Set(
+        user.bestOf7Guesses.map((g) => g.betId as string),
+      ),
+      matchupGuessIds: new Set(
+        user.playerMatchupGuesses.map((g) => g.betId as string),
+      ),
+      spontaneousGuessIds: new Set(
+        user.spontaneousGuesses.map((g) => g.betId as string),
+      ),
+    };
+  }
+
   async getUserGuesses(user: User): Promise<User> {
     try {
       const foundUser = await this.usersRepository.findOne({
