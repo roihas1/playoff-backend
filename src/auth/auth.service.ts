@@ -18,6 +18,7 @@ import { ConfigService } from '@nestjs/config';
 import { Role } from './user-role.enum';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 import { PrivateLeague } from 'src/private-league/private-league.entity';
+import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
 
 @Injectable()
 export class AuthService {
@@ -236,6 +237,23 @@ export class AuthService {
         user.spontaneousGuesses.map((g) => g.betId as string),
       ),
     };
+  }
+  async getUserSpontanouesGuess(user: User): Promise<SpontaneousGuess[]> {
+    try {
+      const foundUser = await this.usersRepository.findOne({
+        where: { id: user.id },
+        relations: ['spontaneousGuesses'],
+      });
+      return foundUser.spontaneousGuesses;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get Spontaneous guesses of user:${user.username}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to get Spontaneous guesses of user:${user.username}`,
+      );
+    }
   }
 
   async getUserGuesses(user: User): Promise<User> {

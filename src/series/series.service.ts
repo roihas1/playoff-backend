@@ -1242,22 +1242,46 @@ export class SeriesService {
       );
     }
   }
+  async getSpontaneousBetIdsBySeries(seriesId: string): Promise<string[]> {
+    try {
+      const raw = await this.seriesRepository
+        .createQueryBuilder('series')
+        .leftJoin('series.spontaneousBets', 'spontaneousBets')
+        .where('series.id = :id', { id: seriesId })
+        .select(['spontaneousBets.id'])
+        .getRawMany();
+
+      return raw.map((row) => row['spontaneousBets_id']);
+    } catch (error) {
+      this.logger.error(
+        `Failed to get spontaneous bet IDs for series ${seriesId}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to get spontaneous bet IDs for series ${seriesId}`,
+      );
+    }
+  }
+
   async getSpontaneousGuesses(
     seriesId: string,
     user: User,
   ): Promise<SpontaneousGuess[]> {
     try {
-      const series = await this.getSeriesByID(seriesId);
-
-      const spontaneousBets = await Promise.all(
-        series.spontaneousBets.map(async (bet) => {
-          return await this.spontaneousBetService.getBetById(bet.id);
-        }),
-      );
-      const guesses = spontaneousBets.map((bet) =>
-        bet.guesses.filter((guess) => guess.createdBy.id === user.id),
-      );
-      return guesses.flat();
+      const series = await this.getSpontaneousBetIdsBySeries(seriesId);
+      const userGuess = await this.authService.getUserSpontanouesGuess(user);
+      const spontenouesGuesses = userGuess.filter((g) => {
+        return series.includes(g.betId);
+      });
+      // const spontaneousBets = await Promise.all(
+      //   series.spontaneousBets.map(async (bet) => {
+      //     return await this.spontaneousBetService.getBetById(bet.id);
+      //   }),
+      // );
+      // const guesses = spontaneousBets.map((bet) =>
+      //   bet.guesses.filter((guess) => guess.createdBy.id === user.id),
+      // );
+      return spontenouesGuesses;
     } catch (error) {
       this.logger.error(`Failed to get spontaneous guesses  "${error}".`);
       throw new InternalServerErrorException(
