@@ -30,7 +30,7 @@ export class UserSeriesPointsController {
     return this.userSeriesPointsService.findAll();
   }
 
-  @Get('user')
+  @Get('/user')
   async getPointsForUser(@GetUser() user: User) {
     this.logger.verbose(
       `Attempting to fetch series points for user: ${user.username}`,
@@ -38,7 +38,7 @@ export class UserSeriesPointsController {
     return this.userSeriesPointsService.findByUserId(user.id);
   }
 
-  @Get('series/:seriesId')
+  @Get('/series/:seriesId')
   async getPointsForSeries(@Param('seriesId') seriesId: string) {
     this.logger.verbose(
       `Attempting to fetch all user points for series: ${seriesId}`,
@@ -46,7 +46,7 @@ export class UserSeriesPointsController {
     return this.userSeriesPointsService.findBySeriesId(seriesId);
   }
 
-  @Get('user/series/:seriesId')
+  @Get('/user/series/:seriesId')
   async getPointsForUserInSeries(
     @GetUser() user: User,
     @Param('seriesId') seriesId: string,
@@ -67,7 +67,7 @@ export class UserSeriesPointsController {
     return result;
   }
 
-  @Patch('user/updatePoints')
+  @Patch('/user/updatePoints')
   async updatePointsForUser(@GetUser() user: User): Promise<void> {
     this.logger.verbose(
       `Attempting to update points for user: ${user.username}`,
@@ -75,7 +75,7 @@ export class UserSeriesPointsController {
     return this.userSeriesPointsService.updatePointsForUser(user);
   }
 
-  @Patch('user/updatePoints/all')
+  @Patch('/user/updatePoints/all')
   async updatePointsForAllUsers(): Promise<void> {
     this.logger.verbose('Attempting to update points for all users...');
     return this.userSeriesPointsService.updateAllUserPoints();

@@ -19,6 +19,9 @@ import { Role } from './user-role.enum';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 import { PrivateLeague } from 'src/private-league/private-league.entity';
 import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
+import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
+import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
+import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
 
 @Injectable()
 export class AuthService {
@@ -252,6 +255,47 @@ export class AuthService {
       );
       throw new InternalServerErrorException(
         `Failed to get Spontaneous guesses of user:${user.username}`,
+      );
+    }
+  }
+  async getUserGuessesForSeries(
+    seriesId: string,
+    user: User,
+  ): Promise<{
+    bestOf7Guess: BestOf7Guess;
+    teamWinGuess: TeamWinGuess;
+    playerMatchupGuesses: PlayerMatchupGuess[];
+    spontaneousGuesses: SpontaneousGuess[];
+  }> {
+    try {
+      const foundUser = await this.getUserGuesses(user);
+      console.log(foundUser.bestOf7Guesses[0])
+      
+      const bestOf7Guess = foundUser.bestOf7Guesses.filter(
+        (g) => g.bet.series.id === seriesId,
+      )[0];
+      const teamWinGuess = foundUser.teamWinGuesses.filter(
+        (g) => g.bet.seriesId === seriesId,
+      )[0];
+      const playerMatchupGuesses = foundUser.playerMatchupGuesses.filter(
+        (g) => g.bet.seriesId === seriesId,
+      );
+      const spontaneousGuesses = foundUser.spontaneousGuesses.filter(
+        (g) => g.bet.seriesId === seriesId,
+      );
+      return {
+        bestOf7Guess,
+        teamWinGuess,
+        playerMatchupGuesses,
+        spontaneousGuesses,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to get guesses of user:${user.username}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to get guesses of user:${user.username}`,
       );
     }
   }

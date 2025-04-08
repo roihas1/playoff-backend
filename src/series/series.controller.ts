@@ -137,6 +137,29 @@ export class SeriesController {
 
     return guesses;
   }
+  @Get('/:seriesId/getAllGuesses')
+  async getAllGuessForUser(
+    @Param('seriesId') seriesId: string,
+    @GetUser() user: User,
+  ): Promise<{
+    bestOf7: BestOf7Guess | null;
+    teamWon: TeamWinGuess | null;
+    playerMatchups: {
+      guesses: PlayerMatchupGuess[];
+      player1: string;
+      player2: string;
+    }[];
+    spontaneousGuesses: {
+      guesses: SpontaneousGuess[];
+      player1: string;
+      player2: string;
+    }[];
+  }> {
+    this.logger.verbose(
+      `User "${user.username}" attempt to retrieve series all guesses with id: ${seriesId}.`,
+    );
+    return await this.seriesServie.getAllGuessesForUser(seriesId, user);
+  }
   @Patch('/:seriesId/updateResult')
   @Roles(Role.ADMIN)
   @UseGuards(RolesGuard)

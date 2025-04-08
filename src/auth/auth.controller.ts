@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Param,
   Patch,
   Post,
   Query,
@@ -25,6 +26,10 @@ import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 import { GoogleAuthGuard } from './google-auth/google-auth.guard';
 import { AppLogger } from 'src/logging/logger.service';
 import { ConfigService } from '@nestjs/config';
+import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
+import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
+import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
+import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
 
 @Controller('auth')
 export class AuthController {
@@ -172,6 +177,23 @@ export class AuthController {
       'AuthController',
     );
     return await this.authService.getUserGuesses(user);
+  }
+  @Get('/:seriesId/getUserGuesses')
+  @UseGuards(JwtAuthGuard)
+  async getUserGuessesForSeries(
+    @Param('seriesId') seriesId: string,
+    @GetUser() user: User,
+  ): Promise<{
+    bestOf7Guess: BestOf7Guess;
+    teamWinGuess: TeamWinGuess;
+    playerMatchupGuesses: PlayerMatchupGuess[];
+    spontaneousGuesses: SpontaneousGuess[];
+  }> {
+    this.logger.verbose(
+      `User: ${user.username} is attempting get guesses per series.`,
+      'AuthController',
+    );
+    return await this.authService.getUserGuessesForSeries(seriesId, user);
   }
 
   @Get('/google/login')

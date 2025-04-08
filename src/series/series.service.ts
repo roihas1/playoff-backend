@@ -183,6 +183,75 @@ export class SeriesService {
       );
     }
   }
+  async getAllGuessesForUser(
+    seriesId: string,
+    user: User,
+  ): Promise<{
+    bestOf7: BestOf7Guess | null;
+    teamWon: TeamWinGuess | null;
+    playerMatchups: {
+      guesses: PlayerMatchupGuess[];
+      player1: string;
+      player2: string;
+    }[];
+    spontaneousGuesses: {
+      guesses: SpontaneousGuess[];
+      player1: string;
+      player2: string;
+    }[];
+  }> {
+    try {
+      const userWithGuesses = await this.authService.getUserGuesses(user);
+      const series = await this.getSeriesByID(seriesId);
+
+      const bestOf7 =
+        userWithGuesses.bestOf7Guesses.find(
+          (g) => g.betId === series.bestOf7BetId.id,
+        ) || null;
+
+      const teamWon =
+        userWithGuesses.teamWinGuesses.find(
+          (g) => g.betId === series.teamWinBetId.id,
+        ) || null;
+
+      const playerMatchups = series.playerMatchupBets.map((bet) => {
+        const guesses = userWithGuesses.playerMatchupGuesses.filter(
+          (g) => g.betId === bet.id,
+        );
+        return {
+          guesses,
+          player1: bet.player1,
+          player2: bet.player2,
+        };
+      });
+
+      const spontaneousGuesses = series.spontaneousBets.map((bet) => {
+        const guesses = userWithGuesses.spontaneousGuesses.filter(
+          (g) => g.betId === bet.id,
+        );
+        return {
+          guesses,
+          player1: bet.player1,
+          player2: bet.player2,
+        };
+      });
+
+      return {
+        bestOf7,
+        teamWon,
+        playerMatchups,
+        spontaneousGuesses,
+      };
+    } catch (error) {
+      this.logger.error(
+        `User: ${user.username} failed to get all guesses for series: ${seriesId}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Could not retrieve guesses for user: ${user.username} in series: ${seriesId}`,
+      );
+    }
+  }
 
   async getGuessesByUser(
     seriesId: string,
@@ -1103,7 +1172,14 @@ export class SeriesService {
         // SpontaneousBets (no guesses)
         'spontaneous.id',
         'spontaneous.result',
+        'spontaneous.typeOfMatchup',
+        'spontaneous.categories',
         'spontaneous.fantasyPoints',
+        'spontaneous.player1',
+        'spontaneous.player2',
+        'spontaneous.differential',
+        'spontaneous.currentStats',
+        'spontaneous.playerGames',
       ])
       .getMany();
   }
