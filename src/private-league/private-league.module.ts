@@ -9,5 +9,6 @@ import { AuthModule } from 'src/auth/auth.module';
   imports: [TypeOrmModule.forFeature([PrivateLeagueRepository]), AuthModule],
   controllers: [PrivateLeagueController],
   providers: [PrivateLeagueService, PrivateLeagueRepository],
+  exports: [PrivateLeagueService],
 })
 export class PrivateLeagueModule {}

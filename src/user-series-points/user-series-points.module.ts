@@ -16,5 +16,6 @@ import { ScheduleModule } from '@nestjs/schedule';
   ],
   providers: [UserSeriesPointsService, UserSeriesPointsRepository],
   controllers: [UserSeriesPointsController],
+  exports: [UserSeriesPointsService],
 })
 export class UserSeriesPointsModule {}

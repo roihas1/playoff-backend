@@ -34,6 +34,7 @@ import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity
 import { SpontaneousBetService } from 'src/spontaneous-bet/spontaneous-bet.service';
 import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 import { AuthService } from 'src/auth/auth.service';
+import { GetAllSeriesGuessesDto } from './dto/get-series-guesses-stats.dto';
 
 @Injectable()
 export class SeriesService {
@@ -1362,6 +1363,40 @@ export class SeriesService {
       this.logger.error(`Failed to get spontaneous guesses  "${error}".`);
       throw new InternalServerErrorException(
         `Failed to get spontaneous guesses.`,
+      );
+    }
+  }
+  async getAllGuessesAndStats(
+    seriesId: string,
+    user: User,
+  ): Promise<GetAllSeriesGuessesDto> {
+    try {
+      this.logger.verbose(
+        `Fetching all guess data for user: ${user.username} and series: ${seriesId}`,
+      );
+
+      const [guesses, spontaneousGuesses, percentages] = await Promise.all([
+        this.getGuessesByUser(seriesId, user),
+        this.getSpontaneousGuesses(seriesId, user),
+        this.getGuessesPercentage(seriesId),
+      ]);
+
+      this.logger.verbose(
+        `Successfully fetched guess data for user: ${user.username} and series: ${seriesId}`,
+      );
+
+      return {
+        guesses,
+        spontaneousGuesses,
+        percentages,
+      };
+    } catch (error) {
+      this.logger.error(
+        `User: ${user.username} failed to get combined guess data for series: ${seriesId}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to get all guess data for series`,
       );
     }
   }

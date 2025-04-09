@@ -35,6 +35,7 @@ import { RolesGuard } from 'src/auth/roles.guard';
 import { Role } from 'src/auth/user-role.enum';
 import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
 import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
+import { GetAllSeriesGuessesDto } from './dto/get-series-guesses-stats.dto';
 
 @Controller('series')
 @UseGuards(JwtAuthGuard)
@@ -301,5 +302,13 @@ export class SeriesController {
       `User with username: "${user.username}" is attempting to get spontaneous guesses  , id:${seriesId}`,
     );
     return await this.seriesServie.getSpontaneousGuesses(seriesId, user);
+  }
+
+  @Get('/:seriesId/full-data')
+  async getAllGuessData(
+    @Param('seriesId') seriesId: string,
+    @GetUser() user: User,
+  ): Promise<GetAllSeriesGuessesDto> {
+    return this.seriesServie.getAllGuessesAndStats(seriesId, user);
   }
 }

@@ -32,7 +32,7 @@ export class TeamWinGuessService {
     const found = await this.teamWinGuessRepository.findOne({
       where: {
         createdBy: user,
-        bet: { id: teamWinBet.id }, 
+        bet: { id: teamWinBet.id },
       },
     });
 

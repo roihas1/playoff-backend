@@ -114,7 +114,7 @@ export class TeamWinBetService {
     const bets = await this.teamWinBetRepository
       .createQueryBuilder('bet')
       .leftJoin('bet.series', 'series')
-      .addSelect([ 'series.id'])
+      .addSelect(['series.id'])
       .where('series.dateOfStart > :now', { now: new Date() })
       .getMany();
 

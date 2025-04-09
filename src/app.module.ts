@@ -36,6 +36,8 @@ import { AppLogger } from './logging/logger.service';
 import { UserSeriesPointsModule } from './user-series-points/user-series-points.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { UserMissingBetsModule } from './user-missing-bets/user-missing-bets.module';
+import { HomePageModule } from './home-page/home-page.module';
+import { ComparisonPageModule } from './comprison-page/comparison-page.module';
 
 @Module({
   imports: [
@@ -77,6 +79,8 @@ import { UserMissingBetsModule } from './user-missing-bets/user-missing-bets.mod
     PrivateLeagueModule,
     UserSeriesPointsModule,
     UserMissingBetsModule,
+    HomePageModule,
+    ComparisonPageModule,
   ],
   controllers: [AppController],
   providers: [

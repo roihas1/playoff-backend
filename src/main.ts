@@ -5,6 +5,7 @@ import { TransformInterceptor } from './transform.interceptor';
 import { UnauthorizedExceptionFilter } from './filters/unauthorizedException.Filter';
 import { AppLogger } from './logging/logger.service';
 import * as crypto from 'crypto';
+import * as compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -19,7 +20,7 @@ async function bootstrap() {
   Object.defineProperty(global, 'crypto', {
     value: crypto,
   });
-
+  app.use(compression());
   app.useLogger(logger);
   app.useGlobalPipes(new ValidationPipe());
   app.useGlobalInterceptors(new TransformInterceptor());
