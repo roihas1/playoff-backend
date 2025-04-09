@@ -92,6 +92,7 @@ export class SeriesService {
   }
   async getSeriesByID(id: string): Promise<Series> {
     const foundSeries = await this.seriesRepository.findOne({ where: { id } });
+
     if (!foundSeries) {
       this.logger.error(`Series with ID "${id}" not found .`);
       throw new NotFoundException(`Event with ID "${id}" not found`);
@@ -254,6 +255,36 @@ export class SeriesService {
       );
     }
   }
+  async getSeriesWithBetsOnly(seriesId: string): Promise<Series> {
+    try {
+      const series = await this.seriesRepository
+        .createQueryBuilder('series')
+        .leftJoin('series.bestOf7BetId', 'bestOf7Bet')
+        .leftJoin('series.teamWinBetId', 'teamWinBet')
+        .leftJoin('series.playerMatchupBets', 'playerMatchupBets')
+        .leftJoin('series.spontaneousBets', 'spontaneousBets')
+        .addSelect(['bestOf7Bet.id'])
+        .addSelect(['teamWinBet.id'])
+        .addSelect(['playerMatchupBets.id'])
+        .addSelect(['spontaneousBets.id'])
+        .where('series.id = :seriesId', { seriesId })
+        .getOne();
+
+      if (!series) {
+        this.logger.error(`Series with ID "${seriesId}" not found.`);
+        throw new NotFoundException(`Series with ID "${seriesId}" not found`);
+      }
+
+      return series;
+    } catch (error) {
+      this.logger.error(
+        `Error fetching series "${seriesId}": ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        `Failed to fetch series "${seriesId}"`,
+      );
+    }
+  }
 
   async getGuessesByUser(
     seriesId: string,
@@ -262,11 +293,12 @@ export class SeriesService {
     teamWinGuess: TeamWinGuess;
     bestOf7Guess: BestOf7Guess;
     playerMatchupGuess: PlayerMatchupGuess[];
+    spontanouesGuess: SpontaneousGuess[];
   }> {
     try {
       console.time();
       const userWithGuesses = await this.authService.getUserGuesses(user);
-      const series = await this.getSeriesByID(seriesId);
+      const series = await this.getSeriesWithBetsOnly(seriesId);
       // const teamWinBet = await this.teamWinBetService.getTeamWinBetById(
       //   series.teamWinBetId.id,
       // );
@@ -301,6 +333,9 @@ export class SeriesService {
       );
 
       const flattenedPlayerMatchupGuesses = playerMatchupGuesses.flat();
+      const spontaneousGuesses = userWithGuesses.spontaneousGuesses.filter(
+        (g) => !!series.spontaneousBets.find((bet) => bet.id === g.betId),
+      );
       console.timeEnd();
       return {
         teamWinGuess: teamWinGuess[0],
@@ -308,6 +343,7 @@ export class SeriesService {
         playerMatchupGuess: flattenedPlayerMatchupGuesses
           ? flattenedPlayerMatchupGuesses
           : [],
+        spontanouesGuess: spontaneousGuesses,
       };
     } catch (err) {
       this.logger.error(
@@ -1387,15 +1423,15 @@ export class SeriesService {
         `Fetching all guess data for user: ${user.username} and series: ${seriesId}`,
       );
 
-      const [guesses, spontaneousGuesses, percentages] = await Promise.all([
+      const [guesses, percentages] = await Promise.all([
         this.getGuessesByUser(seriesId, user),
-        this.getSpontaneousGuesses(seriesId, user),
+        // this.getSpontaneousGuesses(seriesId, user),
         this.getGuessesPercentage(seriesId),
       ]);
       this.logger.verbose(
         `Successfully fetched guess data for user: ${user.username} and series: ${seriesId}`,
       );
-
+      const spontaneousGuesses = guesses.spontanouesGuess;
       return {
         guesses,
         spontaneousGuesses,
