@@ -23,18 +23,7 @@ export class PlayerMatchupGuessRepository extends Repository<PlayerMatchupGuess>
     playerMatchupBet: PlayerMatchupBet,
     user: User,
   ): Promise<PlayerMatchupGuess> {
-    const existingGuess = await this.findOne({
-      where: { bet: playerMatchupBet, createdBy: user },
-    });
-    if (existingGuess) {
-      this.logger.error(
-        `User ${user.id} have already made a guess for the bet with id ${playerMatchupBet.id}.`,
-      );
-      throw new ConflictException(
-        `User ${user.id} have already made a guess for the bet with id ${playerMatchupBet.id}.`,
-      );
-    }
-    const playerMatchupGuess = this.create({
+      const playerMatchupGuess = this.create({
       guess,
       bet: playerMatchupBet,
       createdBy: user,

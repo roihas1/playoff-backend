@@ -22,22 +22,6 @@ export class BestOf7GuessRepository extends Repository<BestOf7Guess> {
     bestOf7Bet: BestOf7Bet,
     user: User,
   ): Promise<BestOf7Guess> {
-    const existingGuess = await this.findOne({
-      where: {
-        bet: bestOf7Bet,
-        createdBy: user,
-      },
-    });
-
-    if (existingGuess) {
-      this.logger.error(
-        `User ${user.id} have already made a guess for the bet with id ${bestOf7Bet.id}.`,
-      );
-      throw new ConflictException(
-        `User ${user.id} have already made a guess for the bet with id ${bestOf7Bet.id}.`,
-      );
-    }
-
     const bestOf7Guess = this.create({
       bet: bestOf7Bet,
       guess: guess,

@@ -25,18 +25,19 @@ export class BestOf7GuessService {
   ): Promise<BestOf7Guess> {
     this.logger.verbose(`Trying to create bestOf7Guess.`);
     const { guess, bestOf7BetId } = createBestOf7GuessDto;
-    const bestOf7Bet =
-      await this.bestOf7BetService.getBestOf7betById(bestOf7BetId);
+
     const found = await this.bestOf7GuessRepository.findOne({
       where: {
         createdBy: user,
-        bet: { id: bestOf7Bet.id },
+        bet: { id: bestOf7BetId },
       },
     });
     if (found) {
       found.guess = guess;
       return await this.bestOf7GuessRepository.save(found);
     }
+    const bestOf7Bet =
+      await this.bestOf7BetService.getBestOf7betById(bestOf7BetId);
     return await this.bestOf7GuessRepository.createBestOf7Guess(
       guess,
       bestOf7Bet,

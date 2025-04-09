@@ -21,21 +21,7 @@ export class TeamWinGuessRepository extends Repository<TeamWinGuess> {
     teamWinBet: TeamWinBet,
     user: User,
   ): Promise<TeamWinGuess> {
-    const existingGuess = await this.findOne({
-      where: {
-        bet: teamWinBet,
-        createdBy: user,
-      },
-    });
-    if (existingGuess) {
-      this.logger.error(
-        `User ${user.id} have already made a guess for the bet with id ${teamWinBet.id}.`,
-      );
-      throw new ConflictException(
-        `User ${user.id} have already made a guess for the bet with id ${teamWinBet.id}.`,
-      );
-    }
-
+    console.log('inside repo')
     const teamWinGuess = this.create({
       guess,
       bet: teamWinBet,

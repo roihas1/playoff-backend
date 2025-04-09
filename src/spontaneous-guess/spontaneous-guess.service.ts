@@ -24,18 +24,19 @@ export class SpontaneousGuessService {
   ): Promise<SpontaneousGuess> {
     try {
       const { guess, spontaneousBetId } = createSpontaneousGuessDto;
-      const spontaneousBet =
-        await this.spontaneousBetService.getBetById(spontaneousBetId);
+
       const found = await this.spontaneousGuessRepo.findOne({
         where: {
           createdBy: user,
-          bet: spontaneousBet,
+          bet: { id: spontaneousBetId },
         },
       });
       if (found) {
         found.guess = guess;
         return await this.spontaneousGuessRepo.save(found);
       }
+      const spontaneousBet =
+        await this.spontaneousBetService.getBetById(spontaneousBetId);
       return await this.spontaneousGuessRepo.createSpontaneousGuess(
         guess,
         spontaneousBet,

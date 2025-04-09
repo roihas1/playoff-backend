@@ -141,6 +141,7 @@ export class SeriesService {
   ): Promise<void> {
     try {
       const series = await this.getSeriesByID(seriesId);
+
       if (createGuessesDto.teamWinGuess) {
         const createTeamWinGuessDto = {
           guess: createGuessesDto.teamWinGuess,
@@ -263,22 +264,28 @@ export class SeriesService {
     playerMatchupGuess: PlayerMatchupGuess[];
   }> {
     try {
+      console.time();
+      const userWithGuesses = await this.authService.getUserGuesses(user);
       const series = await this.getSeriesByID(seriesId);
-      const teamWinBet = await this.teamWinBetService.getTeamWinBetById(
-        series.teamWinBetId.id,
+      // const teamWinBet = await this.teamWinBetService.getTeamWinBetById(
+      //   series.teamWinBetId.id,
+      // );
+      const teamWinGuess = userWithGuesses.teamWinGuesses.filter(
+        (g) => g.betId === series.teamWinBetId.id,
       );
+      // const teamWinGuess = teamWinBet.guesses?.filter(
+      //   (guess) => guess.createdById === user.id,
+      // );
 
-      const teamWinGuess = teamWinBet.guesses?.filter(
-        (guess) => guess.createdById === user.id,
+      // const bestOf7Bet = await this.bestOf7BetService.getBestOf7betById(
+      //   series.bestOf7BetId.id,
+      // );
+      const bestOf7Guess = userWithGuesses.bestOf7Guesses.filter(
+        (g) => g.betId === series.bestOf7BetId.id,
       );
-
-      const bestOf7Bet = await this.bestOf7BetService.getBestOf7betById(
-        series.bestOf7BetId.id,
-      );
-
-      const bestOf7Guess = bestOf7Bet.guesses?.filter(
-        (guess) => guess.createdById === user.id,
-      );
+      // const bestOf7Guess = bestOf7Bet.guesses?.filter(
+      //   (guess) => guess.createdById === user.id,
+      // );
       const playerMatchupBets = await Promise.all(
         series.playerMatchupBets.map(async (bet) => {
           return await this.playerMatcupBetService.getPlayerMatchupBetById(
@@ -286,13 +293,15 @@ export class SeriesService {
           );
         }),
       );
+
       const playerMatchupGuesses = playerMatchupBets.map((bet) =>
-        bet.guesses?.filter((guess) => {
-          return guess.createdById === user.id;
+        userWithGuesses.playerMatchupGuesses?.filter((guess) => {
+          return guess.betId === bet.id;
         }),
       );
 
       const flattenedPlayerMatchupGuesses = playerMatchupGuesses.flat();
+      console.timeEnd();
       return {
         teamWinGuess: teamWinGuess[0],
         bestOf7Guess: bestOf7Guess[0],
@@ -691,6 +700,7 @@ export class SeriesService {
         this.playerMatcupBetService.getActiveBets(),
         this.spontaneousBetService.getActiveBets(),
       ]);
+
       const result: {
         [seriesId: string]: {
           seriesName: string;
@@ -711,6 +721,7 @@ export class SeriesService {
           }
         }
       }
+
       for (const bet of matchupBets) {
         if (!matchupGuessIds.has(bet.id)) {
           if (!result[bet.seriesId]) {
@@ -724,6 +735,7 @@ export class SeriesService {
           result[bet.seriesId].playerMatchup.push(bet);
         }
       }
+
       for (const bet of spontaneous) {
         if (!spontaneousGuessIds.has(bet.id)) {
           if (!result[bet.seriesId]) {
@@ -1380,7 +1392,6 @@ export class SeriesService {
         this.getSpontaneousGuesses(seriesId, user),
         this.getGuessesPercentage(seriesId),
       ]);
-
       this.logger.verbose(
         `Successfully fetched guess data for user: ${user.username} and series: ${seriesId}`,
       );

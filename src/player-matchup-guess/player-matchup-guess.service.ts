@@ -21,20 +21,21 @@ export class PlayerMatchupGuessService {
   ): Promise<PlayerMatchupGuess> {
     this.logger.verbose(`Trying to create PlayerMatchupGuess.`);
     const { guess, playerMatchupBetId } = createPlayerMatchGuessDto;
-    const playerMatchupBet =
-      await this.playerMatchupBetService.getPlayerMatchupBetById(
-        playerMatchupBetId,
-      );
+
     const found = await this.playerMatchupGuessRepository.findOne({
       where: {
         createdBy: user,
-        bet: { id: playerMatchupBet.id },
+        bet: { id: playerMatchupBetId },
       },
     });
     if (found) {
       found.guess = guess;
       return await this.playerMatchupGuessRepository.save(found);
     }
+    const playerMatchupBet =
+      await this.playerMatchupBetService.getPlayerMatchupBetById(
+        playerMatchupBetId,
+      );
     return await this.playerMatchupGuessRepository.createPlayerMatchupGuess(
       guess,
       playerMatchupBet,

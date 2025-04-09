@@ -16,17 +16,6 @@ export class SpontaneousGuessRepo extends Repository<SpontaneousGuess> {
     spontaneousBet: SpontaneousBet,
     user: User,
   ): Promise<SpontaneousGuess> {
-    const existingGuess = await this.findOne({
-      where: { bet: spontaneousBet, createdBy: user },
-    });
-    if (existingGuess) {
-      this.logger.error(
-        `User ${user.id} have already made a guess for the bet with id ${spontaneousBet.id}.`,
-      );
-      throw new ConflictException(
-        `User ${user.id} have already made a guess for the bet with id ${spontaneousBet.id}.`,
-      );
-    }
     const spontaneousGuess = this.create({
       guess,
       bet: spontaneousBet,

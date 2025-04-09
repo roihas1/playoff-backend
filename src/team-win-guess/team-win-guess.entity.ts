@@ -20,6 +20,7 @@ export class TeamWinGuess {
     eager: false,
   })
   bet: TeamWinBet;
+  
   @RelationId((guess: TeamWinGuess) => guess.bet)
   betId: string;
 
