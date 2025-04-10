@@ -21,7 +21,6 @@ export class TeamWinGuessRepository extends Repository<TeamWinGuess> {
     teamWinBet: TeamWinBet,
     user: User,
   ): Promise<TeamWinGuess> {
-    console.log('inside repo')
     const teamWinGuess = this.create({
       guess,
       bet: teamWinBet,

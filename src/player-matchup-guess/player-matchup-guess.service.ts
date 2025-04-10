@@ -42,7 +42,7 @@ export class PlayerMatchupGuessService {
       user,
     );
   }
- 
+
   async getGuessesByUser(userId: string): Promise<PlayerMatchupGuess[]> {
     return this.playerMatchupGuessRepository.find({
       where: { createdBy: { id: userId } },

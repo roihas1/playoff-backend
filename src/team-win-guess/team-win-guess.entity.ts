@@ -20,7 +20,7 @@ export class TeamWinGuess {
     eager: false,
   })
   bet: TeamWinBet;
-  
+
   @RelationId((guess: TeamWinGuess) => guess.bet)
   @Column({ select: true })
   betId: string;

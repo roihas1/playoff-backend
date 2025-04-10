@@ -82,7 +82,7 @@ export class UserMissingBetsService {
 
       const missingBets =
         await this.seriesService.getOptimizedMissingBets(user);
-     
+
       const entries: UserMissingBet[] = [];
       for (const [seriesId, data] of Object.entries(missingBets)) {
         const baseDetails = {

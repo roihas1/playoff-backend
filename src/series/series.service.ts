@@ -1004,7 +1004,12 @@ export class SeriesService {
     return baseSeries;
   }
   async calculatePointsForUserSeries(
-    user: User,
+    userGuesses: {
+      bestOf7Guesses: BestOf7Guess[];
+      teamWinGuesses: TeamWinGuess[];
+      playerMatchupGuesses: PlayerMatchupGuess[];
+      spontaneousGuesses: SpontaneousGuess[];
+    },
     seriesMap: {
       [seriesId: string]: {
         teamWin?: { id: string; result: number; fantasyPoints: number };
@@ -1022,33 +1027,32 @@ export class SeriesService {
 
     for (const [seriesId, bets] of Object.entries(seriesMap)) {
       let points = 0;
+
       // === TeamWin Guess ===
-      const teamWinGuess = user.teamWinGuesses.find(
+      const teamWinGuess = userGuesses.teamWinGuesses.find(
         (g) => g.betId === bets.teamWin?.id,
       );
-      const teamWinCorrect =
+      if (
         teamWinGuess?.guess === bets.teamWin?.result &&
-        bets.teamWin?.result !== null;
-
-      if (teamWinCorrect) {
+        bets.teamWin?.result !== null
+      ) {
         points += bets.teamWin?.fantasyPoints || 0;
       }
 
       // === BestOf7 Guess ===
-      const bestOf7Guess = user.bestOf7Guesses.find(
+      const bestOf7Guess = userGuesses.bestOf7Guesses.find(
         (g) => g.betId === bets.bestOf7?.id,
       );
-      const bestOf7Correct =
+      if (
         bestOf7Guess?.guess === bets.bestOf7?.result &&
-        bets.bestOf7?.result !== null;
-
-      if (bestOf7Correct) {
+        bets.bestOf7?.result !== null
+      ) {
         points += bets.bestOf7?.fantasyPoints || 0;
       }
 
       // === Player Matchup Guesses ===
       for (const matchup of bets.matchupBets ?? []) {
-        const guess = user.playerMatchupGuesses.find(
+        const guess = userGuesses.playerMatchupGuesses.find(
           (g) => g.betId === matchup.id,
         );
         if (guess?.guess === matchup.result && matchup.result !== null) {
@@ -1058,7 +1062,7 @@ export class SeriesService {
 
       // === Spontaneous Guesses ===
       for (const spontaneous of bets.spontaneousBets ?? []) {
-        const guess = user.spontaneousGuesses.find(
+        const guess = userGuesses.spontaneousGuesses.find(
           (g) => g.betId === spontaneous.id,
         );
         if (
@@ -1074,6 +1078,7 @@ export class SeriesService {
 
     return userSeriesPoints;
   }
+
   buildSeriesMap(
     bestOf7: {
       id: string;
@@ -1175,7 +1180,7 @@ export class SeriesService {
     user: User,
   ): Promise<{ [key: string]: number }> {
     try {
-      const userWithGuesses = await this.authService.getUserGuesses(user);
+      const userWithGuesses = await this.getUserGuesses(user);
 
       const bestOf7 = await this.bestOf7BetService.getAllWithResults();
 

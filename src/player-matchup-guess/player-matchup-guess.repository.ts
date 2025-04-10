@@ -23,7 +23,7 @@ export class PlayerMatchupGuessRepository extends Repository<PlayerMatchupGuess>
     playerMatchupBet: PlayerMatchupBet,
     user: User,
   ): Promise<PlayerMatchupGuess> {
-      const playerMatchupGuess = this.create({
+    const playerMatchupGuess = this.create({
       guess,
       bet: playerMatchupBet,
       createdBy: user,

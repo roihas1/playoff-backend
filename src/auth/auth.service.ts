@@ -269,7 +269,6 @@ export class AuthService {
   }> {
     try {
       const foundUser = await this.getUserGuesses(user);
-      console.log(foundUser.bestOf7Guesses[0]);
 
       const bestOf7Guess = foundUser.bestOf7Guesses.filter(
         (g) => g.bet.series.id === seriesId,
@@ -299,7 +298,6 @@ export class AuthService {
       );
     }
   }
-  
 
   async getUserGuesses(user: User): Promise<User> {
     try {
