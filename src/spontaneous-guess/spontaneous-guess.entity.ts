@@ -22,6 +22,7 @@ export class SpontaneousGuess {
   })
   bet: SpontaneousBet;
   @RelationId((guess: SpontaneousGuess) => guess.bet)
+  @Column({ select: true })
   betId: string;
 
   @ManyToOne(() => User, (user) => user.spontaneousGuesses, { eager: true })

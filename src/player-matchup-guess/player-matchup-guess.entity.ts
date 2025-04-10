@@ -23,6 +23,7 @@ export class PlayerMatchupGuess {
   )
   bet: PlayerMatchupBet;
   @RelationId((guess: PlayerMatchupGuess) => guess.bet)
+  @Column({ select: true })
   betId: string;
 
   @ManyToOne(() => User, (user) => user.playerMatchupGuesses, { eager: true })

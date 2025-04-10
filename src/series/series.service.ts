@@ -35,6 +35,7 @@ import { SpontaneousBetService } from 'src/spontaneous-bet/spontaneous-bet.servi
 import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 import { AuthService } from 'src/auth/auth.service';
 import { GetAllSeriesGuessesDto } from './dto/get-series-guesses-stats.dto';
+import { SpontaneousGuessService } from 'src/spontaneous-guess/spontaneous-guess.service';
 
 @Injectable()
 export class SeriesService {
@@ -49,6 +50,7 @@ export class SeriesService {
     private playerMatcupBetService: PlayerMatchupBetService,
     private spontaneousBetService: SpontaneousBetService,
     private authService: AuthService,
+    private spontaneousGuessService: SpontaneousGuessService,
   ) {}
 
   async getAllSeries(): Promise<Series[]> {
@@ -285,6 +287,41 @@ export class SeriesService {
       );
     }
   }
+  async getUserGuesses(user: User): Promise<{
+    bestOf7Guesses: BestOf7Guess[];
+    teamWinGuesses: TeamWinGuess[];
+    playerMatchupGuesses: PlayerMatchupGuess[];
+    spontaneousGuesses: SpontaneousGuess[];
+  }> {
+    try {
+      const [
+        bestOf7Guesses,
+        teamWinGuesses,
+        playerMatchupGuesses,
+        spontaneousGuesses,
+      ] = await Promise.all([
+        this.bestOf7GuessService.getGuessesByUser(user.id),
+        this.teamWinGuessService.getGuessesByUser(user.id),
+        this.playerMatchupGuessService.getGuessesByUser(user.id),
+        this.spontaneousGuessService.getGuessesByUser(user.id),
+      ]);
+
+      return {
+        bestOf7Guesses,
+        teamWinGuesses,
+        playerMatchupGuesses,
+        spontaneousGuesses,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to get guesses of user: ${user.username}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to get guesses of user: ${user.username}`,
+      );
+    }
+  }
 
   async getGuessesByUser(
     seriesId: string,
@@ -296,61 +333,47 @@ export class SeriesService {
     spontanouesGuess: SpontaneousGuess[];
   }> {
     try {
-      console.time();
-      const userWithGuesses = await this.authService.getUserGuesses(user);
-      const series = await this.getSeriesWithBetsOnly(seriesId);
-      // const teamWinBet = await this.teamWinBetService.getTeamWinBetById(
-      //   series.teamWinBetId.id,
-      // );
-      const teamWinGuess = userWithGuesses.teamWinGuesses.filter(
+      const [userWithGuesses, series] = await Promise.all([
+        this.getUserGuesses(user),
+        this.getSeriesWithBetsOnly(seriesId),
+      ]);
+
+      const teamWinGuess = userWithGuesses.teamWinGuesses.find(
         (g) => g.betId === series.teamWinBetId.id,
       );
-      // const teamWinGuess = teamWinBet.guesses?.filter(
-      //   (guess) => guess.createdById === user.id,
-      // );
 
-      // const bestOf7Bet = await this.bestOf7BetService.getBestOf7betById(
-      //   series.bestOf7BetId.id,
-      // );
-      const bestOf7Guess = userWithGuesses.bestOf7Guesses.filter(
+      const bestOf7Guess = userWithGuesses.bestOf7Guesses.find(
         (g) => g.betId === series.bestOf7BetId.id,
       );
-      // const bestOf7Guess = bestOf7Bet.guesses?.filter(
-      //   (guess) => guess.createdById === user.id,
-      // );
-      const playerMatchupBets = await Promise.all(
-        series.playerMatchupBets.map(async (bet) => {
-          return await this.playerMatcupBetService.getPlayerMatchupBetById(
-            bet.id,
-          );
-        }),
+
+      const playerMatchupBetIds = new Set(
+        series.playerMatchupBets.map((bet) => bet.id),
       );
 
-      const playerMatchupGuesses = playerMatchupBets.map((bet) =>
-        userWithGuesses.playerMatchupGuesses?.filter((guess) => {
-          return guess.betId === bet.id;
-        }),
+      const playerMatchupGuess = userWithGuesses.playerMatchupGuesses.filter(
+        (g) => playerMatchupBetIds.has(g.betId),
       );
 
-      const flattenedPlayerMatchupGuesses = playerMatchupGuesses.flat();
-      const spontaneousGuesses = userWithGuesses.spontaneousGuesses.filter(
-        (g) => !!series.spontaneousBets.find((bet) => bet.id === g.betId),
+      const spontaneousBetIds = new Set(
+        series.spontaneousBets.map((bet) => bet.id),
       );
-      console.timeEnd();
+
+      const spontanouesGuess = userWithGuesses.spontaneousGuesses.filter((g) =>
+        spontaneousBetIds.has(g.betId),
+      );
+
       return {
-        teamWinGuess: teamWinGuess[0],
-        bestOf7Guess: bestOf7Guess[0],
-        playerMatchupGuess: flattenedPlayerMatchupGuesses
-          ? flattenedPlayerMatchupGuesses
-          : [],
-        spontanouesGuess: spontaneousGuesses,
+        teamWinGuess,
+        bestOf7Guess,
+        playerMatchupGuess,
+        spontanouesGuess,
       };
     } catch (err) {
       this.logger.error(
-        `User: ${user.username} faild to get all his guesses to series: ${seriesId}`,
+        `User: ${user.username} failed to get all his guesses to series: ${seriesId}`,
       );
       throw new InternalServerErrorException(
-        `User: ${user.username} faild to get all his guesses to series: ${seriesId}`,
+        `User: ${user.username} failed to get all his guesses to series: ${seriesId}`,
         err.stack,
       );
     }
@@ -1316,6 +1339,28 @@ export class SeriesService {
     const percentage = (guessCount / totalGuesses) * 100;
     return percentage;
   }
+  async getSeriesIfStartedByID(seriesId: string): Promise<Series | null> {
+    const now = new Date();
+
+    const series = await this.seriesRepository
+      .createQueryBuilder('series')
+      .leftJoinAndSelect('series.teamWinBetId', 'teamWinBet')
+      .leftJoinAndSelect('teamWinBet.guesses', 'teamWinGuesses')
+      .leftJoinAndSelect('series.playerMatchupBets', 'playerMatchupBet')
+      .leftJoinAndSelect('playerMatchupBet.guesses', 'playerMatchupGuesses')
+      .leftJoinAndSelect('series.spontaneousBets', 'spontaneousBet')
+      .leftJoinAndSelect('spontaneousBet.guesses', 'spontaneousGuesses')
+      .where('series.id = :seriesId', { seriesId })
+      .andWhere(
+        `("series"."dateOfStart" + "series"."timeOfStart"::time) <= :now`,
+        {
+          now: now.toISOString(),
+        },
+      )
+      .getOne();
+
+    return series ?? null;
+  }
 
   async getGuessesPercentage(seriesId: string): Promise<{
     teamWin: { 1: number; 2: number };
@@ -1332,7 +1377,14 @@ export class SeriesService {
         playerMatchup: {},
         spontaneousMacthups: {},
       };
-      const series = await this.getSeriesByID(seriesId);
+      const series = await this.getSeriesIfStartedByID(seriesId);
+      if (!series) {
+        return {
+          teamWin: { 1: 0, 2: 0 },
+          playerMatchup: {},
+          spontaneousMacthups: {},
+        };
+      }
       const teamWin1Precentage = this.calculatePercentage(
         series.teamWinBetId.guesses,
         1,

@@ -299,6 +299,7 @@ export class AuthService {
       );
     }
   }
+  
 
   async getUserGuesses(user: User): Promise<User> {
     try {

@@ -47,6 +47,13 @@ export class TeamWinGuessService {
     );
   }
 
+  async getGuessesByUser(userId: string): Promise<TeamWinGuess[]> {
+    return this.teamWinGuessRepository.find({
+      where: { createdBy: { id: userId } },
+      select: ['id', 'guess', 'betId'],
+    });
+  }
+
   async getGuessById(
     teamWinBet: TeamWinBet,
     user: User,

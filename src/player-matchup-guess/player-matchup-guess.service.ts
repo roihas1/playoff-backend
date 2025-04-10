@@ -42,6 +42,13 @@ export class PlayerMatchupGuessService {
       user,
     );
   }
+ 
+  async getGuessesByUser(userId: string): Promise<PlayerMatchupGuess[]> {
+    return this.playerMatchupGuessRepository.find({
+      where: { createdBy: { id: userId } },
+      select: ['id', 'guess', 'betId'],
+    });
+  }
 
   async getPlayerMatcupGuessById(id: string): Promise<PlayerMatchupGuess> {
     const found = await this.playerMatchupGuessRepository.findOne({

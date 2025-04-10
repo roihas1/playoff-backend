@@ -12,5 +12,6 @@ import { SpontaneousBetModule } from 'src/spontaneous-bet/spontaneous-bet.module
   ],
   controllers: [SpontaneousGuessController],
   providers: [SpontaneousGuessService, SpontaneousGuessRepo],
+  exports: [SpontaneousGuessService],
 })
 export class SpontaneousGuessModule {}

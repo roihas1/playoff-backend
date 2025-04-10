@@ -33,5 +33,6 @@ export class BestOf7Guess {
     return this.createdBy?.id;
   }
   @RelationId((guess: BestOf7Guess) => guess.bet)
+  @Column({ select: true })
   betId: string;
 }

@@ -51,6 +51,14 @@ export class SpontaneousGuessService {
       );
     }
   }
+  // spontaneous-guess.service.ts
+  async getGuessesByUser(userId: string): Promise<SpontaneousGuess[]> {
+    return this.spontaneousGuessRepo.find({
+      where: { createdBy: { id: userId } },
+      select: ['id', 'guess', 'betId'],
+    });
+  }
+
   async createOrUpdateGuesses(
     updateGuessesDto: UpdateSpontaneousGuessesDto,
     user: User,

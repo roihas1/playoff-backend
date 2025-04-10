@@ -92,6 +92,7 @@ export class PlayerMatchupBetService {
 
     return raw;
   }
+
   async getAllWithResults(): Promise<
     { id: string; result: number; seriesId: string; fantasyPoints: number }[]
   > {
