@@ -1,4 +1,6 @@
 import {
+  forwardRef,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -15,6 +17,7 @@ export class UserMissingBetsService {
   constructor(
     private userMissingBetsRepository: UserMissingBetsRepository,
     private seriesService: SeriesService,
+    @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
   ) {}
   async getMissingBetsForUser(user: User): Promise<{

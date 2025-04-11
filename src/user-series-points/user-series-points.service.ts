@@ -1,4 +1,6 @@
 import {
+  forwardRef,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -8,7 +10,7 @@ import { UserSeriesPoints } from './user-series-points.entity';
 import { SeriesService } from 'src/series/series.service';
 import { User } from 'src/auth/user.entity';
 import { AuthService } from 'src/auth/auth.service';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class UserSeriesPointsService {
@@ -16,32 +18,53 @@ export class UserSeriesPointsService {
   constructor(
     private userSeriesPointsRepository: UserSeriesPointsRepository,
     private seriesService: SeriesService,
+    @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
   ) {}
 
   async updatePointsForUser(user: User): Promise<void> {
     try {
+      console.time('calculate the pointe');
       const seriesPoints =
         await this.seriesService.getPointsPerSeriesForUser(user);
+      console.timeEnd('calculate the pointe');
+
+      console.time('Insert to table');
+
+      // Step 1: Load all existing entries at once
+      const existingPoints = await this.userSeriesPointsRepository.find({
+        where: { user: { id: user.id } },
+        relations: ['series'],
+      });
+
+      // Step 2: Map existing by seriesId
+      const existingMap = new Map<string, (typeof existingPoints)[0]>();
+      for (const entry of existingPoints) {
+        existingMap.set(entry.series.id, entry);
+      }
+
+      // Step 3: Prepare bulk save array
+      const toSave = [];
 
       for (const [seriesId, points] of Object.entries(seriesPoints)) {
-        const existing = await this.userSeriesPointsRepository.findOneBy({
-          user: { id: user.id },
-          series: { id: seriesId },
-        });
-
+        const existing = existingMap.get(seriesId);
         if (existing) {
           existing.points = points;
-          await this.userSeriesPointsRepository.save(existing);
+          toSave.push(existing);
         } else {
           const newEntry = this.userSeriesPointsRepository.create({
             user: { id: user.id } as any,
             series: { id: seriesId } as any,
             points,
           });
-          await this.userSeriesPointsRepository.save(newEntry);
+          toSave.push(newEntry);
         }
       }
+
+      // Step 4: Save everything in one call
+      await this.userSeriesPointsRepository.save(toSave);
+
+      console.timeEnd('Insert to table');
 
       this.logger.log(`Updated series points for user ${user.username}`);
     } catch (error) {

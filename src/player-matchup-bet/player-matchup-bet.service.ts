@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PlayerMatchupBetRepository } from './player-matchup-bet.repository';
 import { CreatePlayerMatchupBetDto } from './dto/create-player-matchup-bet.dto';
 import { PlayerMatchupBet } from './player-matchup-bet.entity';
@@ -13,6 +13,7 @@ export class PlayerMatchupBetService {
   private logger = new Logger('PlayerMatchupBetService', { timestamp: true });
   constructor(
     private playerMatchupBetRepository: PlayerMatchupBetRepository,
+    @Inject(forwardRef(() => AuthService))
     private usersService: AuthService,
   ) {}
 

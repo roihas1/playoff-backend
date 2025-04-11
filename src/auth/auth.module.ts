@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -11,6 +11,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import googleOauthConfig from './google-oauth.config';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { AppLogger } from 'src/logging/logger.service';
+import { UserInitializationModule } from 'src/user-initialization/user-initialization.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AppLogger } from 'src/logging/logger.service';
       }),
     }),
     TypeOrmModule.forFeature([User]),
+    forwardRef(() => UserInitializationModule),
   ],
   controllers: [AuthController],
   providers: [

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TeamWinGuessController } from './team-win-guess.controller';
 import { TeamWinGuessService } from './team-win-guess.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -10,8 +10,8 @@ import { TeamWinBetModule } from 'src/team-win-bet/team-win-bet.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([TeamWinGuessRepository]),
-    AuthModule,
-    TeamWinBetModule,
+    forwardRef(() => AuthModule),
+    forwardRef(() => TeamWinBetModule), 
   ],
   controllers: [TeamWinGuessController],
   providers: [TeamWinGuessService, TeamWinGuessRepository],

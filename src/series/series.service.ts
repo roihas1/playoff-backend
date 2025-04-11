@@ -1,5 +1,7 @@
 import {
   ConsoleLogger,
+  forwardRef,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -49,6 +51,7 @@ export class SeriesService {
     private bestOf7BetService: BestOf7BetService,
     private playerMatcupBetService: PlayerMatchupBetService,
     private spontaneousBetService: SpontaneousBetService,
+    @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
     private spontaneousGuessService: SpontaneousGuessService,
   ) {}

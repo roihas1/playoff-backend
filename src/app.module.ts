@@ -38,6 +38,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { UserMissingBetsModule } from './user-missing-bets/user-missing-bets.module';
 import { HomePageModule } from './home-page/home-page.module';
 import { ComparisonPageModule } from './comprison-page/comparison-page.module';
+import { UserInitializationModule } from './user-initialization/user-initialization.module';
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { ComparisonPageModule } from './comprison-page/comparison-page.module';
     UserMissingBetsModule,
     HomePageModule,
     ComparisonPageModule,
+    UserInitializationModule,
   ],
   controllers: [AppController],
   providers: [

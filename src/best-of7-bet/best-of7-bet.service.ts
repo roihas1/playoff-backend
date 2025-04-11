@@ -25,6 +25,7 @@ export class BestOf7BetService {
     private bestOf7BetRepository: BestOf7BetRepository,
     @Inject(forwardRef(() => SeriesService))
     private seriesService: SeriesService,
+    @Inject(forwardRef(() => AuthService))
     private usersService: AuthService,
     @Inject(forwardRef(() => BestOf7GuessService))
     private bestOf7GuessService: BestOf7GuessService,

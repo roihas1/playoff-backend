@@ -21,7 +21,6 @@ export class TeamWinBetService {
   private logger = new Logger('TeamWinBetService', { timestamp: true });
   constructor(
     private teamWinBetRepository: TeamWinBetRepository,
-    private usersService: AuthService,
     @Inject(forwardRef(() => TeamWinGuessService))
     private teamWinGuessSerive: TeamWinGuessService,
   ) {}

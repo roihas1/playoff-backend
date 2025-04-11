@@ -1,4 +1,6 @@
 import {
+  forwardRef,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -22,6 +24,7 @@ import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity
 import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
 import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
+import { UserInitializationService } from 'src/user-initialization/user-initialization.service';
 
 @Injectable()
 export class AuthService {
@@ -30,6 +33,7 @@ export class AuthService {
     private usersRepository: UsersRepository,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private readonly userInitializationService: UserInitializationService,
   ) {}
 
   async signUp(authCredentialsDto: AuthCredentialsDto): Promise<User> {
@@ -38,6 +42,7 @@ export class AuthService {
       this.logger.verbose(
         `User "${authCredentialsDto.username}" signed up successfully.`,
       );
+      await this.userInitializationService.initializeUser(user);
       return user;
     } catch (error) {
       this.logger.error(

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { SeriesController } from './series.controller';
 import { SeriesService } from './series.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -16,7 +16,7 @@ import { SpontaneousGuessModule } from 'src/spontaneous-guess/spontaneous-guess.
 @Module({
   imports: [
     TypeOrmModule.forFeature([SeriesRepository]),
-    AuthModule,
+    forwardRef(() => AuthModule),
     TeamWinGuessModule,
     BestOf7GuessModule,
     PlayerMatchupGuessModule,
@@ -24,7 +24,6 @@ import { SpontaneousGuessModule } from 'src/spontaneous-guess/spontaneous-guess.
     BestOf7BetModule,
     PlayerMatchupBetModule,
     SpontaneousBetModule,
-    AuthModule,
     SpontaneousGuessModule,
   ],
   controllers: [SeriesController],

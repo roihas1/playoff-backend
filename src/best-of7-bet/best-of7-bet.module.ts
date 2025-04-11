@@ -10,7 +10,7 @@ import { BestOf7GuessModule } from 'src/best-of7-guess/best-of7-guess.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([BestOf7BetRepository]),
-    AuthModule,
+    forwardRef(() => AuthModule),
     forwardRef(() => SeriesModule),
     forwardRef(() => BestOf7GuessModule),
   ],

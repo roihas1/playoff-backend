@@ -9,7 +9,7 @@ import { TeamWinGuessModule } from 'src/team-win-guess/team-win-guess.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([TeamWinBetRepository]),
-    AuthModule,
+    forwardRef(() => AuthModule),
     forwardRef(() => TeamWinGuessModule),
   ],
   controllers: [TeamWinBetController],

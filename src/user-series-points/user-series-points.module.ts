@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { UserSeriesPointsService } from './user-series-points.service';
 import { UserSeriesPointsController } from './user-series-points.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -11,7 +11,7 @@ import { ScheduleModule } from '@nestjs/schedule';
   imports: [
     TypeOrmModule.forFeature([UserSeriesPointsRepository]),
     SeriesModule,
-    AuthModule,
+    forwardRef(() => AuthModule),
     ScheduleModule,
   ],
   providers: [UserSeriesPointsService, UserSeriesPointsRepository],

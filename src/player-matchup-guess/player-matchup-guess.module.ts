@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { PlayerMatchupGuessController } from './player-matchup-guess.controller';
 import { PlayerMatchupGuessService } from './player-matchup-guess.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -9,7 +9,7 @@ import { PlayerMatchupBetModule } from 'src/player-matchup-bet/player-matchup-be
 @Module({
   imports: [
     TypeOrmModule.forFeature([PlayerMatchupGuessRepository]),
-    AuthModule,
+    forwardRef(() => AuthModule),
     PlayerMatchupBetModule,
   ],
   controllers: [PlayerMatchupGuessController],

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { BestOf7GuessController } from './best-of7-guess.controller';
 import { BestOf7GuessService } from './best-of7-guess.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -9,7 +9,7 @@ import { BestOf7BetModule } from 'src/best-of7-bet/best-of7-bet.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([BestOf7GuessRepository]),
-    AuthModule,
+    forwardRef(() => AuthModule),
     BestOf7BetModule,
   ],
   controllers: [BestOf7GuessController],
