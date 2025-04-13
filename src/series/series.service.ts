@@ -294,7 +294,7 @@ export class SeriesService {
       );
     }
   }
-  async getUserGuesses(user: User): Promise<{
+  async getUserGuesses(userId: string): Promise<{
     bestOf7Guesses: BestOf7Guess[];
     teamWinGuesses: TeamWinGuess[];
     playerMatchupGuesses: PlayerMatchupGuess[];
@@ -307,10 +307,10 @@ export class SeriesService {
         playerMatchupGuesses,
         spontaneousGuesses,
       ] = await Promise.all([
-        this.bestOf7GuessService.getGuessesByUser(user.id),
-        this.teamWinGuessService.getGuessesByUser(user.id),
-        this.playerMatchupGuessService.getGuessesByUser(user.id),
-        this.spontaneousGuessService.getGuessesByUser(user.id),
+        this.bestOf7GuessService.getGuessesByUser(userId),
+        this.teamWinGuessService.getGuessesByUser(userId),
+        this.playerMatchupGuessService.getGuessesByUser(userId),
+        this.spontaneousGuessService.getGuessesByUser(userId),
       ]);
 
       return {
@@ -321,11 +321,11 @@ export class SeriesService {
       };
     } catch (error) {
       this.logger.error(
-        `Failed to get guesses of user: ${user.username}`,
+        `Failed to get guesses of user: ${userId}`,
         error.stack,
       );
       throw new InternalServerErrorException(
-        `Failed to get guesses of user: ${user.username}`,
+        `Failed to get guesses of user: ${userId}`,
       );
     }
   }
@@ -341,7 +341,7 @@ export class SeriesService {
   }> {
     try {
       const [userWithGuesses, series] = await Promise.all([
-        this.getUserGuesses(user),
+        this.getUserGuesses(user.id),
         this.getSeriesWithBetsOnly(seriesId),
       ]);
 
@@ -503,23 +503,37 @@ export class SeriesService {
     );
     return points;
   }
+  async getSeriesBasicData(seriesId: string): Promise<{
+    id: string;
+    teamWinBetId: string;
+    bestOf7BetId: string;
+  }> {
+    return this.seriesRepository
+      .createQueryBuilder('series')
+      .leftJoin('series.teamWinBetId', 'teamWinBet')
+      .leftJoin('series.bestOf7BetId', 'bestOf7Bet')
+      .select([
+        'series.id AS id',
+        'teamWinBet.id AS "teamWinBetId"',
+        'bestOf7Bet.id AS "bestOf7BetId"',
+      ])
+      .where('series.id = :id', { id: seriesId })
+      .getRawOne();
+  }
   async optimizedCloseAllBetsInSeries(
     seriesId: string,
     user: User,
   ): Promise<void> {
     try {
-      console.time();
+      console.time('close all bets');
       const [series, playerMatchupBets, spontaneousBets] = await Promise.all([
-        this.seriesRepository.findOne({
-          where: { id: seriesId },
-          relations: ['teamWinBetId', 'bestOf7BetId'],
-        }),
+        this.getSeriesBasicData(seriesId),
         this.playerMatcupBetService.getBySeriesId(seriesId),
         this.spontaneousBetService.getBySeriesId(seriesId),
       ]);
+
       if (!series) throw new NotFoundException('Series not found');
 
-      series.lastUpdate = new Date();
       // const prevTeamWinResult = series.teamWinBetId.result;
       // const prevMatchupResult = playerMatchupBets.reduce(
       //   (acc, matchup) => {
@@ -530,7 +544,7 @@ export class SeriesService {
       // );
 
       const bestOf7Bet = await this.bestOf7BetService.updateResultForSeries(
-        series.bestOf7BetId.id,
+        series.bestOf7BetId,
       );
       const teamWin =
         bestOf7Bet.seriesScore[0] > bestOf7Bet.seriesScore[1]
@@ -542,7 +556,7 @@ export class SeriesService {
 
       await this.teamWinBetService.updateResult(
         { result: teamWin },
-        series.teamWinBetId.id,
+        series.teamWinBetId,
         isSeriesFinished,
         bestOf7Bet,
       );
@@ -555,11 +569,12 @@ export class SeriesService {
           this.spontaneousBetService.updateResultForSeries(m),
         ),
       ]);
+
       await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
+
       // update points - different approach
       await this.userSeriesPointsService.updateAllUserPointsTotalFSP();
-      console.timeEnd();
-
+      console.timeEnd('close all bets');
       // await Promise.all(
       //   users.map(async (user) => {
       //     let totalPoints = 0;
@@ -627,8 +642,6 @@ export class SeriesService {
       //     }
       //   }),
       // );
-
-      
     } catch (error) {
       this.logger.error(
         `User: ${user.username} failed to close all bets for series: ${seriesId}`,
@@ -1322,10 +1335,10 @@ export class SeriesService {
   }
 
   async getPointsPerSeriesForUser(
-    user: User,
+    userId: string,
   ): Promise<{ [key: string]: number }> {
     try {
-      const userWithGuesses = await this.getUserGuesses(user);
+      const userWithGuesses = await this.getUserGuesses(userId);
 
       const bestOf7 = await this.bestOf7BetService.getAllWithResults();
 
@@ -1344,14 +1357,13 @@ export class SeriesService {
         seriesMap,
       );
 
-
       return userPointsPerSeries;
     } catch (error) {
       this.logger.error(
-        `User: ${user.username} failed to get points for all series "${error} ${error.stack}".`,
+        `User: ${userId} failed to get points for all series "${error} ${error.stack}".`,
       );
       throw new InternalServerErrorException(
-        `User: ${user.username} failed to get points for all series.`,
+        `User: ${userId} failed to get points for all series.`,
       );
     }
   }

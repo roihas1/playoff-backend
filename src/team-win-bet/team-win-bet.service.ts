@@ -124,26 +124,29 @@ export class TeamWinBetService {
       seriesId: bet.seriesId,
     }));
   }
-
+  async getTeamWinBetByIdLight(
+    id: string,
+  ): Promise<Pick<TeamWinBet, 'id' | 'result'>> {
+    return await this.teamWinBetRepository
+      .createQueryBuilder('bet')
+      .select(['bet.id', 'bet.result'])
+      .where('bet.id = :id', { id })
+      .getOne();
+  }
   async updateResult(
     updateResultDto: UpdateResultDto,
     id: string,
     isSeriesFinished?: boolean,
     bestOf7Bet?: BestOf7Bet,
   ): Promise<void> {
-    const bet = await this.getTeamWinBetById(id);
-    const previousResult = bet.result;
-
+    const bet = await this.getTeamWinBetByIdLight(id);
     bet.result = updateResultDto.result;
     try {
       await this.teamWinBetRepository.update(bet.id, {
         result: updateResultDto.result,
       });
 
-      const savedBet = await this.getTeamWinBetById(id);
       this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
-
-      const userPointsMap = new Map<User, number>();
 
       // Step 1: Collect BestOf7 Points if Series Finished
       // if (isSeriesFinished) {

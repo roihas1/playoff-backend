@@ -163,8 +163,20 @@ export class BestOf7BetService {
       throw error;
     }
   }
+  async getBestOf7BetLight(
+    id: string,
+  ): Promise<
+    Pick<BestOf7Bet, 'id' | 'seriesScore' | 'result' | 'fantasyPoints'>
+  > {
+    return this.bestOf7BetRepository
+      .createQueryBuilder('bet')
+      .select(['bet.id', 'bet.seriesScore', 'bet.result', 'bet.fantasyPoints'])
+      .where('bet.id = :id', { id })
+      .getOne();
+  }
+
   async updateResultForSeries(id: string): Promise<BestOf7Bet> {
-    const bet = await this.getBestOf7betById(id);
+    const bet = await this.getBestOf7BetLight(id);
     const games = bet.seriesScore[0] + bet.seriesScore[1];
     bet.result = games;
     try {

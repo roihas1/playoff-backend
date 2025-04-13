@@ -23,24 +23,27 @@ export class UserSeriesPointsService {
     private authService: AuthService,
   ) {}
 
-  async updatePointsForUser(user: User): Promise<void> {
+  async updatePointsForUser(userId: string): Promise<void> {
     try {
       const seriesPoints =
-        await this.seriesService.getPointsPerSeriesForUser(user);
+        await this.seriesService.getPointsPerSeriesForUser(userId);
 
-      // Step 1: Load all existing entries at once
-      const existingPoints = await this.userSeriesPointsRepository.find({
-        where: { user: { id: user.id } },
-        relations: ['series'],
-      });
+      const existingPoints = await this.userSeriesPointsRepository
+        .createQueryBuilder('usp')
+        .innerJoin('usp.series', 'series')
+        .select([
+          'usp.id AS id',
+          'series.id AS "seriesId"',
+          'usp.points AS points',
+        ])
+        .where('usp.userId = :userId', { userId })
+        .getRawMany();
 
-      // Step 2: Map existing by seriesId
       const existingMap = new Map<string, (typeof existingPoints)[0]>();
       for (const entry of existingPoints) {
-        existingMap.set(entry.series.id, entry);
+        existingMap.set(entry.seriesId, entry);
       }
 
-      // Step 3: Prepare bulk save array
       const toSave = [];
 
       for (const [seriesId, points] of Object.entries(seriesPoints)) {
@@ -50,7 +53,7 @@ export class UserSeriesPointsService {
           toSave.push(existing);
         } else {
           const newEntry = this.userSeriesPointsRepository.create({
-            user: { id: user.id } as any,
+            user: { id: userId } as any,
             series: { id: seriesId } as any,
             points,
           });
@@ -58,17 +61,16 @@ export class UserSeriesPointsService {
         }
       }
 
-      // Step 4: Save everything in one call
       await this.userSeriesPointsRepository.save(toSave);
 
-      this.logger.log(`Updated series points for user ${user.username}`);
+      this.logger.log(`Updated series points for user ${userId}`);
     } catch (error) {
       this.logger.error(
-        `Failed to update series points for user ${user.username}: ${error.message}`,
+        `Failed to update series points for user ${userId}: ${error.message}`,
         error.stack,
       );
       throw new InternalServerErrorException(
-        `Could not update series points for user ${user.username}`,
+        `Could not update series points for user ${userId}`,
       );
     }
   }
@@ -152,12 +154,11 @@ export class UserSeriesPointsService {
   async updateAllUserPointsTotalFSP(): Promise<void> {
     this.logger.log('Starting daily update of series points for all users...');
     try {
-      const users = await this.authService.getAllUsers();
-
+      const users = await this.authService.getAllUserIds();
       const pointsToUpdate: { id: string; points: number }[] = [];
 
       for (const user of users) {
-        await this.updatePointsForUser(user);
+        await this.updatePointsForUser(user.id);
 
         const userPointsPerSeries = await this.findByUserId(user.id);
         const totalPoints = Object.values(userPointsPerSeries).reduce(
@@ -183,7 +184,7 @@ export class UserSeriesPointsService {
     try {
       const users = await this.authService.getAllUsers();
       for (const user of users) {
-        await this.updatePointsForUser(user);
+        await this.updatePointsForUser(user.id);
       }
       this.logger.log('Finished updating series points for all users.');
     } catch (error) {
@@ -197,7 +198,7 @@ export class UserSeriesPointsService {
     try {
       const allUsers = await this.authService.getAllUsers(); // create this function to return users with just id
       for (const user of allUsers) {
-        await this.updatePointsForUser(user);
+        await this.updatePointsForUser(user.id);
       }
       this.logger.log('✅ Daily user-series-points update completed.');
     } catch (error) {

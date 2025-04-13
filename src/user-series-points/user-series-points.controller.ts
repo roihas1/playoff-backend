@@ -72,7 +72,7 @@ export class UserSeriesPointsController {
     this.logger.verbose(
       `Attempting to update points for user: ${user.username}`,
     );
-    return this.userSeriesPointsService.updatePointsForUser(user);
+    return this.userSeriesPointsService.updatePointsForUser(user.id);
   }
 
   @Patch('/user/updatePoints/all')

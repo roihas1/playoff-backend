@@ -247,7 +247,7 @@ export class SeriesController {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get his points for all series.`,
     );
-    return await this.seriesServie.getPointsPerSeriesForUser(user);
+    return await this.seriesServie.getPointsPerSeriesForUser(user.id);
   }
   @Get('/getAll/bets')
   async getAllBets(@GetUser() user: User): Promise<{

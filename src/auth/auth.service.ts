@@ -160,6 +160,20 @@ export class AuthService {
       throw error;
     }
   }
+  async getAllUserIds(): Promise<{ id: string }[]> {
+    try {
+      const users = await this.usersRepository
+        .createQueryBuilder('user')
+        .select(['user.id AS id'])
+        .getRawMany();
+
+      this.logger.verbose(`All user IDs retrieved successfully.`);
+      return users;
+    } catch (error) {
+      this.logger.error(`Failed to get all user IDs.`, error.stack);
+      throw error;
+    }
+  }
 
   async getAllUsers(): Promise<User[]> {
     try {

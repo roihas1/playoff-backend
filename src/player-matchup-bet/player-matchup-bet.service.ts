@@ -175,18 +175,6 @@ export class PlayerMatchupBetService {
       }
     }
 
-    console.log('== DEBUG ==');
-    console.log('player1:', matchup.player1);
-    console.log('player2:', matchup.player2);
-    console.log('typeOfMatchup:', matchup.typeOfMatchup);
-    console.log('currentStats:', matchup.currentStats);
-    console.log('playerGames:', matchup.playerGames);
-    console.log('avg1:', avg1);
-    console.log('avg2:', avg2);
-    console.log('differential:', matchup.differential);
-    console.log('adjustedAvg2:', avg2 + matchup.differential);
-    console.log('result:', matchup.result);
-
     try {
       const savedBet = await this.playerMatchupBetRepository.save(matchup);
       this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);

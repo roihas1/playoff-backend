@@ -14,7 +14,7 @@ export class UserInitializationService {
   ) {}
 
   async initializeUser(user: User) {
-    await this.userSeriesPointsService.updatePointsForUser(user);
+    await this.userSeriesPointsService.updatePointsForUser(user.id);
     await this.userMissingBetsService.updateMissingBetsForUser(user);
   }
 }
