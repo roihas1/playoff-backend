@@ -17,6 +17,7 @@ export class UserSeriesPointsService {
   private logger = new Logger('UserSeriesPointsService', { timestamp: true });
   constructor(
     private userSeriesPointsRepository: UserSeriesPointsRepository,
+    @Inject(forwardRef(() => SeriesService))
     private seriesService: SeriesService,
     @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
@@ -24,12 +25,8 @@ export class UserSeriesPointsService {
 
   async updatePointsForUser(user: User): Promise<void> {
     try {
-      console.time('calculate the pointe');
       const seriesPoints =
         await this.seriesService.getPointsPerSeriesForUser(user);
-      console.timeEnd('calculate the pointe');
-
-      console.time('Insert to table');
 
       // Step 1: Load all existing entries at once
       const existingPoints = await this.userSeriesPointsRepository.find({
@@ -63,8 +60,6 @@ export class UserSeriesPointsService {
 
       // Step 4: Save everything in one call
       await this.userSeriesPointsRepository.save(toSave);
-
-      console.timeEnd('Insert to table');
 
       this.logger.log(`Updated series points for user ${user.username}`);
     } catch (error) {
@@ -154,6 +149,35 @@ export class UserSeriesPointsService {
       );
     }
   }
+  async updateAllUserPointsTotalFSP(): Promise<void> {
+    this.logger.log('Starting daily update of series points for all users...');
+    try {
+      const users = await this.authService.getAllUsers();
+
+      const pointsToUpdate: { id: string; points: number }[] = [];
+
+      for (const user of users) {
+        await this.updatePointsForUser(user);
+
+        const userPointsPerSeries = await this.findByUserId(user.id);
+        const totalPoints = Object.values(userPointsPerSeries).reduce(
+          (sum, points) => sum + points,
+          0,
+        );
+
+        pointsToUpdate.push({ id: user.id, points: totalPoints });
+      }
+
+      await this.authService.updateAllUsersTotalFantasyPoints(pointsToUpdate);
+
+      this.logger.log(
+        'Finished updating series and total points for all users.',
+      );
+    } catch (error) {
+      this.logger.error(`Cron job failed: ${error.message}`, error.stack);
+    }
+  }
+
   async updateAllUserPoints() {
     this.logger.log('Starting daily update of series points for all users...');
     try {

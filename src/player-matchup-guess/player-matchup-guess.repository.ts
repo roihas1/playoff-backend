@@ -40,4 +40,16 @@ export class PlayerMatchupGuessRepository extends Repository<PlayerMatchupGuess>
       throw new InternalServerErrorException();
     }
   }
+  createPlayerMatchupGuessEntity(
+    guess: number,
+    bet: PlayerMatchupBet,
+    user: User,
+  ): PlayerMatchupGuess {
+    const guessEntity = this.create({
+      guess,
+      bet,
+      createdBy: user,
+    });
+    return guessEntity;
+  }
 }

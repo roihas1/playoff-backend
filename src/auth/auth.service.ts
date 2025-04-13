@@ -190,6 +190,24 @@ export class AuthService {
       throw error;
     }
   }
+  async updateAllUsersTotalFantasyPoints(
+    pointsToUpdate: { id: string; points: number }[],
+  ): Promise<void> {
+    this.logger.log('Starting update of total fantasy points for all users...');
+    try {
+      await this.usersRepository.updateBulkFantasyPoints(pointsToUpdate);
+      this.logger.log('Updated total fantasy points for all users.');
+    } catch (error) {
+      this.logger.error(
+        `Failed to update total fantasy points for all users.`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Failed to update total fantasy points.',
+      );
+    }
+  }
+
   async updateFantasyPoints(user: User, points: number): Promise<void> {
     try {
       await this.usersRepository.updateFantasyPoints(user, points);

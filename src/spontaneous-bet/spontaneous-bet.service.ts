@@ -31,6 +31,14 @@ export class SpontaneousBetService {
       );
     }
   }
+
+  async getBySeriesId(seriesId: string): Promise<SpontaneousBet[]> {
+    return this.spontaneousBetRepo
+      .createQueryBuilder('bet')
+      .where('bet.seriesId = :seriesId', { seriesId })
+      .getMany();
+  }
+
   async getActiveBets(): Promise<SpontaneousBet[]> {
     return await this.spontaneousBetRepo
       .createQueryBuilder('bet')
@@ -120,29 +128,41 @@ export class SpontaneousBetService {
     matchup: SpontaneousBet,
   ): Promise<SpontaneousBet> {
     const previousResult = matchup.result;
+    const epsilon = 0.0001;
+
+    const stat1 = matchup.currentStats[0];
+    const stat2 = matchup.currentStats[1];
+    const diff = matchup.differential;
+
+    const adjustedStat2 = stat2 + diff;
+
+    // Debug logs for tracing
+    this.logger.verbose(`Updating SpontaneousBet result for ID: ${matchup.id}`);
+    this.logger.verbose(`Stats: [${stat1}, ${stat2}], Differential: ${diff}`);
+
     if (matchup.typeOfMatchup === 'UNDER/OVER') {
-      const result =
-        matchup.currentStats[0] > matchup.currentStats[1] + matchup.differential
-          ? 1
-          : matchup.currentStats[0] ===
-              matchup.currentStats[1] + matchup.differential
-            ? 0
-            : 2;
-      matchup.result = result;
+      if (stat1 < diff - epsilon) {
+        matchup.result = 1;
+      } else if (Math.abs(stat1 - diff) < epsilon) {
+        matchup.result = 0;
+      } else {
+        matchup.result = 2;
+      }
     } else {
-      const result =
-        matchup.currentStats[0] > matchup.currentStats[1] + matchup.differential
-          ? 1
-          : matchup.currentStats[0] ===
-              matchup.currentStats[1] + matchup.differential
-            ? 0
-            : 2;
-      matchup.result = result;
+      if (stat1 > adjustedStat2 + epsilon) {
+        matchup.result = 1;
+      } else if (Math.abs(stat1 - adjustedStat2) < epsilon) {
+        matchup.result = 0;
+      } else {
+        matchup.result = 2;
+      }
     }
+
+    this.logger.verbose(`Calculated result: ${matchup.result}`);
+
     try {
       const savedBet = await this.spontaneousBetRepo.save(matchup);
       this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);
-
       return savedBet;
     } catch (error) {
       this.logger.error(
@@ -152,6 +172,7 @@ export class SpontaneousBetService {
       throw error;
     }
   }
+
   async getBetById(betId: string): Promise<SpontaneousBet> {
     try {
       const found = await this.spontaneousBetRepo.findOne({

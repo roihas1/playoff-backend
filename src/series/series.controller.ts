@@ -202,7 +202,10 @@ export class SeriesController {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to close all bets in series with ID: "${seriesId}".`,
     );
-    return await this.seriesServie.closeAllBetsInSeries(seriesId, user);
+    return await this.seriesServie.optimizedCloseAllBetsInSeries(
+      seriesId,
+      user,
+    );
   }
   @Get('/bets/allMissingBets')
   async getAllMissingBets(@GetUser() user: User): Promise<{

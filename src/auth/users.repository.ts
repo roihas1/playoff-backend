@@ -148,6 +148,28 @@ export class UsersRepository extends Repository<User> {
 
     return { data: users, nextCursor, prevCursor: newPrevCursor };
   }
+  async updateBulkFantasyPoints(
+    userPointsMap: { id: string; points: number }[],
+  ): Promise<void> {
+    const queryRunner = AppDataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      for (const user of userPointsMap) {
+        await queryRunner.manager.update(User, user.id, {
+          fantasyPoints: user.points,
+        });
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
 
   async updateFantasyPoints(user: User, points: number): Promise<void> {
     const queryRunner = AppDataSource.createQueryRunner();

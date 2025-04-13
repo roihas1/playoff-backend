@@ -12,6 +12,7 @@ import { BestOf7BetModule } from 'src/best-of7-bet/best-of7-bet.module';
 import { PlayerMatchupBetModule } from 'src/player-matchup-bet/player-matchup-bet.module';
 import { SpontaneousBetModule } from 'src/spontaneous-bet/spontaneous-bet.module';
 import { SpontaneousGuessModule } from 'src/spontaneous-guess/spontaneous-guess.module';
+import { UserSeriesPointsModule } from 'src/user-series-points/user-series-points.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { SpontaneousGuessModule } from 'src/spontaneous-guess/spontaneous-guess.
     PlayerMatchupBetModule,
     SpontaneousBetModule,
     SpontaneousGuessModule,
+    UserSeriesPointsModule,
   ],
   controllers: [SeriesController],
   providers: [SeriesService, SeriesRepository],

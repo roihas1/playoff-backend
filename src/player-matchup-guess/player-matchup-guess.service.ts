@@ -6,6 +6,7 @@ import { PlayerMatchupGuess } from './player-matchup-guess.entity';
 import { PlayerMatchupBetService } from 'src/player-matchup-bet/player-matchup-bet.service';
 import { UpdateGuessDto } from './dto/update-guess.dto';
 import { PlayerMatchupBet } from 'src/player-matchup-bet/player-matchup-bet.entity';
+import { In } from 'typeorm';
 
 @Injectable()
 export class PlayerMatchupGuessService {
@@ -41,6 +42,62 @@ export class PlayerMatchupGuessService {
       playerMatchupBet,
       user,
     );
+  }
+  async getUserGuessesForSeries(
+    seriesId: string,
+    userId: string,
+  ): Promise<PlayerMatchupGuess[]> {
+    return this.playerMatchupGuessRepository
+      .createQueryBuilder('guess')
+      .leftJoinAndSelect('guess.bet', 'bet')
+      .where('bet.seriesId = :seriesId', { seriesId })
+      .andWhere('guess.createdById = :userId', { userId })
+      .getMany();
+  }
+  
+  async createManyPlayerMatchupGuesses(
+    guessesDto: CreatePlayerMatchupGuessDto[],
+    user: User,
+  ): Promise<void> {
+    this.logger.verbose(
+      `Creating ${guessesDto.length} PlayerMatchupGuesses...`,
+    );
+
+    // Fetch all existing guesses in one query
+    const betIds = guessesDto.map((dto) => dto.playerMatchupBetId);
+    const existingGuesses = await this.playerMatchupGuessRepository.find({
+      where: {
+        createdBy: { id: user.id },
+        bet: { id: In(betIds) },
+      },
+      relations: ['bet'],
+    });
+
+    const existingMap = new Map(
+      existingGuesses.map((guess) => [guess.bet.id, guess]),
+    );
+
+    const guessesToSave = await Promise.all(
+      guessesDto.map(async (dto) => {
+        const existing = existingMap.get(dto.playerMatchupBetId);
+        if (existing) {
+          existing.guess = dto.guess;
+          return existing;
+        } else {
+          const bet =
+            await this.playerMatchupBetService.getPlayerMatchupBetById(
+              dto.playerMatchupBetId,
+            );
+          return this.playerMatchupGuessRepository.createPlayerMatchupGuessEntity(
+            dto.guess,
+            bet,
+            user,
+          );
+        }
+      }),
+    );
+
+    await this.playerMatchupGuessRepository.save(guessesToSave);
   }
 
   async getGuessesByUser(userId: string): Promise<PlayerMatchupGuess[]> {

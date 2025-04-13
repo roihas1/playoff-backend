@@ -58,7 +58,18 @@ export class SpontaneousGuessService {
       select: ['id', 'guess', 'betId'],
     });
   }
-
+  async getUserGuessesForSeries(
+    seriesId: string,
+    userId: string,
+  ): Promise<SpontaneousGuess[]> {
+    return this.spontaneousGuessRepo
+      .createQueryBuilder('guess')
+      .leftJoinAndSelect('guess.bet', 'bet')
+      .where('bet.seriesId = :seriesId', { seriesId })
+      .andWhere('guess.createdById = :userId', { userId })
+      .getMany();
+  }
+  
   async createOrUpdateGuesses(
     updateGuessesDto: UpdateSpontaneousGuessesDto,
     user: User,

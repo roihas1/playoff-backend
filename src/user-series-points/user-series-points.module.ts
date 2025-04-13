@@ -10,7 +10,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserSeriesPointsRepository]),
-    SeriesModule,
+    forwardRef(() => SeriesModule),
     forwardRef(() => AuthModule),
     ScheduleModule,
   ],

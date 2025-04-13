@@ -1,4 +1,10 @@
-import { forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PlayerMatchupBetRepository } from './player-matchup-bet.repository';
 import { CreatePlayerMatchupBetDto } from './dto/create-player-matchup-bet.dto';
 import { PlayerMatchupBet } from './player-matchup-bet.entity';
@@ -25,6 +31,13 @@ export class PlayerMatchupBetService {
       createPlayerMatchupBetDto,
     );
   }
+  async getBySeriesId(seriesId: string): Promise<PlayerMatchupBet[]> {
+    return this.playerMatchupBetRepository
+      .createQueryBuilder('bet')
+      .where('bet.seriesId = :seriesId', { seriesId })
+      .getMany();
+  }
+
   async getPlayerMatchupBetById(id: string): Promise<PlayerMatchupBet> {
     const found = await this.playerMatchupBetRepository.findOne({
       where: {
@@ -132,41 +145,51 @@ export class PlayerMatchupBetService {
     matchup: PlayerMatchupBet,
   ): Promise<PlayerMatchupBet> {
     const previousResult = matchup.result;
+    const epsilon = 0.0001;
+
+    const avg1 =
+      matchup.playerGames[0] !== 0
+        ? matchup.currentStats[0] / matchup.playerGames[0]
+        : 0;
+    const avg2 =
+      matchup.playerGames[1] !== 0
+        ? matchup.currentStats[1] / matchup.playerGames[1]
+        : 0;
+
     if (matchup.typeOfMatchup === 'UNDER/OVER') {
-      const result =
-        matchup.currentStats[0] / matchup.playerGames[0] < matchup.differential
-          ? 1
-          : matchup.currentStats[0] / matchup.playerGames[0] ===
-              matchup.differential
-            ? 0
-            : 2;
-      matchup.result = result;
+      if (avg1 < matchup.differential - epsilon) {
+        matchup.result = 1;
+      } else if (Math.abs(avg1 - matchup.differential) < epsilon) {
+        matchup.result = 0;
+      } else {
+        matchup.result = 2;
+      }
     } else {
-      const result =
-        matchup.currentStats[0] / matchup.playerGames[0] >
-        matchup.currentStats[1] / matchup.playerGames[1] + matchup.differential
-          ? 1
-          : matchup.currentStats[0] ===
-              matchup.currentStats[1] + matchup.differential
-            ? 0
-            : 2;
-      matchup.result = result;
+      const adjustedAvg2 = avg2 + matchup.differential;
+      if (avg1 > adjustedAvg2 + epsilon) {
+        matchup.result = 1;
+      } else if (Math.abs(avg1 - adjustedAvg2) < epsilon) {
+        matchup.result = 0;
+      } else {
+        matchup.result = 2;
+      }
     }
+
+    console.log('== DEBUG ==');
+    console.log('player1:', matchup.player1);
+    console.log('player2:', matchup.player2);
+    console.log('typeOfMatchup:', matchup.typeOfMatchup);
+    console.log('currentStats:', matchup.currentStats);
+    console.log('playerGames:', matchup.playerGames);
+    console.log('avg1:', avg1);
+    console.log('avg2:', avg2);
+    console.log('differential:', matchup.differential);
+    console.log('adjustedAvg2:', avg2 + matchup.differential);
+    console.log('result:', matchup.result);
+
     try {
       const savedBet = await this.playerMatchupBetRepository.save(matchup);
       this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);
-
-      // for (const guess of savedBet.guesses) {
-      //   const points = this.calculatePointsForGuess(
-      //     guess,
-      //     savedBet,
-      //     previousResult,
-      //   );
-      //   if (points !== 0) {
-      //     await this.usersService.updateFantasyPoints(guess.createdBy, points);
-      //   }
-      // }
-
       return savedBet;
     } catch (error) {
       this.logger.error(

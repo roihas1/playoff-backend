@@ -38,6 +38,7 @@ import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 import { AuthService } from 'src/auth/auth.service';
 import { GetAllSeriesGuessesDto } from './dto/get-series-guesses-stats.dto';
 import { SpontaneousGuessService } from 'src/spontaneous-guess/spontaneous-guess.service';
+import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
 
 @Injectable()
 export class SeriesService {
@@ -54,6 +55,7 @@ export class SeriesService {
     @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
     private spontaneousGuessService: SpontaneousGuessService,
+    private userSeriesPointsService: UserSeriesPointsService,
   ) {}
 
   async getAllSeries(): Promise<Series[]> {
@@ -146,7 +148,7 @@ export class SeriesService {
     user: User,
   ): Promise<void> {
     try {
-      const series = await this.getSeriesByID(seriesId);
+      const series = await this.getSeriesWithBetsOnly(seriesId);
 
       if (createGuessesDto.teamWinGuess) {
         const createTeamWinGuessDto = {
@@ -158,6 +160,7 @@ export class SeriesService {
           user,
         );
       }
+
       if (createGuessesDto.bestOf7Guess) {
         const createBestOf7GuessDto = {
           guess: createGuessesDto.bestOf7Guess,
@@ -170,17 +173,17 @@ export class SeriesService {
       }
 
       if (createGuessesDto.playermatchupGuess) {
-        series.playerMatchupBets.forEach(async (bet) => {
-          if (createGuessesDto.playermatchupGuess.hasOwnProperty(bet.id)) {
-            await this.playerMatchupGuessService.createPlayerMatchupGuess(
-              {
-                guess: createGuessesDto.playermatchupGuess[bet.id],
-                playerMatchupBetId: bet.id,
-              },
-              user,
-            );
-          }
-        });
+        const playerMatchupPayload = Object.entries(
+          createGuessesDto.playermatchupGuess,
+        ).map(([betId, guess]) => ({
+          playerMatchupBetId: betId,
+          guess: Number(guess),
+        }));
+
+        await this.playerMatchupGuessService.createManyPlayerMatchupGuesses(
+          playerMatchupPayload,
+          user,
+        );
       }
     } catch (error) {
       this.logger.error(
@@ -191,6 +194,7 @@ export class SeriesService {
       );
     }
   }
+
   async getAllGuessesForUser(
     seriesId: string,
     user: User,
@@ -499,9 +503,147 @@ export class SeriesService {
     );
     return points;
   }
+  async optimizedCloseAllBetsInSeries(
+    seriesId: string,
+    user: User,
+  ): Promise<void> {
+    try {
+      console.time();
+      const [series, playerMatchupBets, spontaneousBets] = await Promise.all([
+        this.seriesRepository.findOne({
+          where: { id: seriesId },
+          relations: ['teamWinBetId', 'bestOf7BetId'],
+        }),
+        this.playerMatcupBetService.getBySeriesId(seriesId),
+        this.spontaneousBetService.getBySeriesId(seriesId),
+      ]);
+      if (!series) throw new NotFoundException('Series not found');
+
+      series.lastUpdate = new Date();
+      // const prevTeamWinResult = series.teamWinBetId.result;
+      // const prevMatchupResult = playerMatchupBets.reduce(
+      //   (acc, matchup) => {
+      //     acc[matchup.id] = matchup.result;
+      //     return acc;
+      //   },
+      //   {} as Record<string, number | null>,
+      // );
+
+      const bestOf7Bet = await this.bestOf7BetService.updateResultForSeries(
+        series.bestOf7BetId.id,
+      );
+      const teamWin =
+        bestOf7Bet.seriesScore[0] > bestOf7Bet.seriesScore[1]
+          ? 1
+          : bestOf7Bet.seriesScore[0] < bestOf7Bet.seriesScore[1]
+            ? 2
+            : 0;
+      const isSeriesFinished = bestOf7Bet.seriesScore.includes(4);
+
+      await this.teamWinBetService.updateResult(
+        { result: teamWin },
+        series.teamWinBetId.id,
+        isSeriesFinished,
+        bestOf7Bet,
+      );
+
+      await Promise.all([
+        ...playerMatchupBets.map((m) =>
+          this.playerMatcupBetService.updateResultForSeries(m),
+        ),
+        ...spontaneousBets.map((m) =>
+          this.spontaneousBetService.updateResultForSeries(m),
+        ),
+      ]);
+      await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
+      // update points - different approach
+      await this.userSeriesPointsService.updateAllUserPointsTotalFSP();
+      console.timeEnd();
+
+      // await Promise.all(
+      //   users.map(async (user) => {
+      //     let totalPoints = 0;
+
+      //     if (series.teamWinBetId) {
+      //       if (isSeriesFinished) {
+      //         const guess = await this.bestOf7BetService.getUserGuess(
+      //           series.bestOf7BetId,
+      //           user.id,
+      //         );
+      //         if (guess?.guess === bestOf7Bet.result) {
+      //           totalPoints += bestOf7Bet.fantasyPoints;
+      //         }
+      //       }
+      //       const guess = await this.teamWinBetService.getUserGuess(
+      //         series.teamWinBetId,
+      //         user.id,
+      //       );
+      //       if (guess) {
+      //         totalPoints += this.calculatePointsForGuess(
+      //           guess,
+      //           series.teamWinBetId,
+      //           prevTeamWinResult,
+      //         );
+      //       }
+      //     }
+
+      //     const [userMatchupGuesses, userSpontaneousGuesses] =
+      //       await Promise.all([
+      //         this.playerMatchupGuessService.getUserGuessesForSeries(
+      //           seriesId,
+      //           user.id,
+      //         ),
+      //         this.spontaneousGuessService.getUserGuessesForSeries(
+      //           seriesId,
+      //           user.id,
+      //         ),
+      //       ]);
+
+      //     for (const guess of userMatchupGuesses) {
+      //       if (guess.bet && guess.bet.id in prevMatchupResult) {
+      //         totalPoints += this.calculatePointsForGuess(
+      //           guess,
+      //           guess.bet,
+      //           prevMatchupResult[guess.bet.id],
+      //         );
+      //       }
+      //     }
+
+      //     for (const guess of userSpontaneousGuesses) {
+      //       if (guess.bet && guess.bet.id in prevMatchupResult) {
+      //         totalPoints += this.calculatePointsForGuess(
+      //           guess,
+      //           guess.bet,
+      //           prevMatchupResult[guess.bet.id],
+      //         );
+      //       }
+      //     }
+
+      //     if (totalPoints !== 0) {
+      //       await this.authService.updateFantasyPoints(user, totalPoints);
+      //       this.logger.verbose(
+      //         `User: ${user.username} earned ${totalPoints} points for series: ${seriesId}`,
+      //       );
+      //     }
+      //   }),
+      // );
+
+      
+    } catch (error) {
+      this.logger.error(
+        `User: ${user.username} failed to close all bets for series: ${seriesId}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to close bets for series: ${seriesId}`,
+      );
+    }
+  }
+
   async closeAllBetsInSeries(seriesId: string, user: User): Promise<void> {
     try {
-      let series = await this.getSeriesByID(seriesId);
+      console.time();
+      const series = await this.getSeriesByID(seriesId);
       series.lastUpdate = new Date();
       const prevTeamWinResult = series.teamWinBetId.result;
       const prevMatchupResult = series.playerMatchupBets.reduce(
@@ -538,7 +680,8 @@ export class SeriesService {
       }
 
       const users = await this.authService.getAllUsers();
-      series = await this.getSeriesByID(seriesId);
+
+      // series = await this.getSeriesByID(seriesId);
       users.map(async (user) => {
         let totalPoints = 0;
 
@@ -609,10 +752,8 @@ export class SeriesService {
         }
       });
 
-      // Wait for all updates to complete
-      // await Promise.all(updatePromises);
-
       await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
+      console.timeEnd();
     } catch (error) {
       this.logger.error(
         `User: ${user.username} faild to close all bets results to series: ${seriesId}`,
@@ -1048,6 +1189,7 @@ export class SeriesService {
       );
       if (
         bestOf7Guess?.guess === bets.bestOf7?.result &&
+        teamWinGuess?.guess === bets.teamWin?.result &&
         bets.bestOf7?.result !== null
       ) {
         points += bets.bestOf7?.fantasyPoints || 0;
@@ -1201,6 +1343,7 @@ export class SeriesService {
         userWithGuesses,
         seriesMap,
       );
+
 
       return userPointsPerSeries;
     } catch (error) {
