@@ -186,8 +186,8 @@ export class AuthService {
     }
   }
   async getUsersWithCursor(
-    cursor?: { points: number; id: string },
-    prevCursor?: { points: number; id: string },
+    cursor?: { totalPoints: number; id: string },
+    prevCursor?: { totalPoints: number; id: string },
     limit: number = 15,
     leagueId?: string,
   ) {
@@ -204,6 +204,7 @@ export class AuthService {
       throw error;
     }
   }
+
   async updateAllUsersTotalFantasyPoints(
     pointsToUpdate: { id: string; points: number }[],
   ): Promise<void> {

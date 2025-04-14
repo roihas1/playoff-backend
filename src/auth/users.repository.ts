@@ -55,11 +55,11 @@ export class UsersRepository extends Repository<User> {
         'user.conferenceFinalGuesses',
         'conferenceFinalGuesses',
       ) // Join and select related data
-      .leftJoinAndSelect('user.championTeamGuesses', 'championTeamGuesses') // Join and select related data
+      .leftJoinAndSelect('user.championTeamGuesses', 'championTeamGuesses')
       .leftJoinAndSelect('user.mvpGuesses', 'mvpGuesses')
       .leftJoinAndSelect('conferenceFinalGuesses.stage', 'playoffsStage1')
       .leftJoinAndSelect('championTeamGuesses.stage', 'playoffsStage2')
-      .leftJoinAndSelect('mvpGuesses.stage', 'playoffsStage3') // Join and select related data
+      .leftJoinAndSelect('mvpGuesses.stage', 'playoffsStage3')
       .where('user.id = :id', { id });
 
     const res = await query.getOne();
@@ -67,87 +67,111 @@ export class UsersRepository extends Repository<User> {
   }
   async getUsersWithCursor(
     limit: number,
-    cursor?: { points: number; id: string },
-    prevCursor?: { points: number; id: string },
+    cursor?: { totalPoints: number; id: string },
+    prevCursor?: { totalPoints: number; id: string },
     leagueId?: string,
   ) {
-    // const query = this.createQueryBuilder('user');
     const order = prevCursor ? 'ASC' : 'DESC';
-    const newLimit: number = Number(limit) + 1;
+    const realLimit = limit + 1;
+
     const query = this.createQueryBuilder('user')
       .leftJoin('user.privateLeagues', 'league')
-      .orderBy('user.fantasyPoints', order)
-      .addOrderBy('user.id', order)
-      .take(newLimit);
+      .addSelect('user.fantasyPoints + user.championPoints', 'totalPoints')
+      .take(realLimit)
+      .distinct(true);
+
+    // Dynamic order by expression
+    query
+      .orderBy('user.fantasyPoints + user.championPoints', order)
+      .addOrderBy('user.id', order);
 
     if (leagueId) {
-      query.andWhere('league.id = :leagueId', { leagueId }); // ✅ Filter by leagueId
+      query.andWhere('league.id = :leagueId', { leagueId });
     }
+
     if (prevCursor) {
-      // Fetch previous users in ASC order
-      query.where(
-        'user.fantasyPoints > :prevCursorPoints OR (user.fantasyPoints = :prevCursorPoints AND user.id > :prevCursorId)',
-        { prevCursorPoints: prevCursor.points, prevCursorId: prevCursor.id },
+      query.andWhere(
+        '(user.fantasyPoints + user.championPoints > :points OR ((user.fantasyPoints + user.championPoints = :points) AND user.id > :id))',
+        { points: prevCursor.totalPoints, id: prevCursor.id },
       );
-      // .orderBy('user.fantasyPoints', 'ASC') // Reverse order
-      // .addOrderBy('user.id', 'ASC');
-    } else {
-      if (cursor) {
-        // Fetch next users normally
-        query.where(
-          'user.fantasyPoints < :cursorPoints OR (user.fantasyPoints = :cursorPoints AND user.id < :cursorId)',
-          { cursorPoints: cursor.points, cursorId: cursor.id },
-        );
-      }
+    } else if (cursor) {
+      query.andWhere(
+        '(user.fantasyPoints + user.championPoints < :points OR ((user.fantasyPoints + user.championPoints = :points) AND user.id < :id))',
+        { points: cursor.totalPoints, id: cursor.id },
+      );
     }
 
-    const users = await query.getMany();
+    const rawUsers = await query.getRawMany();
 
-    let nextCursor: { points: number; id: string } | null = null;
-    let newPrevCursor: { points: number; id: string } | null = null;
+    const users = rawUsers.map((raw) => ({
+      id: raw.user_id,
+      username: raw.user_username,
+      firstName: raw.user_firstName,
+      lastName: raw.user_lastName,
+      fantasyPoints: raw.user_fantasyPoints,
+      championPoints: raw.user_championPoints,
+      totalPoints: Number(raw.totalPoints),
+    }));
+
+    // Determine next/prev cursors
+    let nextCursor: { totalPoints: number; id: string } | null = null;
+    let newPrevCursor: { totalPoints: number; id: string } | null = null;
+
     if (users.length > limit) {
-      // If we fetched more than the limit, set nextCursor & remove the extra user
+      // Set next cursor and trim extra user
       nextCursor = {
-        points: users[limit - 1].fantasyPoints,
+        totalPoints:
+          users[limit - 1].fantasyPoints + users[limit - 1].championPoints,
         id: users[limit - 1].id,
       };
       users.splice(limit);
     }
 
     if (prevCursor) {
-      // Since we reversed the order, we must flip the results back to descending order
-      users.reverse();
-      nextCursor = {
-        points: users[limit - 1].fantasyPoints,
-        id: users[limit - 1].id,
-      };
-      const firstUser = await this.createQueryBuilder('user')
-        .orderBy('user.fantasyPoints', 'DESC')
-        .addOrderBy('user.id', 'DESC')
-        .getOne(); // Get the very first user in the dataset
+      users.reverse(); // Flip back to descending order
 
-      if (users.length > 0 && firstUser && firstUser.id === users[0].id) {
-        // check if we got the first page
+      nextCursor = {
+        totalPoints:
+          users[users.length - 1].fantasyPoints +
+          users[users.length - 1].championPoints,
+        id: users[users.length - 1].id,
+      };
+
+      const firstUser = await this.createQueryBuilder('user')
+        .orderBy('user.fantasyPoints + user.championPoints', 'DESC')
+        .addOrderBy('user.id', 'DESC')
+        .getOne();
+
+      const firstUserId = firstUser?.id;
+
+      if (users.length > 0 && firstUserId === users[0].id) {
         newPrevCursor = null;
       } else {
-        newPrevCursor =
-          users.length > 0
-            ? { points: users[0].fantasyPoints, id: users[0].id }
-            : null;
+        newPrevCursor = {
+          totalPoints: users[0].fantasyPoints + users[0].championPoints,
+          id: users[0].id,
+        };
       }
     } else if (!cursor && !prevCursor) {
-      // first standing
-      newPrevCursor = null;
+      newPrevCursor = null; // First page
     } else {
-      // pressing next
+      // After clicking "Next"
       newPrevCursor =
         users.length > 0
-          ? { points: users[0].fantasyPoints, id: users[0].id }
+          ? {
+              totalPoints: users[0].fantasyPoints + users[0].championPoints,
+              id: users[0].id,
+            }
           : null;
     }
 
-    return { data: users, nextCursor, prevCursor: newPrevCursor };
+    return {
+      data: users,
+      nextCursor,
+      prevCursor: newPrevCursor,
+    };
   }
+
   async updateBulkFantasyPoints(
     userPointsMap: { id: string; points: number }[],
   ): Promise<void> {

@@ -133,17 +133,19 @@ export class AuthController {
       `User with username: "${user.username}" is attempting to get paginated users with limit ${limit} and cursorId: ${cursorId}`,
       'AuthController',
     );
+
     return await this.authService.getUsersWithCursor(
       cursorPoints && cursorId
-        ? { points: Number(cursorPoints), id: cursorId }
+        ? { totalPoints: Number(cursorPoints), id: cursorId }
         : undefined,
       prevCursorPoints && prevCursorId
-        ? { points: Number(prevCursorPoints), id: prevCursorId }
+        ? { totalPoints: Number(prevCursorPoints), id: prevCursorId }
         : undefined,
       limit,
       leagueId,
     );
   }
+
   @Get('/user')
   @UseGuards(JwtAuthGuard)
   async getUser(@GetUser() user: User): Promise<User> {
