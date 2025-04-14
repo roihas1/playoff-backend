@@ -68,45 +68,30 @@ export class PlayoffsStageService {
 
     return stages;
   }
-  async checkGuess(stage: PlayoffsStage, user: User): Promise<boolean> {
-    const foundStage = await this.playoffsStageRepo.findOne({
-      where: {
-        name: stage,
-      },
-      relations: [
-        'conferenceFinalGuesses',
-        'championTeamGuesses',
-        'mvpGuesses',
-        'mvpGuesses.createdBy',
-        'championTeamGuesses.createdBy',
-        'conferenceFinalGuesses.createdBy',
-      ],
-    });
-    if (stage === 'Before playoffs') {
-      if (
-        foundStage.championTeamGuesses.some(
-          (guess) => guess.createdBy.id === user.id,
-        ) &&
-        foundStage.conferenceFinalGuesses.some(
-          (guess) => guess.createdBy.id === user.id,
-        ) &&
-        foundStage.mvpGuesses.some((guess) => guess.createdBy.id === user.id)
-      ) {
-        return true;
+  async checkGuess(stageName: string, user: User): Promise<boolean> {
+    try {
+      const [hasChampion, hasConference, hasMVP] = await Promise.all([
+        this.championGuessService.hasChampionTeamGuess(stageName, user.id),
+        this.championGuessService.hasConferenceFinalGuess(stageName, user.id),
+        this.championGuessService.hasMVPGuess(stageName, user.id),
+      ]);
+
+      if (stageName === 'Before playoffs') {
+        return hasChampion && hasConference && hasMVP;
       }
-    } else if (
-      foundStage.mvpGuesses.some((guess) => guess.createdBy.id === user.id) &&
-      foundStage.championTeamGuesses.some(
-        (guess) => guess.createdBy.id === user.id,
-      )
-    ) {
-      return true;
+
+      return hasChampion && hasMVP;
+    } catch (error) {
+      this.logger.error(
+        `Failed to check guesses for user ${user.id}: ${error.message}`,
+        error.stack,
+      );
+      return false;
     }
-    return false;
   }
+
   async closeGuesses(closeGuessesDto: CloseGuessesDto): Promise<void> {
     try {
-      const stages = await this.getAllPlayoffsStages();
       const {
         easternConferenceFinal,
         westernConferenceFinal,
@@ -114,86 +99,170 @@ export class PlayoffsStageService {
         championTeam,
         mvp,
       } = closeGuessesDto;
-      const easternConferenceFinalGuesses: ConferenceFinalGuess[] =
-        stages[0].conferenceFinalGuesses.filter(
-          (guess) => guess.conference === 'East',
-        );
-      const westernConferenceFinalGuesses: ConferenceFinalGuess[] =
-        stages[0].conferenceFinalGuesses.filter(
-          (guess) => guess.conference === 'West',
-        );
-      const finalsGuesses: ConferenceFinalGuess[] =
-        stages[0].conferenceFinalGuesses.filter(
-          (guess) => guess.conference === 'Finals',
-        );
 
+      const mvpGuesses = await this.championGuessService.getMVPGuesses();
+      const conferenceFinalGuesses =
+        await this.championGuessService.getConferenceFinalGuesses();
+      const championTeamGuesses =
+        await this.championGuessService.getChampionTeamGuesses();
       const users = await this.authService.getAllUsers();
 
-      users.map(async (user) => {
+      // Pre-filter guesses by conference
+      const eastGuesses = conferenceFinalGuesses.filter(
+        (g) => g.conference === 'East',
+      );
+      const westGuesses = conferenceFinalGuesses.filter(
+        (g) => g.conference === 'West',
+      );
+      const finalsGuesses = conferenceFinalGuesses.filter(
+        (g) => g.conference === 'Finals',
+      );
+
+      const updates = [];
+      console.log(eastGuesses);
+      for (const user of users) {
         let totalPoints = 0;
 
-        const eastPoints = this.championGuessService.checkPointsForUser(
+        totalPoints += this.championGuessService.checkPointsForUser(
           easternConferenceFinal,
-          easternConferenceFinalGuesses,
+          eastGuesses,
           user.id,
         );
-        console.log(
-          `user:${user.username} got ${eastPoints} from east finals team`,
-        );
-        totalPoints += eastPoints;
-        const westPoints = this.championGuessService.checkPointsForUser(
+
+        totalPoints += this.championGuessService.checkPointsForUser(
           westernConferenceFinal,
-          westernConferenceFinalGuesses,
+          westGuesses,
           user.id,
         );
-        console.log(
-          `user:${user.username} got ${westPoints} from west finals team`,
-        );
-        totalPoints += westPoints;
-        const finalsPoints = this.championGuessService.checkPointsForUser(
+
+        totalPoints += this.championGuessService.checkPointsForUser(
           finals,
           finalsGuesses,
           user.id,
         );
-        console.log(
-          `user:${user.username} got ${finalsPoints} from finals team`,
-        );
-        totalPoints += finalsPoints;
 
-        const championTeamPoints =
-          this.championGuessService.checkChampionTeamPointsForUser(
-            championTeam,
-            stages.flatMap((stage) =>
-              stage.championTeamGuesses.filter(
-                (guess) => guess.createdBy.id === user.id,
-              ),
-            ),
-          );
-        console.log(
-          `user:${user.username} got ${championTeamPoints} from champion team`,
+        totalPoints += this.championGuessService.checkChampionTeamPointsForUser(
+          championTeam,
+          championTeamGuesses.filter((g) => g.createdBy.id === user.id),
         );
-        totalPoints += championTeamPoints;
 
-        const mvpPoints = this.championGuessService.checkMVPPointsForUser(
+        totalPoints += this.championGuessService.checkMVPPointsForUser(
           mvp,
-          stages.flatMap((stage) =>
-            stage.mvpGuesses.filter((guess) => guess.createdBy.id === user.id),
-          ),
+          mvpGuesses.filter((g) => g.createdBy.id === user.id),
         );
-        console.log(`user:${user.username} got ${mvpPoints} from mvp guesses`);
-        totalPoints += mvpPoints;
 
         if (totalPoints > 0) {
-          await this.authService.updateFantasyPoints(user, totalPoints);
+          updates.push({ userId: user.id, points: totalPoints });
+          this.logger.verbose(
+            `User ${user.username} scored ${totalPoints} champion points`,
+          );
         }
-      });
+      }
 
-      this.logger.verbose('Closing champions guesses succeed');
+      await this.authService.bulkUpdateChampionPoints(updates);
+
+      this.logger.verbose('Champion guesses closed and points awarded');
     } catch (error) {
-      this.logger.error('Failed to close champions guesses');
+      this.logger.error('Failed to close champion guesses', error.stack);
       throw error;
     }
   }
+
+  // async closeGuesses(closeGuessesDto: CloseGuessesDto): Promise<void> {
+  //   try {
+  //     // const stages = await this.getAllPlayoffsStages();
+  //     const {
+  //       easternConferenceFinal,
+  //       westernConferenceFinal,
+  //       finals,
+  //       championTeam,
+  //       mvp,
+  //     } = closeGuessesDto;
+  //     const mvpGuesses = await this.championGuessService.getMVPGuesses();
+  //     const conferenceFinalGuesses = await this.championGuessService.getConferenceFinalGuesses();
+  //     const championTeamGuesses = await this.championGuessService.getChampionTeamGuesses();
+
+  //     const easternConferenceFinalGuesses: ConferenceFinalGuess[] =
+  //       stages[0].conferenceFinalGuesses.filter(
+  //         (guess) => guess.conference === 'East',
+  //       );
+  //     const westernConferenceFinalGuesses: ConferenceFinalGuess[] =
+  //       stages[0].conferenceFinalGuesses.filter(
+  //         (guess) => guess.conference === 'West',
+  //       );
+  //     const finalsGuesses: ConferenceFinalGuess[] =
+  //       stages[0].conferenceFinalGuesses.filter(
+  //         (guess) => guess.conference === 'Finals',
+  //       );
+
+  //     const users = await this.authService.getAllUsers();
+
+  //     users.map(async (user) => {
+  //       let totalPoints = 0;
+
+  //       const eastPoints = this.championGuessService.checkPointsForUser(
+  //         easternConferenceFinal,
+  //         easternConferenceFinalGuesses,
+  //         user.id,
+  //       );
+  //       console.log(
+  //         `user:${user.username} got ${eastPoints} from east finals team`,
+  //       );
+  //       totalPoints += eastPoints;
+  //       const westPoints = this.championGuessService.checkPointsForUser(
+  //         westernConferenceFinal,
+  //         westernConferenceFinalGuesses,
+  //         user.id,
+  //       );
+  //       console.log(
+  //         `user:${user.username} got ${westPoints} from west finals team`,
+  //       );
+  //       totalPoints += westPoints;
+  //       const finalsPoints = this.championGuessService.checkPointsForUser(
+  //         finals,
+  //         finalsGuesses,
+  //         user.id,
+  //       );
+  //       console.log(
+  //         `user:${user.username} got ${finalsPoints} from finals team`,
+  //       );
+  //       totalPoints += finalsPoints;
+
+  //       const championTeamPoints =
+  //         this.championGuessService.checkChampionTeamPointsForUser(
+  //           championTeam,
+  //           stages.flatMap((stage) =>
+  //             stage.championTeamGuesses.filter(
+  //               (guess) => guess.createdBy.id === user.id,
+  //             ),
+  //           ),
+  //         );
+  //       console.log(
+  //         `user:${user.username} got ${championTeamPoints} from champion team`,
+  //       );
+  //       totalPoints += championTeamPoints;
+
+  //       const mvpPoints = this.championGuessService.checkMVPPointsForUser(
+  //         mvp,
+  //         stages.flatMap((stage) =>
+  //           stage.mvpGuesses.filter((guess) => guess.createdBy.id === user.id),
+  //         ),
+  //       );
+  //       console.log(`user:${user.username} got ${mvpPoints} from mvp guesses`);
+  //       totalPoints += mvpPoints;
+
+  //       if (totalPoints > 0) {
+  //         // await this.authService.updateChampionPoints(user, totalPoints);
+  //         await this.authService.updateFantasyPoints(user, totalPoints);
+  //       }
+  //     });
+
+  //     this.logger.verbose('Closing champions guesses succeed');
+  //   } catch (error) {
+  //     this.logger.error('Failed to close champions guesses');
+  //     throw error;
+  //   }
+  // }
   async getUserGuesses(
     stage: PlayoffsStage,
     userId: string,

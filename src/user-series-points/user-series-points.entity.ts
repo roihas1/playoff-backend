@@ -18,7 +18,10 @@ export class UserSeriesPoints {
   @ManyToOne(() => User, (user) => user.seriesPoints, { eager: true })
   user: User;
 
-  @ManyToOne(() => Series, (series) => series.userPoints, { eager: true })
+  @ManyToOne(() => Series, (series) => series.userPoints, {
+    eager: true,
+    onDelete: 'CASCADE',
+  })
   series: Series;
 
   @Column()

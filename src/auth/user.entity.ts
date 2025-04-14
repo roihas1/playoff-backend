@@ -32,6 +32,9 @@ export class User {
   @Column({ default: 0 })
   fantasyPoints: number;
 
+  @Column({ default: 0 })
+  championPoints: number;
+
   @Column({
     type: 'enum',
     enum: Role,

@@ -343,4 +343,127 @@ export class ChampionsGuessService {
       }),
     );
   }
+  async hasChampionTeamGuess(
+    stageName: string,
+    userId: string,
+  ): Promise<boolean> {
+    const count = await this.championTeamGuessRepo.count({
+      where: {
+        stage: { name: stageName },
+        createdBy: { id: userId },
+      },
+    });
+    return count > 0;
+  }
+
+  async hasConferenceFinalGuess(
+    stageName: string,
+    userId: string,
+  ): Promise<boolean> {
+    const count = await this.conferenceFinalGuessRepo.count({
+      where: {
+        stage: { name: stageName },
+        createdBy: { id: userId },
+      },
+    });
+    return count > 0;
+  }
+
+  async hasMVPGuess(stageName: string, userId: string): Promise<boolean> {
+    const count = await this.mvpGuessRepository.count({
+      where: {
+        stage: { name: stageName },
+        createdBy: { id: userId },
+      },
+    });
+    return count > 0;
+  }
+
+  async getMVPGuesses(): Promise<MVPGuess[]> {
+    try {
+      const guesses = await this.mvpGuessRepository
+        .createQueryBuilder('guess')
+        .leftJoin('guess.createdBy', 'createdBy')
+        .leftJoin('guess.stage', 'stage')
+        .select([
+          'guess.id',
+          'guess.player',
+          'guess.fantasyPoints',
+          'createdBy.id',
+          'stage.id',
+        ])
+        .addSelect('createdBy.id', 'guess_createdBy_id')
+        .addSelect('stage.id', 'guess_stage_id')
+        .getMany();
+
+      this.logger.verbose(`Retrieved ${guesses.length} MVP guesses.`);
+      return guesses;
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch MVP guesses: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException('Could not fetch MVP guesses');
+    }
+  }
+
+  async getConferenceFinalGuesses(): Promise<ConferenceFinalGuess[]> {
+    try {
+      const guesses = await this.conferenceFinalGuessRepo
+        .createQueryBuilder('guess')
+        .leftJoin('guess.createdBy', 'createdBy')
+        .leftJoin('guess.stage', 'stage')
+        .select([
+          'guess.id',
+          'guess.team1',
+          'guess.team2',
+          'guess.conference',
+          'guess.fantasyPoints',
+          'createdBy.id',
+          'stage.id',
+        ])
+        .getMany();
+
+      this.logger.verbose(
+        `Retrieved ${guesses.length} conference final guesses.`,
+      );
+      return guesses;
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch conference final guesses: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not fetch conference final guesses',
+      );
+    }
+  }
+
+  async getChampionTeamGuesses(): Promise<ChampionTeamGuess[]> {
+    try {
+      const guesses = await this.championTeamGuessRepo
+        .createQueryBuilder('guess')
+        .leftJoin('guess.createdBy', 'createdBy')
+        .leftJoin('guess.stage', 'stage')
+        .select([
+          'guess.id',
+          'guess.team',
+          'guess.fantasyPoints',
+          'createdBy.id',
+          'stage.id',
+        ])
+        .getMany();
+
+      this.logger.verbose(`Retrieved ${guesses.length} champion team guesses.`);
+      return guesses;
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch champion team guesses: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not fetch champion team guesses',
+      );
+    }
+  }
 }

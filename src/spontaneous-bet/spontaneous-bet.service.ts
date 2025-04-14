@@ -63,7 +63,13 @@ export class SpontaneousBetService {
     return raw;
   }
   async getAllWithResults(): Promise<
-    { id: string; result: number; seriesId: string; fantasyPoints: number }[]
+    {
+      id: string;
+      result: number;
+      seriesId: string;
+      fantasyPoints: number;
+      startTime: Date;
+    }[]
   > {
     const raw = await this.spontaneousBetRepo
       .createQueryBuilder('bet')
@@ -72,6 +78,7 @@ export class SpontaneousBetService {
         'bet.result AS result',
         'bet.seriesId AS "seriesId"',
         'bet.fantasyPoints AS "fantasyPoints"',
+        'bet.startTime AS "startTime"',
       ])
       .getRawMany();
 

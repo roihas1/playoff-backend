@@ -1,4 +1,4 @@
-import { Body, Controller, Logger, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Post, UseGuards } from '@nestjs/common';
 import { ChampionsGuessService } from './champions-guess.service';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { ChampionTeamGuess } from './entities/champion-team-guess.entity';
@@ -47,5 +47,28 @@ export class ChampionsGuessController {
       updateChampionGuessDto,
       user,
     );
+  }
+  @Get('/mvp/getAllGuesses')
+  async getMVPGuesses(@GetUser() user: User): Promise<MVPGuess[]> {
+    this.logger.verbose(`User: ${user.username} is requesting MVP guesses`);
+    return await this.champGuessService.getMVPGuesses();
+  }
+  @Get('/conferenceFinal/getAllGuesses')
+  async getConferenceFinalGuesses(
+    @GetUser() user: User,
+  ): Promise<ConferenceFinalGuess[]> {
+    this.logger.verbose(
+      `User: ${user.username} is requesting conference final guesses`,
+    );
+    return await this.champGuessService.getConferenceFinalGuesses();
+  }
+  @Get('/championTeam/getAllGuesses')
+  async getChampionTeamGuesses(
+    @GetUser() user: User,
+  ): Promise<ChampionTeamGuess[]> {
+    this.logger.verbose(
+      `User: ${user.username} is requesting champion team guesses`,
+    );
+    return await this.champGuessService.getChampionTeamGuesses();
   }
 }

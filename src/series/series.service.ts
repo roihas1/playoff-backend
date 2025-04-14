@@ -1228,6 +1228,8 @@ export class SeriesService {
           spontaneous.result !== null
         ) {
           points += spontaneous.fantasyPoints || 0;
+        } else if (guess?.guess !== spontaneous.result) {
+          points -= 1;
         }
       }
 
@@ -1261,7 +1263,9 @@ export class SeriesService {
       result: number;
       fantasyPoints: number;
       seriesId: string;
+      startTime: Date;
     }[],
+    validSeriesIds: Set<string>,
   ): {
     [seriesId: string]: {
       teamWin?: { id: string; result: number; fantasyPoints: number };
@@ -1290,6 +1294,7 @@ export class SeriesService {
     };
 
     for (const bet of bestOf7) {
+      if (!validSeriesIds.has(bet.seriesId)) continue;
       ensureSeries(bet.seriesId);
       seriesMap[bet.seriesId].bestOf7 = {
         id: bet.id,
@@ -1299,6 +1304,7 @@ export class SeriesService {
     }
 
     for (const bet of teamWin) {
+      if (!validSeriesIds.has(bet.seriesId)) continue;
       ensureSeries(bet.seriesId);
       seriesMap[bet.seriesId].teamWin = {
         id: bet.id,
@@ -1308,6 +1314,7 @@ export class SeriesService {
     }
 
     for (const bet of matchupBets) {
+      if (!validSeriesIds.has(bet.seriesId)) continue;
       ensureSeries(bet.seriesId);
       if (!seriesMap[bet.seriesId].matchupBets) {
         seriesMap[bet.seriesId].matchupBets = [];
@@ -1318,8 +1325,10 @@ export class SeriesService {
         fantasyPoints: bet.fantasyPoints,
       });
     }
-
+    const now = new Date();
     for (const bet of spontaneous) {
+      if (new Date(bet.startTime) > now) continue;
+      if (!validSeriesIds.has(bet.seriesId)) continue;
       ensureSeries(bet.seriesId);
       if (!seriesMap[bet.seriesId].spontaneousBets) {
         seriesMap[bet.seriesId].spontaneousBets = [];
@@ -1333,23 +1342,37 @@ export class SeriesService {
 
     return seriesMap;
   }
-
+  async getStartedSeriesIds(): Promise<Set<string>> {
+    const series = await this.seriesRepository
+      .createQueryBuilder('series')
+      .select(['series.id', 'series.dateOfStart', 'series.timeOfStart'])
+      .getMany();
+    const now = new Date();
+    const startedSeries = series.filter((s) => {
+      const startTime = new Date(`${s.dateOfStart}T${s.timeOfStart}`);
+      return startTime <= now;
+    });
+    const startedSeriesIds = new Set(startedSeries.map((s) => s.id));
+    return startedSeriesIds;
+  }
   async getPointsPerSeriesForUser(
     userId: string,
   ): Promise<{ [key: string]: number }> {
     try {
       const userWithGuesses = await this.getUserGuesses(userId);
-
+      const startedSeriesIds = await this.getStartedSeriesIds();
       const bestOf7 = await this.bestOf7BetService.getAllWithResults();
 
       const teamWin = await this.teamWinBetService.getAllWithResults();
       const matchupBets = await this.playerMatcupBetService.getAllWithResults();
       const spontaneous = await this.spontaneousBetService.getAllWithResults();
+      console.log(spontaneous)
       const seriesMap = this.buildSeriesMap(
         bestOf7,
         teamWin,
         matchupBets,
         spontaneous,
+        startedSeriesIds,
       );
 
       const userPointsPerSeries = await this.calculatePointsForUserSeries(

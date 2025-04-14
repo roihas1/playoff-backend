@@ -404,4 +404,15 @@ export class AuthService {
       throw new InternalServerErrorException(`Failed to search for users.`);
     }
   }
+  async bulkUpdateChampionPoints(
+    updates: { userId: string; points: number }[],
+  ): Promise<void> {
+    const updatePromises = updates.map(({ userId, points }) =>
+      this.usersRepository.update(userId, {
+        championPoints: () => `"championPoints" + ${points}`,
+      }),
+    );
+
+    await Promise.all(updatePromises);
+  }
 }
