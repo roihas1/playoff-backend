@@ -1223,12 +1223,12 @@ export class SeriesService {
         const guess = userGuesses.spontaneousGuesses.find(
           (g) => g.betId === spontaneous.id,
         );
-        if (
-          guess?.guess === spontaneous.result &&
-          spontaneous.result !== null
-        ) {
-          points += spontaneous.fantasyPoints || 0;
-        } else if (guess?.guess !== spontaneous.result) {
+
+        if (!guess || spontaneous.result === null) continue;
+
+        if (guess.guess === spontaneous.result) {
+          points += 2;
+        } else {
           points -= 1;
         }
       }
@@ -1366,7 +1366,6 @@ export class SeriesService {
       const teamWin = await this.teamWinBetService.getAllWithResults();
       const matchupBets = await this.playerMatcupBetService.getAllWithResults();
       const spontaneous = await this.spontaneousBetService.getAllWithResults();
-      console.log(spontaneous)
       const seriesMap = this.buildSeriesMap(
         bestOf7,
         teamWin,
