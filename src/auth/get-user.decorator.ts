@@ -11,6 +11,7 @@ export const GetUser = createParamDecorator(
       firstName: user.firstName,
       lastName: user.lastName,
       fantasyPoints: user.fantasyPoints,
+      championPoints: user.championPoints,
     };
   },
 );
