@@ -29,7 +29,7 @@ export class HomePageService {
         await Promise.all([
           this.seriesService.checkIfUserGuessedAll(user),
           this.seriesService.getSeriesWithFilters({}),
-          this.playoffsStageService.getAllPlayoffsStages(),
+          this.playoffsStageService.getPlainPlayoffsStages(),
           this.userSeriesPointsService.findByUserId(user.id),
         ]);
 

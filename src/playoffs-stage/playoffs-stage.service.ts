@@ -59,6 +59,19 @@ export class PlayoffsStageService {
 
     return found;
   }
+  async getPlainPlayoffsStages(): Promise<PlayoffStage[]> {
+    try {
+      const found = await this.playoffsStageRepo
+        .createQueryBuilder('playoff-stage')
+        .getMany();
+
+      this.logger.log(`Fetched ${found.length} playoff stages.`);
+      return found;
+    } catch (error) {
+      this.logger.error('Failed to fetch playoff stages', error.stack);
+      throw new Error('Could not retrieve playoff stages');
+    }
+  }
   async getAllPlayoffsStages(): Promise<PlayoffStage[]> {
     const stagesName = ['Before playoffs', 'Round 1', 'Round 2'];
     const found = await this.playoffsStageRepo.getAllPlayoffsStages();

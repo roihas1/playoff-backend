@@ -53,6 +53,11 @@ export class PlayoffsStageController {
     );
     return await this.playoffsStageService.getAllPlayoffsStages();
   }
+  @Get('/plain')
+  async getPlainPlayoffStages(@GetUser() user: User): Promise<PlayoffStage[]> {
+    this.logger.log(`User ${user.username} requested plain playoff stages`);
+    return await this.playoffsStageService.getPlainPlayoffsStages();
+  }
   @Get('/checkGuess')
   async checkGuess(
     @Query('stage') stage: PlayoffsStage,
