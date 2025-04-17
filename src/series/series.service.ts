@@ -97,12 +97,37 @@ export class SeriesService {
       throw new InternalServerErrorException(`Failed to create new Series`);
     }
   }
+  async getSeriesNoGuesses(seriesId: string): Promise<Series> {
+    try {
+      const query = await this.seriesRepository
+        .createQueryBuilder('series')
+        .leftJoinAndSelect('series.playerMatchupBets', 'playerMatchupBet')
+        .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
+        .leftJoinAndSelect('series.spontaneousBets', 'spontaneousBet')
+        .where('series.id = :seriesId', { seriesId })
+        .getOne();
+
+      if (!query) {
+        this.logger.error(`No series found with ID: ${seriesId}`);
+        throw new NotFoundException(`No series found with ID: ${seriesId}`);
+      }
+
+      return query;
+    } catch (error) {
+      this.logger.error(
+        `Error fetching series without guesses for ID: ${seriesId}`,
+        error,
+      );
+      throw new InternalServerErrorException('Failed to fetch series data');
+    }
+  }
+  F;
   async getSeriesByID(id: string): Promise<Series> {
     const foundSeries = await this.seriesRepository.findOne({ where: { id } });
 
     if (!foundSeries) {
       this.logger.error(`Series with ID "${id}" not found .`);
-      throw new NotFoundException(`Event with ID "${id}" not found`);
+      throw new NotFoundException(`Series with ID "${id}" not found`);
     }
     return foundSeries;
   }

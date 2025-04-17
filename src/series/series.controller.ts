@@ -75,7 +75,7 @@ export class SeriesController {
     this.logger.verbose(
       `User "${user.username}" retrieving series with id: ${id}.`,
     );
-    return await this.seriesServie.getSeriesByID(id);
+    return await this.seriesServie.getSeriesNoGuesses(id);
   }
   @Get('/:id/score')
   async getSeriesScore(
