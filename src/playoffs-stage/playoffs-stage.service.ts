@@ -132,7 +132,6 @@ export class PlayoffsStageService {
       );
 
       const updates = [];
-      console.log(eastGuesses);
       for (const user of users) {
         let totalPoints = 0;
 
@@ -278,52 +277,33 @@ export class PlayoffsStageService {
   // }
   async getUserGuesses(
     stage: PlayoffsStage,
-    userId: string,
+    user: User,
   ): Promise<{
     conferenceFinalGuesses: ConferenceFinalGuess[];
     championTeamGuesses: ChampionTeamGuess[];
     mvpGuesses: MVPGuess[];
   }> {
     try {
-      const stageObj = await this.playoffsStageRepo.findOne({
-        where: {
-          name: stage,
-        },
-        relations: [
-          'conferenceFinalGuesses',
-          'championTeamGuesses',
-          'mvpGuesses',
-          'mvpGuesses.createdBy',
-          'championTeamGuesses.createdBy',
-          'conferenceFinalGuesses.createdBy',
-        ],
-      });
-      if (!stageObj) {
-        return {
-          conferenceFinalGuesses: [],
-          championTeamGuesses: [],
-          mvpGuesses: [],
-        };
-      }
-      let conferenceFinalGuesses = [];
-      if (stage === 'Before playoffs') {
-        conferenceFinalGuesses = stageObj.conferenceFinalGuesses.filter(
-          (guess) => guess.createdBy.id === userId,
-        );
-      }
+      const userWithGuesses =
+        await this.authService.getUserChampionsGuesses(user);
 
-      const championTeamGuesses = stageObj.championTeamGuesses.filter(
-        (guess) => guess.createdBy.id === userId,
-      );
-      const mvpGuesses = stageObj.mvpGuesses.filter(
-        (guess) => guess.createdBy.id === userId,
-      );
-
-      return { conferenceFinalGuesses, championTeamGuesses, mvpGuesses };
+      return {
+        conferenceFinalGuesses: userWithGuesses.conferenceFinalGuesses.filter(
+          (g) => g.stage.name === stage,
+        ),
+        championTeamGuesses: userWithGuesses.championTeamGuesses.filter(
+          (g) => g.stage.name === stage,
+        ),
+        mvpGuesses: userWithGuesses.mvpGuesses.filter(
+          (g) => g.stage.name === stage,
+        ),
+      };
     } catch (error) {
-      this.logger.error(`User: ${userId} failed to get his guesses. ${error}`);
+      this.logger.error(
+        `User: ${user.username} failed to get his guesses. ${error}`,
+      );
       throw new InternalServerErrorException(
-        `User: ${userId} failed to get his guesses.`,
+        `User: ${user.username} failed to get his guesses.`,
       );
     }
   }
@@ -363,7 +343,7 @@ export class PlayoffsStageService {
       if (stage === PlayoffsStage.ROUND1) {
         const guesses = await this.getUserGuesses(
           PlayoffsStage.BEFOREPLAOFFS,
-          user.id,
+          user,
         );
         const newGuess = this.extractCertainProperties(
           guesses.conferenceFinalGuesses,
@@ -381,7 +361,7 @@ export class PlayoffsStageService {
       ) {
         const beforePlayoffsStageGuesses = await this.getUserGuesses(
           PlayoffsStage.BEFOREPLAOFFS,
-          user.id,
+          user,
         );
         const beforePlayoffsGuessesNew = this.extractCertainProperties(
           beforePlayoffsStageGuesses.conferenceFinalGuesses,
@@ -390,7 +370,7 @@ export class PlayoffsStageService {
         );
         const round1StageGuesses = await this.getUserGuesses(
           PlayoffsStage.ROUND1,
-          user.id,
+          user,
         );
         const round1GuessesNew = this.extractCertainProperties(
           round1StageGuesses.conferenceFinalGuesses,
@@ -401,7 +381,7 @@ export class PlayoffsStageService {
         if (stage === PlayoffsStage.FINISH) {
           const round2Guesses = await this.getUserGuesses(
             PlayoffsStage.ROUND2,
-            user.id,
+            user,
           );
           const round2StageGuesses = this.extractCertainProperties(
             round2Guesses.conferenceFinalGuesses,

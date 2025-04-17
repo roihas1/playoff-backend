@@ -334,7 +334,27 @@ export class AuthService {
       );
     }
   }
-
+  async getUserChampionsGuesses(user: User): Promise<User> {
+    try {
+      const foundUser = await this.usersRepository
+        .createQueryBuilder('user')
+        .leftJoinAndSelect('user.championTeamGuesses', 'championTeamGuesses')
+        .leftJoinAndSelect('championTeamGuesses.stage', 'championStage')
+        .addSelect(['championStage.name']) // 👈 Explicitly select only `name`
+        .leftJoinAndSelect('user.mvpGuesses', 'mvpGuesses')
+        .leftJoinAndSelect('mvpGuesses.stage', 'mvpStage')
+        .addSelect(['mvpStage.name'])
+        .leftJoinAndSelect(
+          'user.conferenceFinalGuesses',
+          'conferenceFinalGuesses',
+        )
+        .leftJoinAndSelect('conferenceFinalGuesses.stage', 'conferenceStage')
+        .addSelect(['conferenceStage.name'])
+        .where('user.id = :userId', { userId: user.id })
+        .getOne();
+      return foundUser;
+    } catch (error) {}
+  }
   async getUserGuesses(user: User): Promise<User> {
     try {
       const foundUser = await this.usersRepository.findOne({

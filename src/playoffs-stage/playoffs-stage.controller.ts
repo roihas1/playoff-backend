@@ -111,7 +111,7 @@ export class PlayoffsStageController {
       `User: ${user.username} attempt to get his champions guesses`,
     );
 
-    return await this.playoffsStageService.getUserGuesses(stage, user.id);
+    return await this.playoffsStageService.getUserGuesses(stage, user);
   }
   @Get('/getGuesses/:stage')
   async getPriorGuesses(
@@ -136,7 +136,7 @@ export class PlayoffsStageController {
     this.logger.verbose(
       `User: ${user.username} attempt to get ${userId} champions guesses`,
     );
-    return await this.playoffsStageService.getUserGuesses(stage, userId);
+    return await this.playoffsStageService.getUserGuesses(stage, user);
   }
 
   @Get('/passedStages')
