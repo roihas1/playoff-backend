@@ -30,6 +30,8 @@ import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
 import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
 import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
+import { RolesGuard } from './roles.guard';
+import { Roles } from './roles.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -76,6 +78,8 @@ export class AuthController {
 
   @Patch()
   @UseGuards(JwtAuthGuard)
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateUser(
     @GetUser() user: User,
     @Body() updateUserDto: UpdateUserDto,
@@ -89,6 +93,8 @@ export class AuthController {
 
   @Delete()
   @UseGuards(JwtAuthGuard)
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async deleteUser(@GetUser() user: User): Promise<void> {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to delete user with ID: "${user.id}".`,

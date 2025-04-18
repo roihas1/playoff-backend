@@ -8,6 +8,9 @@ import { CreateChampGuessDto } from './dto/create-champ-guess.dto';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { User } from 'src/auth/user.entity';
 import { UpdateChamionGuessDto } from './dto/update-champ-guess.dto';
+import { Roles } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Role } from 'src/auth/user-role.enum';
 
 @Controller('champions-guess')
 @UseGuards(JwtAuthGuard)
@@ -49,11 +52,15 @@ export class ChampionsGuessController {
     );
   }
   @Get('/mvp/getAllGuesses')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async getMVPGuesses(@GetUser() user: User): Promise<MVPGuess[]> {
     this.logger.verbose(`User: ${user.username} is requesting MVP guesses`);
     return await this.champGuessService.getMVPGuesses();
   }
   @Get('/conferenceFinal/getAllGuesses')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async getConferenceFinalGuesses(
     @GetUser() user: User,
   ): Promise<ConferenceFinalGuess[]> {
@@ -63,6 +70,8 @@ export class ChampionsGuessController {
     return await this.champGuessService.getConferenceFinalGuesses();
   }
   @Get('/championTeam/getAllGuesses')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async getChampionTeamGuesses(
     @GetUser() user: User,
   ): Promise<ChampionTeamGuess[]> {
