@@ -167,14 +167,40 @@ export class SeriesService {
       );
     }
   }
+  async getSeriesWitBestOf7AndTeamBet(seriesId: string): Promise<Series> {
+    try {
+      const series = await this.seriesRepository
+        .createQueryBuilder('series')
+        .leftJoin('series.bestOf7BetId', 'bestOf7Bet')
+        .leftJoin('series.teamWinBetId', 'teamWinBet')
+        .addSelect(['bestOf7Bet.id'])
+        .addSelect(['teamWinBet.id'])
+
+        .where('series.id = :seriesId', { seriesId })
+        .getOne();
+
+      if (!series) {
+        this.logger.error(`Series with ID "${seriesId}" not found.`);
+        throw new NotFoundException(`Series with ID "${seriesId}" not found`);
+      }
+
+      return series;
+    } catch (error) {
+      this.logger.error(
+        `Error fetching series "${seriesId}": ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        `Failed to fetch series "${seriesId}"`,
+      );
+    }
+  }
   async createAllGuesses(
     seriesId: string,
     createGuessesDto: CreateGuessesDto,
     user: User,
   ): Promise<void> {
     try {
-      const series = await this.getSeriesWithBetsOnly(seriesId);
-
+      const series = await this.getSeriesWitBestOf7AndTeamBet(seriesId);
       if (createGuessesDto.teamWinGuess) {
         const createTeamWinGuessDto = {
           guess: createGuessesDto.teamWinGuess,
@@ -295,9 +321,8 @@ export class SeriesService {
     }[];
   }> {
     try {
-     
       const userWithGuesses = await this.getUserGuesses(user.id);
-    
+
       const series = await this.getSeriesMinimalById(seriesId);
 
       const bestOf7 =
@@ -1487,6 +1512,7 @@ export class SeriesService {
         'series.conference',
         'series.round',
         'series.dateOfStart',
+        'series.timeOfStart',
 
         // BestOf7Bet (no guesses)
         'bestOf7Bet.id',
@@ -1532,6 +1558,7 @@ export class SeriesService {
       conference: Conference;
       round: Round;
       startDate: Date;
+      timeOfStart: string;
       bestOf7Bet: BestOf7Bet;
       teamWinBet: TeamWinBet;
       playerMatchupBets: PlayerMatchupBet[];
@@ -1545,6 +1572,7 @@ export class SeriesService {
         conference: Conference;
         round: Round;
         startDate: Date;
+        timeOfStart: string;
         bestOf7Bet: BestOf7Bet;
         teamWinBet: TeamWinBet;
         playerMatchupBets: PlayerMatchupBet[];
@@ -1562,6 +1590,7 @@ export class SeriesService {
           conference: s.conference,
           round: s.round,
           startDate: s.dateOfStart,
+          timeOfStart: s.timeOfStart,
           bestOf7Bet: {
             ...s.bestOf7BetId,
           },
@@ -1575,7 +1604,6 @@ export class SeriesService {
           spontaneousBets: s.spontaneousBets.map((bet) => ({ ...bet })),
         };
       });
-
       return bettingData;
     } catch (error) {
       this.logger.error(`Failed to get all bets for all series "${error}".`);
