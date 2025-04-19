@@ -27,14 +27,28 @@ export class GoogleStrategy extends PassportStrategy(Strategy) {
     profile: any,
     done: VerifiedCallback,
   ) {
+    const email = profile.emails?.[0]?.value;
+
+    const [fallbackFirst, fallbackLast] = profile.displayName?.split(' ') ?? [];
+
+    const firstName = profile.name?.givenName || fallbackFirst || 'First';
+
+    const lastName = profile.name?.familyName || fallbackLast || 'Last';
+
+    const username =
+      profile.displayName?.replace(/\s+/g, '_') ||
+      email?.split('@')[0] ||
+      'user';
+
     const user = await this.authService.validateGoogleUser({
-      email: profile.emails[0].value,
-      firstName: profile.name.givenName,
-      lastName: profile.name.familyName,
+      email,
+      firstName,
+      lastName,
       password: '',
-      username: profile.displayName.replace(' ', '_'),
+      username,
       googleId: profile.id,
     });
+
     done(null, user);
   }
 }

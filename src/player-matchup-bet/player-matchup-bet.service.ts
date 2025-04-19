@@ -212,7 +212,7 @@ export class PlayerMatchupBetService {
   ): Promise<PlayerMatchupBet> {
     const bet = await this.getPlayerMatchupBetById(id);
     if (updateFieldsDto.currentStats) {
-      console.log(updateFieldsDto.currentStats);
+     
       // update the number of games for each player by the updates for his stats.
       bet.playerGames[0] +=
         updateFieldsDto.currentStats[0] === 100

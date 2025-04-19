@@ -295,10 +295,9 @@ export class SeriesService {
     }[];
   }> {
     try {
-      console.time()
+     
       const userWithGuesses = await this.getUserGuesses(user.id);
-      console.timeEnd()
-      console.log(userWithGuesses)
+    
       const series = await this.getSeriesMinimalById(seriesId);
 
       const bestOf7 =

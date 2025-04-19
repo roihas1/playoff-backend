@@ -240,7 +240,7 @@ export class AuthService {
   ): Promise<boolean> {
     try {
       const foundUser = await this.usersRepository.getChampionsGuesses(user.id);
-      console.log(foundUser);
+    
 
       return true;
     } catch (error) {
