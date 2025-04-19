@@ -106,13 +106,32 @@ export class PrivateLeagueService {
       );
     }
   }
-  async getAllUsersForLeague(leagueId: string): Promise<User[]> {
+  async getAllUsersForLeague(leagueId: string): Promise<
+    {
+      id: string;
+      username: string;
+      firstName: string;
+      lastName: string;
+      fantasyPoints: number;
+      championPoints: number;
+    }[]
+  > {
     try {
-      const league = await this.privateLeagueRepo.findOne({
-        where: { id: leagueId },
-        relations: ['users'],
-      });
-      return league.users;
+      const users = await this.privateLeagueRepo
+        .createQueryBuilder('league')
+        .leftJoin('league.users', 'user')
+        .select([
+          'user.id AS "id"',
+          'user.username AS "username"',
+          'user.firstName AS "firstName"',
+          'user.lastName AS "lastName"',
+          'user.fantasyPoints AS "fantasyPoints"',
+          'user.championPoints AS "championPoints"',
+        ])
+        .where('league.id = :leagueId', { leagueId })
+        .getRawMany();
+
+      return users;
     } catch (error) {
       this.logger.error(
         `Failed to get all users for league:${leagueId}`,
@@ -123,6 +142,7 @@ export class PrivateLeagueService {
       );
     }
   }
+
   async updateLeagueName(leagueId: string, newName: string): Promise<void> {
     try {
       const league = await this.privateLeagueRepo.findOne({

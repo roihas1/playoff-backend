@@ -57,7 +57,7 @@ export class BestOf7GuessService {
     this.logger.verbose(`BestOf7Guess with ID: ${id} retrieved succesfully.`);
     return found;
   }
-  // best-of7-guess.service.ts
+  
   async getGuessesByUser(userId: string): Promise<BestOf7Guess[]> {
     return this.bestOf7GuessRepository.find({
       where: { createdBy: { id: userId } },

@@ -219,6 +219,63 @@ export class SeriesService {
       );
     }
   }
+  async getSeriesMinimalById(seriesId: string): Promise<{
+    bestOf7BetId: string;
+    teamWinBetId: string;
+    playerMatchupBets: { id: string; player1: string; player2: string }[];
+    spontaneousBets: { id: string; player1: string; player2: string }[];
+  }> {
+    try {
+      const result = await this.seriesRepository
+        .createQueryBuilder('series')
+        .leftJoin('series.bestOf7BetId', 'bestOf7Bet')
+        .leftJoin('series.teamWinBetId', 'teamWinBet')
+        .leftJoin('series.playerMatchupBets', 'playerMatchup')
+        .leftJoin('series.spontaneousBets', 'spontaneous')
+        .select([
+          'series.id',
+          'bestOf7Bet.id',
+          'teamWinBet.id',
+          'playerMatchup.id',
+          'playerMatchup.player1',
+          'playerMatchup.player2',
+          'spontaneous.id',
+          'spontaneous.player1',
+          'spontaneous.player2',
+        ])
+        .where('series.id = :id', { id: seriesId })
+        .getOne();
+
+      if (!result) {
+        throw new NotFoundException(`Series with ID "${seriesId}" not found`);
+      }
+
+      return {
+        bestOf7BetId: result.bestOf7BetId?.id,
+        teamWinBetId: result.teamWinBetId?.id,
+        playerMatchupBets:
+          result.playerMatchupBets?.map((pm) => ({
+            id: pm.id,
+            player1: pm.player1,
+            player2: pm.player2,
+          })) ?? [],
+        spontaneousBets:
+          result.spontaneousBets?.map((sp) => ({
+            id: sp.id,
+            player1: sp.player1,
+            player2: sp.player2,
+          })) ?? [],
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch minimal series info for ID ${seriesId}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to fetch lightweight series data for ID ${seriesId}`,
+      );
+    }
+  }
 
   async getAllGuessesForUser(
     seriesId: string,
@@ -238,17 +295,20 @@ export class SeriesService {
     }[];
   }> {
     try {
-      const userWithGuesses = await this.authService.getUserGuesses(user);
-      const series = await this.getSeriesByID(seriesId);
+      console.time()
+      const userWithGuesses = await this.getUserGuesses(user.id);
+      console.timeEnd()
+      console.log(userWithGuesses)
+      const series = await this.getSeriesMinimalById(seriesId);
 
       const bestOf7 =
         userWithGuesses.bestOf7Guesses.find(
-          (g) => g.betId === series.bestOf7BetId.id,
+          (g) => g.betId === series.bestOf7BetId,
         ) || null;
 
       const teamWon =
         userWithGuesses.teamWinGuesses.find(
-          (g) => g.betId === series.teamWinBetId.id,
+          (g) => g.betId === series.teamWinBetId,
         ) || null;
 
       const playerMatchups = series.playerMatchupBets.map((bet) => {

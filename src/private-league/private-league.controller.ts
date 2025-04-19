@@ -61,7 +61,16 @@ export class PrivateLeagueController {
   async getAllUsersForLeague(
     @Param('leagueId') leagueId: string,
     @GetUser() user: User,
-  ): Promise<User[]> {
+  ): Promise<
+    {
+      id: string;
+      username: string;
+      firstName: string;
+      lastName: string;
+      fantasyPoints: number;
+      championPoints: number;
+    }[]
+  > {
     this.logger.verbose(
       `User: ${user.username} attempting to get all users league.`,
     );

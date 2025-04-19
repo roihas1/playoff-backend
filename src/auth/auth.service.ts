@@ -340,7 +340,7 @@ export class AuthService {
         .createQueryBuilder('user')
         .leftJoinAndSelect('user.championTeamGuesses', 'championTeamGuesses')
         .leftJoinAndSelect('championTeamGuesses.stage', 'championStage')
-        .addSelect(['championStage.name']) // 👈 Explicitly select only `name`
+        .addSelect(['championStage.name']) 
         .leftJoinAndSelect('user.mvpGuesses', 'mvpGuesses')
         .leftJoinAndSelect('mvpGuesses.stage', 'mvpStage')
         .addSelect(['mvpStage.name'])
@@ -385,18 +385,31 @@ export class AuthService {
     return await this.signUp(googleUser);
   }
 
-  async getAllUserLeagues(user: User): Promise<PrivateLeague[]> {
+  async getAllUserLeagues(user: User): Promise<any[]> {
     try {
-      const found = await this.usersRepository.findOne({
-        where: { id: user.id },
-        relations: ['privateLeagues'],
-      });
-      return found.privateLeagues;
+      const leagues = await this.usersRepository
+        .createQueryBuilder('user')
+        .leftJoin('user.privateLeagues', 'league')
+        .leftJoin('league.admin', 'admin')
+        .select(['league.id', 'league.name', 'league.code', 'admin.id'])
+        .where('user.id = :userId', { userId: user.id })
+        .getRawMany();
+
+      // Convert raw results to desired format
+      const result = leagues.map((row) => ({
+        id: row.league_id,
+        name: row.league_name,
+        code: row.league_code,
+        admin: { id: row.admin_id },
+      }));
+
+      return result;
     } catch (error) {
       this.logger.error(`Failed to get all user leagues. ${error.stack}`);
       throw new InternalServerErrorException(`Failed to get all user leagues.`);
     }
   }
+
   async searchUsers(query: string): Promise<User[]> {
     try {
       if (!query) return [];
