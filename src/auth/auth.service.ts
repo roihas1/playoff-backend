@@ -240,7 +240,6 @@ export class AuthService {
   ): Promise<boolean> {
     try {
       const foundUser = await this.usersRepository.getChampionsGuesses(user.id);
-    
 
       return true;
     } catch (error) {
@@ -334,13 +333,13 @@ export class AuthService {
       );
     }
   }
-  async getUserChampionsGuesses(user: User): Promise<User> {
+  async getUserChampionsGuesses(userId: string): Promise<User> {
     try {
       const foundUser = await this.usersRepository
         .createQueryBuilder('user')
         .leftJoinAndSelect('user.championTeamGuesses', 'championTeamGuesses')
         .leftJoinAndSelect('championTeamGuesses.stage', 'championStage')
-        .addSelect(['championStage.name']) 
+        .addSelect(['championStage.name'])
         .leftJoinAndSelect('user.mvpGuesses', 'mvpGuesses')
         .leftJoinAndSelect('mvpGuesses.stage', 'mvpStage')
         .addSelect(['mvpStage.name'])
@@ -350,10 +349,16 @@ export class AuthService {
         )
         .leftJoinAndSelect('conferenceFinalGuesses.stage', 'conferenceStage')
         .addSelect(['conferenceStage.name'])
-        .where('user.id = :userId', { userId: user.id })
+        .where('user.id = :userId', { userId })
         .getOne();
       return foundUser;
-    } catch (error) {}
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch champion guesses for user ${userId}: ${error.message}`,
+        error.stack,
+      );
+      throw new Error('Failed to fetch user champion guesses');
+    }
   }
   async getUserGuesses(user: User): Promise<User> {
     try {

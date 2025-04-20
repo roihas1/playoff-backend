@@ -54,7 +54,7 @@ export class PlayerMatchupGuessService {
       .andWhere('guess.createdById = :userId', { userId })
       .getMany();
   }
-  
+
   async createManyPlayerMatchupGuesses(
     guessesDto: CreatePlayerMatchupGuessDto[],
     user: User,

@@ -234,7 +234,7 @@ export class PlayoffsStageService {
   //         finals,
   //         finalsGuesses,
   //         user.id,
-  //       );
+  //       ); 
   //       console.log(
   //         `user:${user.username} got ${finalsPoints} from finals team`,
   //       );
@@ -275,6 +275,53 @@ export class PlayoffsStageService {
   //     throw error;
   //   }
   // }
+  async getUserGuessesById(
+    stage: PlayoffsStage,
+    userId: string,
+  ): Promise<{
+    conferenceFinalGuesses: ConferenceFinalGuess[];
+    championTeamGuesses: ChampionTeamGuess[];
+    mvpGuesses: MVPGuess[];
+  }> {
+    try {
+      const userWithGuesses =
+        await this.authService.getUserChampionsGuesses(userId);
+      const now = new Date();
+
+      const hasStageStarted = (s: PlayoffStage) => {
+        if (!s.startDate || !s.timeOfStart) return false;
+        const [hours, minutes] = s.timeOfStart.split(':').map(Number);
+        const startDate = new Date(s.startDate);
+        startDate.setHours(hours, minutes, 0, 0);
+        return startDate <= now;
+      };
+
+      const conferenceFinalGuesses =
+        userWithGuesses.conferenceFinalGuesses.filter(
+          (g) => g.stage.name === stage && hasStageStarted(g.stage),
+        );
+
+      const championTeamGuesses = userWithGuesses.championTeamGuesses.filter(
+        (g) => g.stage.name === stage && hasStageStarted(g.stage),
+      );
+
+      const mvpGuesses = userWithGuesses.mvpGuesses.filter(
+        (g) => g.stage.name === stage && hasStageStarted(g.stage),
+      );
+
+      return {
+        conferenceFinalGuesses,
+        championTeamGuesses,
+        mvpGuesses,
+      };
+    } catch (error) {
+      this.logger.error(`User: ${userId} failed to get his guesses. ${error}`);
+      throw new InternalServerErrorException(
+        `User: ${userId} failed to get his guesses.`,
+      );
+    }
+  }
+
   async getUserGuesses(
     stage: PlayoffsStage,
     user: User,
@@ -284,8 +331,9 @@ export class PlayoffsStageService {
     mvpGuesses: MVPGuess[];
   }> {
     try {
-      const userWithGuesses =
-        await this.authService.getUserChampionsGuesses(user);
+      const userWithGuesses = await this.authService.getUserChampionsGuesses(
+        user.id,
+      );
 
       return {
         conferenceFinalGuesses: userWithGuesses.conferenceFinalGuesses.filter(

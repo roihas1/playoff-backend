@@ -62,6 +62,41 @@ export class SpontaneousBetService {
 
     return raw;
   }
+
+  async getSpontaneousBetsPercentagesForSeries(
+    seriesId: string,
+  ): Promise<{ [betId: string]: { 1: number; 2: number } }> {
+    const raw = await this.spontaneousBetRepo
+      .createQueryBuilder('bet')
+      .innerJoin('bet.guesses', 'guesses')
+      .where('bet."seriesIdId" = :seriesId', { seriesId })
+      .select('bet.id', 'betId')
+      .addSelect('guesses.guess', 'guess')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('bet.id')
+      .addGroupBy('guesses.guess')
+      .getRawMany();
+
+    const result: { [betId: string]: { 1: number; 2: number } } = {};
+
+    for (const row of raw) {
+      const betId = row.betId;
+      const guess = Number(row.guess);
+      const count = Number(row.count);
+
+      if (!result[betId]) result[betId] = { 1: 0, 2: 0 };
+      if (guess === 1 || guess === 2) result[betId][guess] += count;
+    }
+
+    // Convert counts to percentages
+    for (const betId in result) {
+      const total = result[betId][1] + result[betId][2];
+      result[betId][1] = total ? (result[betId][1] / total) * 100 : 0;
+      result[betId][2] = total ? (result[betId][2] / total) * 100 : 0;
+    }
+
+    return result;
+  }
   async getAllWithResults(): Promise<
     {
       id: string;

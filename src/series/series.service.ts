@@ -1,5 +1,6 @@
 import {
   ConsoleLogger,
+  ForbiddenException,
   forwardRef,
   Inject,
   Injectable,
@@ -259,6 +260,8 @@ export class SeriesService {
         .leftJoin('series.playerMatchupBets', 'playerMatchup')
         .leftJoin('series.spontaneousBets', 'spontaneous')
         .select([
+          'series.dateOfStart',
+          'series.timeOfStart',
           'series.id',
           'bestOf7Bet.id',
           'teamWinBet.id',
@@ -275,7 +278,17 @@ export class SeriesService {
       if (!result) {
         throw new NotFoundException(`Series with ID "${seriesId}" not found`);
       }
-
+      const [hours, minutes] = result.timeOfStart.split(':').map(Number);
+      const startDateTime = new Date(result.dateOfStart);
+      startDateTime.setHours(hours);
+      startDateTime.setMinutes(minutes);
+      startDateTime.setSeconds(0);
+      startDateTime.setMilliseconds(0);
+      if (new Date() < startDateTime) {
+        throw new ForbiddenException(
+          "You can't access guesses before the series starts.",
+        );
+      }
       return {
         bestOf7BetId: result.bestOf7BetId?.id,
         teamWinBetId: result.teamWinBetId?.id,
@@ -305,7 +318,7 @@ export class SeriesService {
 
   async getAllGuessesForUser(
     seriesId: string,
-    user: User,
+    userId: string,
   ): Promise<{
     bestOf7: BestOf7Guess | null;
     teamWon: TeamWinGuess | null;
@@ -321,7 +334,7 @@ export class SeriesService {
     }[];
   }> {
     try {
-      const userWithGuesses = await this.getUserGuesses(user.id);
+      const userWithGuesses = await this.getUserGuesses(userId);
 
       const series = await this.getSeriesMinimalById(seriesId);
 
@@ -365,11 +378,11 @@ export class SeriesService {
       };
     } catch (error) {
       this.logger.error(
-        `User: ${user.username} failed to get all guesses for series: ${seriesId}`,
+        `User: ${userId} failed to get all guesses for series: ${seriesId}`,
         error.stack,
       );
       throw new InternalServerErrorException(
-        `Could not retrieve guesses for user: ${user.username} in series: ${seriesId}`,
+        `Could not retrieve guesses for user: ${userId} in series: ${seriesId}`,
       );
     }
   }
@@ -570,7 +583,7 @@ export class SeriesService {
     user: User,
   ): Promise<void> {
     try {
-      const series = await this.getSeriesByID(seriesId);
+      const series = await this.getSeriesWitBestOf7AndTeamBet(seriesId);
       await this.bestOf7BetService.updateGame(
         series.bestOf7BetId.id,
         updateGame,
@@ -1642,11 +1655,6 @@ export class SeriesService {
     const series = await this.seriesRepository
       .createQueryBuilder('series')
       .leftJoinAndSelect('series.teamWinBetId', 'teamWinBet')
-      .leftJoinAndSelect('teamWinBet.guesses', 'teamWinGuesses')
-      .leftJoinAndSelect('series.playerMatchupBets', 'playerMatchupBet')
-      .leftJoinAndSelect('playerMatchupBet.guesses', 'playerMatchupGuesses')
-      .leftJoinAndSelect('series.spontaneousBets', 'spontaneousBet')
-      .leftJoinAndSelect('spontaneousBet.guesses', 'spontaneousGuesses')
       .where('series.id = :seriesId', { seriesId })
       .andWhere(
         `("series"."dateOfStart" + "series"."timeOfStart"::time) <= :now`,
@@ -1682,32 +1690,38 @@ export class SeriesService {
           spontaneousMacthups: {},
         };
       }
-      const teamWin1Precentage = this.calculatePercentage(
-        series.teamWinBetId.guesses,
-        1,
+      // const teamWin1Precentage = this.calculatePercentage(
+      //   series.teamWinBetId.guesses,
+      //   1,
+      // );
+      // const teamWin2Percentage = this.calculatePercentage(
+      //   series.teamWinBetId.guesses,
+      //   2,
+      // );
+      res['teamWin'] = await this.teamWinGuessService.getTeamWinPercentages(
+        series.teamWinBetId.id,
       );
-      const teamWin2Percentage = this.calculatePercentage(
-        series.teamWinBetId.guesses,
-        2,
-      );
-      res['teamWin'] = { 1: teamWin1Precentage, 2: teamWin2Percentage };
-      const playerMatchup = {};
-      series.playerMatchupBets.map((bet) => {
-        const value1 = this.calculatePercentage(bet.guesses, 1);
-        const value2 = this.calculatePercentage(bet.guesses, 2);
-        playerMatchup[bet.id] = { 1: value1, 2: value2 };
-      });
-      res['playerMatchup'] = playerMatchup;
-      const spontaneous = {};
+      // const playerMatchup = {};
+      // series.playerMatchupBets.map((bet) => {
+      //   const value1 = this.calculatePercentage(bet.guesses, 1);
+      //   const value2 = this.calculatePercentage(bet.guesses, 2);
+      //   playerMatchup[bet.id] = { 1: value1, 2: value2 };
+      // });
+      res['playerMatchup'] =
+        await this.playerMatcupBetService.getPlayerMatchupPercentagesForSeries(
+          series.id,
+        );
 
-      series.spontaneousBets.map((bet) => {
-        const value1 = this.calculatePercentage(bet.guesses, 1);
+      // series.spontaneousBets.map((bet) => {
+      //   const value1 = this.calculatePercentage(bet.guesses, 1);
 
-        const value2 = this.calculatePercentage(bet.guesses, 2);
-        spontaneous[bet.id] = { 1: value1, 2: value2 };
-      });
-
-      res['spontaneousMacthups'] = spontaneous;
+      //   const value2 = this.calculatePercentage(bet.guesses, 2);
+      //   spontaneous[bet.id] = { 1: value1, 2: value2 };
+      // });
+      res['spontaneousMacthups'] =
+        await this.spontaneousBetService.getSpontaneousBetsPercentagesForSeries(
+          series.id,
+        );
       return res;
     } catch (error) {
       this.logger.error(`Failed to get guesses percentage. "${error}".`);

@@ -140,7 +140,40 @@ export class PlayerMatchupBetService {
 
     return bets;
   }
+  async getPlayerMatchupPercentagesForSeries(
+    seriesId: string,
+  ): Promise<{ [betId: string]: { 1: number; 2: number } }> {
+    const raw = await this.playerMatchupBetRepository
+      .createQueryBuilder('bet')
+      .innerJoin('bet.guesses', 'guesses')
+      .where('bet.seriesId = :seriesId', { seriesId })
+      .select('bet.id', 'betId')
+      .addSelect('guesses.guess', 'guess') // fix: was 'guess.guess'
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('bet.id')
+      .addGroupBy('guesses.guess')
+      .getRawMany();
 
+    const result: { [betId: string]: { 1: number; 2: number } } = {};
+
+    for (const row of raw) {
+      const betId = row.betId;
+      const guess = Number(row.guess);
+      const count = Number(row.count);
+
+      if (!result[betId]) result[betId] = { 1: 0, 2: 0 };
+      if (guess === 1 || guess === 2) result[betId][guess] += count;
+    }
+
+    // Convert counts to percentages
+    for (const betId in result) {
+      const total = result[betId][1] + result[betId][2];
+      result[betId][1] = total ? (result[betId][1] / total) * 100 : 0;
+      result[betId][2] = total ? (result[betId][2] / total) * 100 : 0;
+    }
+
+    return result;
+  }
   async updateResultForSeries(
     matchup: PlayerMatchupBet,
   ): Promise<PlayerMatchupBet> {
@@ -157,7 +190,7 @@ export class PlayerMatchupBetService {
         : 0;
 
     if (matchup.typeOfMatchup === 'UNDER/OVER') {
-      if (avg1 < matchup.differential - epsilon) {
+      if (avg1 < matchup.differential) {
         matchup.result = 1;
       } else if (Math.abs(avg1 - matchup.differential) < epsilon) {
         matchup.result = 0;
@@ -212,7 +245,6 @@ export class PlayerMatchupBetService {
   ): Promise<PlayerMatchupBet> {
     const bet = await this.getPlayerMatchupBetById(id);
     if (updateFieldsDto.currentStats) {
-     
       // update the number of games for each player by the updates for his stats.
       bet.playerGames[0] +=
         updateFieldsDto.currentStats[0] === 100

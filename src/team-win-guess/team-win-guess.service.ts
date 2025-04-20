@@ -46,6 +46,35 @@ export class TeamWinGuessService {
       user,
     );
   }
+  async getTeamWinPercentages(
+    betId: string,
+  ): Promise<{ 1: number; 2: number }> {
+    const raw = await this.teamWinGuessRepository
+      .createQueryBuilder('guess')
+      .innerJoin('guess.bet', 'bet')
+      .where('bet.id = :betId', { betId })
+      .select('guess.guess', 'guess')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('guess.guess')
+      .getRawMany();
+
+    const counts = { 1: 0, 2: 0 };
+    let total = 0;
+
+    raw.forEach((row) => {
+      const value = Number(row.guess);
+      const count = Number(row.count);
+      if (value === 1 || value === 2) {
+        counts[value] = count;
+        total += count;
+      }
+    });
+
+    return {
+      1: total ? (counts[1] / total) * 100 : 0,
+      2: total ? (counts[2] / total) * 100 : 0,
+    };
+  }
 
   async getGuessesByUser(userId: string): Promise<TeamWinGuess[]> {
     return this.teamWinGuessRepository.find({

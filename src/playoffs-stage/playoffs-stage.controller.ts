@@ -136,7 +136,7 @@ export class PlayoffsStageController {
     this.logger.verbose(
       `User: ${user.username} attempt to get ${userId} champions guesses`,
     );
-    return await this.playoffsStageService.getUserGuesses(stage, user);
+    return await this.playoffsStageService.getUserGuessesById(stage, userId);
   }
 
   @Get('/passedStages')
