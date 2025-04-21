@@ -40,6 +40,7 @@ import { AuthService } from 'src/auth/auth.service';
 import { GetAllSeriesGuessesDto } from './dto/get-series-guesses-stats.dto';
 import { SpontaneousGuessService } from 'src/spontaneous-guess/spontaneous-guess.service';
 import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
+import { DateTime } from 'luxon';
 
 @Injectable()
 export class SeriesService {
@@ -278,13 +279,16 @@ export class SeriesService {
       if (!result) {
         throw new NotFoundException(`Series with ID "${seriesId}" not found`);
       }
-      const [hours, minutes] = result.timeOfStart.split(':').map(Number);
-      const startDateTime = new Date(result.dateOfStart);
-      startDateTime.setHours(hours);
-      startDateTime.setMinutes(minutes);
-      startDateTime.setSeconds(0);
-      startDateTime.setMilliseconds(0);
-      if (new Date() < startDateTime) {
+
+      const nowJerusalem = DateTime.now().setZone('Asia/Jerusalem');
+      const startDateTime = DateTime.fromISO(
+        `${result.dateOfStart}T${result.timeOfStart}`,
+        {
+          zone: 'Asia/Jerusalem',
+        },
+      );
+
+      if (nowJerusalem < startDateTime) {
         throw new ForbiddenException(
           "You can't access guesses before the series starts.",
         );
