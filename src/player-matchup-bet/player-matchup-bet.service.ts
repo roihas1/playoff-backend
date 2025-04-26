@@ -51,7 +51,21 @@ export class PlayerMatchupBetService {
     }
     return found;
   }
+  async getPlayerMatchupBetByIdNoGuesses(
+    id: string,
+  ): Promise<PlayerMatchupBet> {
+    const bet = await this.playerMatchupBetRepository
+      .createQueryBuilder('playerMatchupBet')
+      .where('playerMatchupBet.id = :id', { id })
+      .getOne();
+    if (!bet) {
+      throw new NotFoundException(
+        `PlayerMatchupBet with ID "${id}" not found.`,
+      );
+    }
 
+    return bet;
+  }
   async updateResult(
     updateResultDto: UpdateResultDto,
     id: string,
@@ -243,26 +257,37 @@ export class PlayerMatchupBetService {
     updateFieldsDto: UpdateFieldsDto,
     id: string,
   ): Promise<PlayerMatchupBet> {
-    const bet = await this.getPlayerMatchupBetById(id);
+    const bet = await this.getPlayerMatchupBetByIdNoGuesses(id);
+ 
     if (updateFieldsDto.currentStats) {
-      // update the number of games for each player by the updates for his stats.
-      bet.playerGames[0] +=
-        updateFieldsDto.currentStats[0] === 100
-          ? 0
-          : updateFieldsDto.currentStats[0] >= bet.currentStats[0]
-            ? 1
-            : -1;
-      bet.playerGames[1] +=
-        updateFieldsDto.currentStats[1] === 100
-          ? 0
-          : updateFieldsDto.currentStats[1] >= bet.currentStats[1]
-            ? 1
-            : -1;
+      const correctedCurrentStats: [number, number] = [
+        bet.currentStats[0],
+        bet.currentStats[1],
+      ];
+
+      for (let i = 0; i < 2; i++) {
+        const newStat = updateFieldsDto.currentStats[i];
+        const oldStat = bet.currentStats[i];
+
+        if (newStat % 100 === 0) {
+          // Player did not play → do not update playerGames or currentStats
+          continue;
+        }
+
+        bet.playerGames[i] +=
+          newStat === oldStat ? 0 : newStat >= oldStat ? 1 : -1;
+
+        correctedCurrentStats[i] = newStat === oldStat ? oldStat : newStat;
+      }
+
+      updateFieldsDto.currentStats = correctedCurrentStats;
     }
+
     Object.assign(bet, updateFieldsDto);
 
     try {
       const savedBet = await this.playerMatchupBetRepository.save(bet);
+
       this.logger.verbose(
         `PlayerMatchupBet with ID "${id}" successfully updated the fields.`,
       );

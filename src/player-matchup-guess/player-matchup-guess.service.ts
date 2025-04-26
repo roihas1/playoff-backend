@@ -34,7 +34,7 @@ export class PlayerMatchupGuessService {
       return await this.playerMatchupGuessRepository.save(found);
     }
     const playerMatchupBet =
-      await this.playerMatchupBetService.getPlayerMatchupBetById(
+      await this.playerMatchupBetService.getPlayerMatchupBetByIdNoGuesses(
         playerMatchupBetId,
       );
     return await this.playerMatchupGuessRepository.createPlayerMatchupGuess(
@@ -85,7 +85,7 @@ export class PlayerMatchupGuessService {
           return existing;
         } else {
           const bet =
-            await this.playerMatchupBetService.getPlayerMatchupBetById(
+            await this.playerMatchupBetService.getPlayerMatchupBetByIdNoGuesses(
               dto.playerMatchupBetId,
             );
           return this.playerMatchupGuessRepository.createPlayerMatchupGuessEntity(
