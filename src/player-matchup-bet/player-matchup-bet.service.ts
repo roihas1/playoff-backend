@@ -258,7 +258,7 @@ export class PlayerMatchupBetService {
     id: string,
   ): Promise<PlayerMatchupBet> {
     const bet = await this.getPlayerMatchupBetByIdNoGuesses(id);
- 
+
     if (updateFieldsDto.currentStats) {
       const correctedCurrentStats: [number, number] = [
         bet.currentStats[0],
@@ -269,13 +269,12 @@ export class PlayerMatchupBetService {
         const newStat = updateFieldsDto.currentStats[i];
         const oldStat = bet.currentStats[i];
 
-        if (newStat % 100 === 0) {
+        if (newStat - oldStat === 100) {
           // Player did not play → do not update playerGames or currentStats
           continue;
         }
 
-        bet.playerGames[i] +=
-          newStat === oldStat ? 0 : newStat >= oldStat ? 1 : -1;
+        bet.playerGames[i] += newStat >= oldStat ? 1 : -1;
 
         correctedCurrentStats[i] = newStat === oldStat ? oldStat : newStat;
       }
