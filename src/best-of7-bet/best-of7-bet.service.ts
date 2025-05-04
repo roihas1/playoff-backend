@@ -83,7 +83,13 @@ export class BestOf7BetService {
   }
 
   async getAllWithResults(): Promise<
-    { id: string; result: number; seriesId: string; fantasyPoints: number }[]
+    {
+      id: string;
+      result: number;
+      seriesId: string;
+      seriesScore: number[];
+      fantasyPoints: number;
+    }[]
   > {
     try {
       const raw = await this.bestOf7BetRepository
@@ -93,6 +99,7 @@ export class BestOf7BetService {
           'bet.id AS id',
           'bet.result AS result',
           'bet.fantasyPoints AS "fantasyPoints"',
+          'bet.seriesScore AS "seriesScore"',
           'series.id AS "seriesId"',
         ])
         .getRawMany();

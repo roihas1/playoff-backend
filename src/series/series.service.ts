@@ -1296,7 +1296,12 @@ export class SeriesService {
     seriesMap: {
       [seriesId: string]: {
         teamWin?: { id: string; result: number; fantasyPoints: number };
-        bestOf7?: { id: string; result: number; fantasyPoints: number };
+        bestOf7?: {
+          id: string;
+          result: number;
+          fantasyPoints: number;
+          seriesScore: number[];
+        };
         matchupBets?: { id: string; result: number; fantasyPoints: number }[];
         spontaneousBets?: {
           id: string;
@@ -1310,7 +1315,6 @@ export class SeriesService {
 
     for (const [seriesId, bets] of Object.entries(seriesMap)) {
       let points = 0;
-
       // === TeamWin Guess ===
       const teamWinGuess = userGuesses.teamWinGuesses.find(
         (g) => g.betId === bets.teamWin?.id,
@@ -1328,6 +1332,7 @@ export class SeriesService {
       );
       if (
         bestOf7Guess?.guess === bets.bestOf7?.result &&
+        bets.bestOf7.seriesScore.includes(4) &&
         teamWinGuess?.guess === bets.teamWin?.result &&
         bets.bestOf7?.result !== null
       ) {
@@ -1370,6 +1375,7 @@ export class SeriesService {
       id: string;
       result: number;
       fantasyPoints: number;
+      seriesScore: number[];
       seriesId: string;
     }[],
     teamWin: {
@@ -1395,7 +1401,12 @@ export class SeriesService {
   ): {
     [seriesId: string]: {
       teamWin?: { id: string; result: number; fantasyPoints: number };
-      bestOf7?: { id: string; result: number; fantasyPoints: number };
+      bestOf7?: {
+        id: string;
+        result: number;
+        fantasyPoints: number;
+        seriesScore: number[];
+      };
       matchupBets?: { id: string; result: number; fantasyPoints: number }[];
       spontaneousBets?: { id: string; result: number; fantasyPoints: number }[];
     };
@@ -1403,7 +1414,12 @@ export class SeriesService {
     const seriesMap: {
       [seriesId: string]: {
         teamWin?: { id: string; result: number; fantasyPoints: number };
-        bestOf7?: { id: string; result: number; fantasyPoints: number };
+        bestOf7?: {
+          id: string;
+          result: number;
+          fantasyPoints: number;
+          seriesScore: number[];
+        };
         matchupBets?: { id: string; result: number; fantasyPoints: number }[];
         spontaneousBets?: {
           id: string;
@@ -1426,6 +1442,7 @@ export class SeriesService {
         id: bet.id,
         result: bet.result,
         fantasyPoints: bet.fantasyPoints,
+        seriesScore: bet.seriesScore,
       };
     }
 
@@ -1535,6 +1552,7 @@ export class SeriesService {
         'bestOf7Bet.id',
         'bestOf7Bet.result',
         'bestOf7Bet.fantasyPoints',
+        'bestOf7Bet.seriesScore',
 
         // TeamWinBet (no guesses)
         'teamWinBet.id',
