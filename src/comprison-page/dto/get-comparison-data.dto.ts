@@ -26,7 +26,14 @@ export class GetComparisonDataDto {
 
   userLeagues: PrivateLeague[];
 
-  allUsers: User[];
+  allUsers: {
+    id: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    fantasyPoints: number;
+    championPoints: number;
+  }[];
 
   passedStages: string[];
 

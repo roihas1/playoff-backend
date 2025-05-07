@@ -172,6 +172,34 @@ export class AuthService {
       throw error;
     }
   }
+  async getAllUsersWithSelection(): Promise<
+    {
+      id: string;
+      username: string;
+      firstName: string;
+      lastName: string;
+      fantasyPoints: number;
+      championPoints: number;
+    }[]
+  > {
+    try {
+      const users = await this.usersRepository.find({
+        select: [
+          'id',
+          'username',
+          'firstName',
+          'lastName',
+          'fantasyPoints',
+          'championPoints',
+        ],
+      });
+      this.logger.verbose(`All users retrieved successfully.`);
+      return users;
+    } catch (error) {
+      this.logger.error(`Failed to get all users.`, error.stack);
+      throw error;
+    }
+  }
 
   async getAllUsers(): Promise<User[]> {
     try {

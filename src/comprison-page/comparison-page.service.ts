@@ -24,14 +24,14 @@ export class ComparisonPageService {
       const [allBets, userLeagues, allUsers, passedStages] = await Promise.all([
         this.seriesService.getAllBets(),
         this.privateLeagueService.getUserLeagues(user),
-        this.authService.getAllUsers(),
+        this.authService.getAllUsersWithSelection(),
         this.playoffsStageService.getPassedStages(),
       ]);
 
       return {
         allBets,
         userLeagues,
-        allUsers,
+        allUsers ,
         passedStages,
         currentUser: user,
       };

@@ -49,9 +49,11 @@ export class User {
   lastName: string;
 
   @Column({ unique: true })
+  @Exclude()
   email: string;
 
   @Column({ nullable: true })
+  @Exclude()
   googleId: string;
 
   @Column({ default: false })
