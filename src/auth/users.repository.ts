@@ -82,7 +82,6 @@ export class UsersRepository extends Repository<User> {
       .take(realLimit)
       .distinct(true);
 
-    // Dynamic order by expression
     query
       .orderBy('user.fantasyPoints + user.championPoints', order)
       .addOrderBy('user.id', order);

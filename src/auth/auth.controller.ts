@@ -104,14 +104,16 @@ export class AuthController {
   }
   @Get()
   @UseGuards(JwtAuthGuard)
-  async getAllUsers(@GetUser() user: User): Promise<{
-    id: string;
-    username: string;
-    firstName: string;
-    lastName: string;
-    fantasyPoints: number;
-    championPoints: number;
-  }[]> {
+  async getAllUsers(@GetUser() user: User): Promise<
+    {
+      id: string;
+      username: string;
+      firstName: string;
+      lastName: string;
+      fantasyPoints: number;
+      championPoints: number;
+    }[]
+  > {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get all users.`,
       'AuthController',

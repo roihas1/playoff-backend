@@ -1042,7 +1042,7 @@ export class SeriesService {
         this.playerMatcupBetService.getActiveBets(),
         this.spontaneousBetService.getActiveBets(),
       ]);
-
+      
       const result: {
         [seriesId: string]: {
           seriesName: string;

@@ -51,7 +51,7 @@ export class SpontaneousBetService {
         'bet.fantasyPoints AS "fantasyPoints"',
       ])
       .leftJoin('bet.seriesId', 'series') // Join with the series table
-      .where('series.dateOfStart > :now', { now: new Date() }) // Check if the series date is in the future
+      .where('bet.startTime > :now', { now: new Date() }) // Check if the series date is in the future
       .getRawMany();
   }
   async getAllBets(): Promise<{ id: string; seriesId: string }[]> {
