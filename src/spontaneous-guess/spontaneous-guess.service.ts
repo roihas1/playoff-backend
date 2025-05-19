@@ -78,6 +78,12 @@ export class SpontaneousGuessService {
   ): Promise<void> {
     try {
       const { spontaneousGuesses } = updateGuessesDto;
+      const userGuesses = await this.getGuessesByUser(user.id);
+      for (const guess of userGuesses) {
+        if (!(guess.betId in spontaneousGuesses)) {
+          await this.spontaneousGuessRepo.delete(guess);
+        }
+      }
       await Promise.all(
         Array.from(
           Object.keys(spontaneousGuesses).map(async (key) => {
