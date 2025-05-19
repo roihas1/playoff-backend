@@ -1021,7 +1021,7 @@ export class SeriesService {
     };
   }> {
     try {
-      const userWithGuesses = await this.authService.getUserGuesses(user);
+      const userWithGuesses = await this.getUserGuesses(user.id);
       const series = await this.getSeriesNamesAndIds();
       const bestOf7GuessIds = new Set(
         userWithGuesses.bestOf7Guesses.map((g) => g.betId),
