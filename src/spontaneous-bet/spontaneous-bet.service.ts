@@ -214,7 +214,23 @@ export class SpontaneousBetService {
       throw error;
     }
   }
-
+  async getBetByIdNoRelations(betId: string): Promise<SpontaneousBet> {
+    try {
+      const found = await this.spontaneousBetRepo.findOne({
+        where: { id: betId },
+      });
+      if (!found) {
+        this.logger.error(`SpontaneousBet with ID ${betId} not found.`);
+        throw new NotFoundException(
+          `SpontaneousBet with ID ${betId} not found.`,
+        );
+      }
+      return found;
+    } catch (error) {
+      this.logger.error(`Failed to get spontaneous bet. ${error.stack}`);
+      throw new InternalServerErrorException(`Failed to get spontaneous bet.`);
+    }
+  }
   async getBetById(betId: string): Promise<SpontaneousBet> {
     try {
       const found = await this.spontaneousBetRepo.findOne({

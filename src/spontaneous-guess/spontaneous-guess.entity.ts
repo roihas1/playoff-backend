@@ -21,8 +21,8 @@ export class SpontaneousGuess {
     onDelete: 'SET NULL',
   })
   bet: SpontaneousBet;
+
   @RelationId((guess: SpontaneousGuess) => guess.bet)
-  
   @Column({ select: true })
   betId: string;
 

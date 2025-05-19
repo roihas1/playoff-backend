@@ -36,7 +36,9 @@ export class SpontaneousGuessService {
         return await this.spontaneousGuessRepo.save(found);
       }
       const spontaneousBet =
-        await this.spontaneousBetService.getBetById(spontaneousBetId);
+        await this.spontaneousBetService.getBetByIdNoRelations(
+          spontaneousBetId,
+        );
       return await this.spontaneousGuessRepo.createSpontaneousGuess(
         guess,
         spontaneousBet,
@@ -69,7 +71,7 @@ export class SpontaneousGuessService {
       .andWhere('guess.createdById = :userId', { userId })
       .getMany();
   }
-  
+
   async createOrUpdateGuesses(
     updateGuessesDto: UpdateSpontaneousGuessesDto,
     user: User,
