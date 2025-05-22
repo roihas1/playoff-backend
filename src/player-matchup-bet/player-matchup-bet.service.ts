@@ -14,6 +14,7 @@ import { User } from 'src/auth/user.entity';
 import { AuthService } from 'src/auth/auth.service';
 import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
 
+
 @Injectable()
 export class PlayerMatchupBetService {
   private logger = new Logger('PlayerMatchupBetService', { timestamp: true });
@@ -31,8 +32,28 @@ export class PlayerMatchupBetService {
       createPlayerMatchupBetDto,
     );
   }
-  async getBySeriesId(seriesId: string): Promise<PlayerMatchupBet[]> {
+  async getBySeriesIds(seriesIds: string[]): Promise<PlayerMatchupBet[]> {
     return this.playerMatchupBetRepository
+      .createQueryBuilder('bet')
+      .select([
+        'bet.id AS id',
+        'bet.seriesIdId AS "seriesId"',
+        'bet.player1 AS player1',
+        'bet.player2 AS player2',
+        'bet.differential AS differential',
+        'bet.playerGames as "playerGames"',
+        'bet.currentStats AS "currentStats"',
+        'bet.typeOfMatchup as "typeOfMatchup"',
+        'bet.result AS result',
+        'bet.fantasyPoints AS "fantasyPoints"',
+        'bet.categories AS categories',
+
+      ])
+      .where('bet.seriesId IN (:...seriesIds)', { seriesIds })
+      .getRawMany();
+  }
+  async getBySeriesId(seriesId: string): Promise<PlayerMatchupBet[]> {
+    return await this.playerMatchupBetRepository
       .createQueryBuilder('bet')
       .where('bet.seriesId = :seriesId', { seriesId })
       .getMany();

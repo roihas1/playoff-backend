@@ -28,7 +28,7 @@ export class HomePageService {
       const [userGuessedAll, seriesList, playoffsStages, userPoints] =
         await Promise.all([
           this.seriesService.checkIfUserGuessedAll(user),
-          this.seriesService.getSeriesWithFilters({}),
+          this.seriesService.getSeriesForHomePage(),
           this.playoffsStageService.getPlainPlayoffsStages(),
           this.userSeriesPointsService.findByUserId(user.id),
         ]);

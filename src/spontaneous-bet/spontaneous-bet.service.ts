@@ -9,6 +9,7 @@ import { SpontaneousBet } from './spontaneousBet.entity';
 import { CreateSpontaneousBetDto } from './dto/create-spontaneous-bet.dto';
 import { UpdateBetFieldsDto } from './dto/update-fields.dto';
 import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
+import { In } from 'typeorm';
 
 @Injectable()
 export class SpontaneousBetService {
@@ -30,6 +31,27 @@ export class SpontaneousBetService {
         `Failed to create new spontaneous Bet`,
       );
     }
+  }
+  async getBySeriesIds(seriesIds: string[]): Promise<SpontaneousBet[]> {
+    return this.spontaneousBetRepo
+      .createQueryBuilder('bet')
+      .select([
+        'bet.id AS id',
+        'bet.seriesIdId AS "seriesId"',
+        'bet.player1 AS player1',
+        'bet.player2 AS player2',
+        'bet.differential AS differential',
+        'bet.playerGames as "playerGames"',
+        'bet.currentStats AS "currentStats"',
+        'bet.result AS result',
+        'bet.typeOfMatchup as "typeOfMatchup"',
+        'bet.gameNumber as "gameNumber"',
+        'bet.startTime as "startTime"',
+        'bet.fantasyPoints AS "fantasyPoints"',
+        'bet.categories AS categories',
+      ])
+      .where('bet.seriesId IN (:...seriesIds)', { seriesIds })
+      .getRawMany();
   }
 
   async getBySeriesId(seriesId: string): Promise<SpontaneousBet[]> {

@@ -41,6 +41,19 @@ import { GetAllSeriesGuessesDto } from './dto/get-series-guesses-stats.dto';
 import { SpontaneousGuessService } from 'src/spontaneous-guess/spontaneous-guess.service';
 import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
 import { DateTime } from 'luxon';
+import { MatchupCategory } from 'src/player-matchup-bet/matchup-category.enum';
+
+export type SeriesForHomePage = Omit<Series, 'bestOf7BetId'> & {
+  spontaneousBets: SpontaneousBet[];
+  playerMatchupBets: PlayerMatchupBet[];
+  bestOf7BetId: {
+    id: string;
+    result: number;
+    fantasyPoints: number;
+    seriesScore: number[];
+    seriesId: string;
+  } | null;
+};
 
 @Injectable()
 export class SeriesService {
@@ -62,6 +75,109 @@ export class SeriesService {
 
   async getAllSeries(): Promise<Series[]> {
     return await this.seriesRepository.getAllSeries();
+  }
+  parsePostgresArray(str: string): MatchupCategory[] {
+    if (!str.startsWith('{') || !str.endsWith('}'))
+      return [str] as MatchupCategory[]; // fallback
+    return str
+      .slice(1, -1) // remove the {}
+      .split(',')
+      .map((s) => s.trim().replace(/^"|"$/g, '')) as MatchupCategory[]; // remove optional quotes
+  }
+
+  async getSeriesForHomePage(): Promise<SeriesForHomePage[]> {
+    try {
+      const baseQuery = this.seriesRepository
+        .createQueryBuilder('series')
+        .select([
+          'series.id',
+          'series.team1',
+          'series.team2',
+          'series.seed1',
+          'series.seed2',
+          'series.conference',
+          'series.lastUpdate',
+          'series.round',
+          'series.dateOfStart',
+          'series.timeOfStart',
+        ]);
+
+      const seriesList = await baseQuery.getMany();
+      const seriesIds = seriesList.map((s) => s.id);
+
+      const [allSpontaneous, allMatchups, allBestOf7] = await Promise.all([
+        this.spontaneousBetService.getBySeriesIds(seriesIds),
+        this.playerMatcupBetService.getBySeriesIds(seriesIds),
+        this.bestOf7BetService.getBySeriesIds(seriesIds),
+      ]);
+      // console.log([allSpontaneous, allMatchups, allBestOf7]);
+      const spontaneousMap = new Map<string, SpontaneousBet[]>();
+      allSpontaneous.forEach((bet) => {
+        const categoriesArray =
+          typeof bet.categories === 'string'
+            ? this.parsePostgresArray(bet.categories)
+            : Array.isArray(bet.categories)
+              ? bet.categories
+              : [];
+
+        const mappedBet = {
+          ...bet,
+          categories: categoriesArray,
+        };
+        if (!spontaneousMap.has(bet.seriesId))
+          spontaneousMap.set(bet.seriesId, []);
+        spontaneousMap.get(bet.seriesId)!.push(mappedBet);
+      });
+      console.log('finish spontaneous');
+      const matchupMap = new Map<string, PlayerMatchupBet[]>();
+      allMatchups.forEach((bet) => {
+        const categoriesArray =
+          typeof bet.categories === 'string'
+            ? this.parsePostgresArray(bet.categories)
+            : Array.isArray(bet.categories)
+              ? bet.categories
+              : [];
+
+        const mappedBet = {
+          ...bet,
+          categories: categoriesArray,
+        };
+
+        if (!matchupMap.has(bet.seriesId)) matchupMap.set(bet.seriesId, []);
+        matchupMap.get(bet.seriesId)!.push(mappedBet);
+      });
+
+      console.log('finish playermatchup', allBestOf7);
+      const bestOf7Map = new Map<
+        string,
+        {
+          id: string;
+          result: number;
+          fantasyPoints: number;
+          seriesScore: number[];
+          seriesId: string;
+        }
+      >();
+      allBestOf7.forEach((bet) => {
+        bestOf7Map.set(bet.seriesId, bet);
+      });
+      console.log('finish bestof7');
+      const enrichedSeriesList: SeriesForHomePage[] = seriesList.map(
+        (series) => ({
+          ...series,
+          spontaneousBets: spontaneousMap.get(series.id) ?? [],
+          playerMatchupBets: matchupMap.get(series.id) ?? [],
+          bestOf7BetId: bestOf7Map.get(series.id) ?? null,
+        }),
+      );
+
+      return enrichedSeriesList;
+    } catch (error) {
+      this.logger.error(`Retrieving series for home page failed`, error);
+      throw new InternalServerErrorException(
+        `Retrieving series for home page failed`,
+      );
+    }
   }
   async getSeriesWithFilters(
     filters: GetSeriesWithFilterDto,
@@ -1042,7 +1158,7 @@ export class SeriesService {
         this.playerMatcupBetService.getActiveBets(),
         this.spontaneousBetService.getActiveBets(),
       ]);
-      
+
       const result: {
         [seriesId: string]: {
           seriesName: string;
@@ -1582,6 +1698,7 @@ export class SeriesService {
         'spontaneous.differential',
         'spontaneous.currentStats',
         'spontaneous.playerGames',
+        'spontaneous.startTime',
       ])
       .getMany();
   }

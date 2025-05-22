@@ -57,6 +57,43 @@ export class BestOf7BetService {
 
     return raw;
   }
+  async getBySeriesIds(seriesIds: string[]): Promise<
+    {
+      id: string;
+      result: number;
+      fantasyPoints: number;
+      seriesScore: number[];
+      seriesId: string;
+    }[]
+  > {
+    return await this.bestOf7BetRepository
+      .createQueryBuilder('bet')
+      .leftJoin('bet.series', 'series')
+      .select([
+        'bet.id AS id',
+        'bet.result AS result',
+        'bet.fantasyPoints AS "fantasyPoints"',
+        'bet.seriesScore AS "seriesScore"',
+        'series.id AS "seriesId"',
+      ])
+      .where('bet.seriesId IN (:...seriesIds)', { seriesIds })
+      .getRawMany();
+  }
+  async getBySeriesId(seriesId: string): Promise<BestOf7Bet> {
+    try {
+      const raw = await this.bestOf7BetRepository
+        .createQueryBuilder('bet')
+        .innerJoin('bet.series', 'series')
+        .where('series.id = :seriesId', { seriesId })
+        .getOne();
+      return raw;
+    } catch (error) {
+      this.logger.error(`faild to get betfor series: ${seriesId} ${error}`);
+      throw new InternalServerErrorException(
+        `faild to get betfor series: ${seriesId}`,
+      );
+    }
+  }
   async getActiveBets(): Promise<
     {
       id: string;

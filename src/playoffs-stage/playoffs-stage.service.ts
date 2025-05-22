@@ -64,7 +64,6 @@ export class PlayoffsStageService {
       const found = await this.playoffsStageRepo
         .createQueryBuilder('playoff-stage')
         .getMany();
-
       this.logger.log(`Fetched ${found.length} playoff stages.`);
       return found;
     } catch (error) {
