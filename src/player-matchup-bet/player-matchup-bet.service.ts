@@ -129,7 +129,7 @@ export class PlayerMatchupBetService {
       points = 0;
     }
     console.log(
-      `PLayer matchup bet Calculated Points for User: ${guess.createdById}, Points: ${points}`,
+      `Player matchup bet Calculated Points for User: ${guess.createdById}, Points: ${points}`,
     );
     return points;
   }

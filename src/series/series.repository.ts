@@ -55,11 +55,7 @@ export class SeriesRepository extends Repository<Series> {
       dateOfStart,
       timeOfStart,
     } = createSeriesDto;
-    console.log(
-      new Date().toLocaleString('en-US', {
-        timeZone: 'Asia/Jerusalem',
-      }),
-    );
+   
     const series = this.create({
       team1,
       team2,

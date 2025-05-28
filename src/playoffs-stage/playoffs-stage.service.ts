@@ -233,7 +233,7 @@ export class PlayoffsStageService {
   //         finals,
   //         finalsGuesses,
   //         user.id,
-  //       ); 
+  //       );
   //       console.log(
   //         `user:${user.username} got ${finalsPoints} from finals team`,
   //       );

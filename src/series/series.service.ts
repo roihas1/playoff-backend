@@ -128,7 +128,7 @@ export class SeriesService {
           spontaneousMap.set(bet.seriesId, []);
         spontaneousMap.get(bet.seriesId)!.push(mappedBet);
       });
-      console.log('finish spontaneous');
+
       const matchupMap = new Map<string, PlayerMatchupBet[]>();
       allMatchups.forEach((bet) => {
         const categoriesArray =
@@ -147,7 +147,6 @@ export class SeriesService {
         matchupMap.get(bet.seriesId)!.push(mappedBet);
       });
 
-      console.log('finish playermatchup', allBestOf7);
       const bestOf7Map = new Map<
         string,
         {
@@ -161,7 +160,7 @@ export class SeriesService {
       allBestOf7.forEach((bet) => {
         bestOf7Map.set(bet.seriesId, bet);
       });
-      console.log('finish bestof7');
+
       const enrichedSeriesList: SeriesForHomePage[] = seriesList.map(
         (series) => ({
           ...series,
@@ -767,7 +766,6 @@ export class SeriesService {
     user: User,
   ): Promise<void> {
     try {
-      console.time('close all bets');
       const [series, playerMatchupBets, spontaneousBets] = await Promise.all([
         this.getSeriesBasicData(seriesId),
         this.playerMatcupBetService.getBySeriesId(seriesId),
@@ -816,7 +814,7 @@ export class SeriesService {
 
       // update points - different approach
       await this.userSeriesPointsService.updateAllUserPointsTotalFSP();
-      console.timeEnd('close all bets');
+
       // await Promise.all(
       //   users.map(async (user) => {
       //     let totalPoints = 0;
@@ -897,7 +895,7 @@ export class SeriesService {
 
   async closeAllBetsInSeries(seriesId: string, user: User): Promise<void> {
     try {
-      console.time();
+
       const series = await this.getSeriesByID(seriesId);
       series.lastUpdate = new Date();
       const prevTeamWinResult = series.teamWinBetId.result;
@@ -948,7 +946,6 @@ export class SeriesService {
               user.id,
             );
             if (userGuess && userGuess.guess === bestOf7Bet.result) {
-              console.log(`added bestof7 points`);
               totalPoints += bestOf7Bet.fantasyPoints;
             }
           }
@@ -1008,7 +1005,7 @@ export class SeriesService {
       });
 
       await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
-      console.timeEnd();
+
     } catch (error) {
       this.logger.error(
         `User: ${user.username} faild to close all bets results to series: ${seriesId}`,
@@ -1221,8 +1218,23 @@ export class SeriesService {
     user: User,
   ): Promise<{ [seriesId: string]: boolean }> {
     try {
-      const { bestOf7GuessIds, matchupGuessIds, spontaneousGuessIds } =
-        await this.authService.getUserGuessesForCheck(user.id);
+      const bestOf7GuessIds = new Set(
+        (await this.bestOf7GuessService.getGuessesByUser(user.id)).map(
+          (g) => g.betId,
+        ),
+      );
+
+      const matchupGuessIds = new Set(
+        (await this.playerMatchupGuessService.getGuessesByUser(user.id)).map(
+          (g) => g.betId,
+        ),
+      );
+
+      const spontaneousGuessIds = new Set(
+        (await this.spontaneousGuessService.getGuessesByUser(user.id)).map(
+          (g) => g.betId,
+        ),
+      );
 
       const [bestOf7, matchupBets, spontaneous] = await Promise.all([
         this.bestOf7BetService.getAllBets(),

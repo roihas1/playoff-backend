@@ -202,7 +202,6 @@ export class SpontaneousBetService {
 
     // Debug logs for tracing
     this.logger.verbose(`Updating SpontaneousBet result for ID: ${matchup.id}`);
-    this.logger.verbose(`Stats: [${stat1}, ${stat2}], Differential: ${diff}`);
 
     if (matchup.typeOfMatchup === 'UNDER/OVER') {
       if (stat1 < diff - epsilon) {
@@ -222,7 +221,6 @@ export class SpontaneousBetService {
       }
     }
 
-    this.logger.verbose(`Calculated result: ${matchup.result}`);
 
     try {
       const savedBet = await this.spontaneousBetRepo.save(matchup);

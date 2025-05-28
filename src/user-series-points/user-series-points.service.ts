@@ -101,7 +101,6 @@ export class UserSeriesPointsService {
           result[entry.seriesid] = entry.points;
         }
       }
-
       return result;
     } catch (error) {
       this.logger.error(
