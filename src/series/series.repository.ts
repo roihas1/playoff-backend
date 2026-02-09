@@ -55,7 +55,7 @@ export class SeriesRepository extends Repository<Series> {
       dateOfStart,
       timeOfStart,
     } = createSeriesDto;
-   
+
     const series = this.create({
       team1,
       team2,

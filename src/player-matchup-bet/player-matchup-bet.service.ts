@@ -14,7 +14,6 @@ import { User } from 'src/auth/user.entity';
 import { AuthService } from 'src/auth/auth.service';
 import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
 
-
 @Injectable()
 export class PlayerMatchupBetService {
   private logger = new Logger('PlayerMatchupBetService', { timestamp: true });
@@ -47,7 +46,6 @@ export class PlayerMatchupBetService {
         'bet.result AS result',
         'bet.fantasyPoints AS "fantasyPoints"',
         'bet.categories AS categories',
-
       ])
       .where('bet.seriesId IN (:...seriesIds)', { seriesIds })
       .getRawMany();

@@ -41,7 +41,6 @@ export class TeamWinBetRepository extends Repository<TeamWinBet> {
       .where('id = :teamWinId', { teamWinId })
       .execute();
 
-   
     return await this.findOne({ where: { id: teamWinId } });
   }
 }

@@ -221,7 +221,6 @@ export class SpontaneousBetService {
       }
     }
 
-
     try {
       const savedBet = await this.spontaneousBetRepo.save(matchup);
       this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);
