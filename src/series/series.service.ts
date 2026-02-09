@@ -895,7 +895,6 @@ export class SeriesService {
 
   async closeAllBetsInSeries(seriesId: string, user: User): Promise<void> {
     try {
-
       const series = await this.getSeriesByID(seriesId);
       series.lastUpdate = new Date();
       const prevTeamWinResult = series.teamWinBetId.result;
@@ -1005,7 +1004,6 @@ export class SeriesService {
       });
 
       await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
-
     } catch (error) {
       this.logger.error(
         `User: ${user.username} faild to close all bets results to series: ${seriesId}`,

@@ -31,7 +31,7 @@ export class ComparisonPageService {
       return {
         allBets,
         userLeagues,
-        allUsers ,
+        allUsers,
         passedStages,
         currentUser: user,
       };

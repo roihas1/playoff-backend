@@ -11,7 +11,7 @@ import { TeamWinBetModule } from 'src/team-win-bet/team-win-bet.module';
   imports: [
     TypeOrmModule.forFeature([TeamWinGuessRepository]),
     forwardRef(() => AuthModule),
-    forwardRef(() => TeamWinBetModule), 
+    forwardRef(() => TeamWinBetModule),
   ],
   controllers: [TeamWinGuessController],
   providers: [TeamWinGuessService, TeamWinGuessRepository],
