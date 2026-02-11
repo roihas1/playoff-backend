@@ -17,8 +17,9 @@ export class SeriesRepository extends Repository<Series> {
   async getSeriesWithFilters(
     filters: GetSeriesWithFilterDto,
   ): Promise<Series[]> {
-    const { round, coast, team } = filters;
+    const { round, coast, team, tournamentId } = filters;
     const query = this.createQueryBuilder('series')
+      .leftJoinAndSelect('series.tournament', 'tournament')
       .leftJoinAndSelect('series.playerMatchupBets', 'playerMatchupBet')
       .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
       .leftJoinAndSelect('series.spontaneousBets', 'spontaneousBet');
@@ -36,6 +37,11 @@ export class SeriesRepository extends Repository<Series> {
         { team },
       );
     }
+
+    if (tournamentId) {
+      query.andWhere('series.tournamentId = :tournamentId', { tournamentId });
+    }
+
     const series = await query.getMany();
     return series;
   }
@@ -54,6 +60,7 @@ export class SeriesRepository extends Repository<Series> {
       conference: coast,
       dateOfStart,
       timeOfStart,
+      tournamentId,
     } = createSeriesDto;
 
     const series = this.create({
@@ -65,6 +72,7 @@ export class SeriesRepository extends Repository<Series> {
       conference: coast,
       dateOfStart,
       timeOfStart,
+      ...(tournamentId && { tournament: { id: tournamentId } as any }),
     });
 
     try {

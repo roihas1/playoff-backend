@@ -19,10 +19,13 @@ export class ComparisonPageService {
     private readonly playoffsStageService: PlayoffsStageService,
     private readonly privateLeagueService: PrivateLeagueService,
   ) {}
-  async getComparisonData(user: User): Promise<GetComparisonDataDto> {
+  async getComparisonData(
+    user: User,
+    tournamentId?: string,
+  ): Promise<GetComparisonDataDto> {
     try {
       const [allBets, userLeagues, allUsers, passedStages] = await Promise.all([
-        this.seriesService.getAllBets(),
+        this.seriesService.getAllBets(tournamentId),
         this.privateLeagueService.getUserLeagues(user),
         this.authService.getAllUsersWithSelection(),
         this.playoffsStageService.getPassedStages(),

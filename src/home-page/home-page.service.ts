@@ -21,14 +21,17 @@ export class HomePageService {
     // Add any other services you need
   ) {}
 
-  async getHomepageData(user: User): Promise<HomepageDataDto> {
+  async getHomepageData(
+    user: User,
+    tournamentId?: string,
+  ): Promise<HomepageDataDto> {
     this.logger.verbose(`Loading homepage data for user: ${user.username}`);
 
     try {
       const [userGuessedAll, seriesList, playoffsStages, userPoints] =
         await Promise.all([
-          this.seriesService.checkIfUserGuessedAll(user),
-          this.seriesService.getSeriesForHomePage(),
+          this.seriesService.checkIfUserGuessedAll(user, tournamentId),
+          this.seriesService.getSeriesForHomePage(tournamentId),
           this.playoffsStageService.getPlainPlayoffsStages(),
           this.userSeriesPointsService.findByUserId(user.id),
         ]);

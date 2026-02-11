@@ -39,6 +39,7 @@ import { UserMissingBetsModule } from './user-missing-bets/user-missing-bets.mod
 import { HomePageModule } from './home-page/home-page.module';
 import { ComparisonPageModule } from './comprison-page/comparison-page.module';
 import { UserInitializationModule } from './user-initialization/user-initialization.module';
+import { TournamentModule } from './tournament/tournament.module';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { UserInitializationModule } from './user-initialization/user-initializat
     HomePageModule,
     ComparisonPageModule,
     UserInitializationModule,
+    TournamentModule,
   ],
   controllers: [AppController],
   providers: [

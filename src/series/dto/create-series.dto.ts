@@ -5,6 +5,8 @@ import {
   IsDateString,
   Max,
   Min,
+  IsOptional,
+  IsUUID,
 } from 'class-validator';
 import { Round } from '../round.enum';
 import { Conference } from '../conference.enum';
@@ -29,4 +31,8 @@ export class CreateSeriesDto {
   dateOfStart: string;
   @IsString()
   timeOfStart: string;
+
+  @IsOptional()
+  @IsUUID()
+  tournamentId?: string;
 }
