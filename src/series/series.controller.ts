@@ -208,18 +208,22 @@ export class SeriesController {
     );
   }
   @Get('/bets/allMissingBets')
-  async getAllMissingBets(@GetUser() user: User): Promise<{
+  async getAllMissingBets(
+    @GetUser() user: User,
+    @Query('tournamentId') tournamentId?: string,
+  ): Promise<{
     [key: string]: {
       seriesName: string;
       gamesAndWinner: boolean;
       playerMatchup: PlayerMatchupBet[];
       spontaneousBets: SpontaneousBet[];
+      tournament: { id: string; sportType: string; year: number; name: string } | null;
     };
   }> {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get all his missing bets.`,
     );
-    return await this.seriesServie.getOptimizedMissingBets(user);
+    return await this.seriesServie.getOptimizedMissingBets(user, tournamentId);
   }
   @Get('/:seriesId/getAllGuessesForUser/:userId')
   async getAllGuessesForUser(
@@ -245,11 +249,12 @@ export class SeriesController {
   @Get('/isUserGuessed/All')
   async checkIfUserGuessedAll(
     @GetUser() user: User,
+    @Query('tournamentId') tournamentId?: string,
   ): Promise<{ [key: string]: boolean }> {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to check if he guessed all bets.`,
     );
-    return await this.seriesServie.checkIfUserGuessedAll(user);
+    return await this.seriesServie.checkIfUserGuessedAll(user, tournamentId);
   }
   // @Get('/:seriesId/getOverallPointsPerSeries')
   // async getPointsForUser(
@@ -264,20 +269,28 @@ export class SeriesController {
   @Get('/getOverallPoints/allSeries')
   async getPointsPerSeriesForUser(
     @GetUser() user: User,
+    @Query('tournamentId') tournamentId?: string,
   ): Promise<{ [key: string]: number }> {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get his points for all series.`,
     );
-    return await this.seriesServie.getPointsPerSeriesForUser(user.id);
+    return await this.seriesServie.getPointsPerSeriesForUser(
+      user.id,
+      tournamentId,
+    );
   }
   @Get('/getAll/bets')
-  async getAllBets(@GetUser() user: User): Promise<{
+  async getAllBets(
+    @GetUser() user: User,
+    @Query('tournamentId') tournamentId?: string,
+  ): Promise<{
     [key: string]: {
       team1: string;
       team2: string;
       conference: Conference;
       round: Round;
       startDate: Date;
+      tournament: { id: string; sportType: string; year: number; name: string } | null;
       bestOf7Bet: BestOf7Bet;
       teamWinBet: TeamWinBet;
       playerMatchupBets: PlayerMatchupBet[];
@@ -287,7 +300,7 @@ export class SeriesController {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get all bets`,
     );
-    return await this.seriesServie.getAllBets();
+    return await this.seriesServie.getAllBets(tournamentId);
   }
   @Patch('/:seriesId/updateTime')
   @Roles(Role.ADMIN)

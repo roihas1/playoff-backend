@@ -9,6 +9,13 @@ import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 import { Conference } from 'src/series/conference.enum';
 import { Round } from 'src/series/round.enum';
 
+export type TournamentInfoDto = {
+  id: string;
+  sportType: string;
+  year: number;
+  name: string;
+} | null;
+
 export class GetComparisonDataDto {
   allBets: {
     [seriesId: string]: {
@@ -17,6 +24,7 @@ export class GetComparisonDataDto {
       conference: Conference;
       round: Round;
       startDate: Date;
+      tournament: TournamentInfoDto;
       bestOf7Bet: BestOf7Bet;
       teamWinBet: TeamWinBet;
       playerMatchupBets: PlayerMatchupBet[];

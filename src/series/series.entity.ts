@@ -7,11 +7,14 @@ import {
   Column,
   OneToOne,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Conference } from './conference.enum';
 import { Round } from './round.enum';
 import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 import { UserSeriesPoints } from 'src/user-series-points/user-series-points.entity';
+import { Tournament } from 'src/tournament/tournament.entity';
 
 @Entity()
 export class Series {
@@ -49,6 +52,10 @@ export class Series {
   dateOfStart: Date;
   @Column({ type: 'time', nullable: true })
   timeOfStart: string;
+
+  @ManyToOne(() => Tournament, { eager: false, nullable: true })
+  @JoinColumn()
+  tournament: Tournament | null;
 
   @OneToOne(() => BestOf7Bet, (bestOf7Bet) => bestOf7Bet.series, {
     eager: true,
