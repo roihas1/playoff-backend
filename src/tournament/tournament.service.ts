@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { TournamentRepository } from './tournament.repository';
 import { Tournament } from './tournament.entity';
 import { CreateTournamentDto } from './dto/create-tournament.dto';

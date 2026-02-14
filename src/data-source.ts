@@ -19,6 +19,7 @@ import { PrivateLeague } from './private-league/private-league.entity';
 import { UserSeriesPoints } from './user-series-points/user-series-points.entity';
 import { UserMissingBet } from './user-missing-bets/user-missing-bets.entity';
 import { Tournament } from './tournament/tournament.entity';
+import { Team } from './team/team.entity';
 ConfigModule.forRoot({
   isGlobal: true,
   envFilePath: [`.env.stage.${process.env.STAGE}`],
@@ -51,6 +52,7 @@ export const AppDataSource = new DataSource({
     UserSeriesPoints,
     UserMissingBet,
     Tournament,
+    Team,
   ],
   synchronize: true,
   logging: false,

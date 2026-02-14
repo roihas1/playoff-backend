@@ -1,0 +1,11 @@
+---
+description: TypeORM entity patterns and registration
+globs: src/**/*.entity.ts
+alwaysApply: false
+---
+
+# TypeORM entities
+
+- Use `@Entity()`, `@PrimaryColumn()` / `@PrimaryGeneratedColumn()`, `@Column()`, `@Index()` where needed. Prefer **kebab-case file names** for new entities (e.g. `team.entity.ts`, `series.entity.ts`); align with existing folder naming.
+- Every entity must be registered in `src/data-source.ts` so TypeORM and CLI scripts see the schema.
+- Use project enums for typed columns (e.g. `Conference`, `Round`) and keep entities in the feature folder or in an `entities/` subfolder for that feature.

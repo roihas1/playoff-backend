@@ -19,8 +19,10 @@ export type TournamentInfoDto = {
 export class GetComparisonDataDto {
   allBets: {
     [seriesId: string]: {
-      team1: string;
-      team2: string;
+      team1Id: string;
+      team2Id: string;
+      team1Name: string;
+      team2Name: string;
       conference: Conference;
       round: Round;
       startDate: Date;

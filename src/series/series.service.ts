@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConsoleLogger,
   ForbiddenException,
   forwardRef,
@@ -12,6 +13,7 @@ import { SeriesRepository } from './series.repository';
 import { Series } from './series.entity';
 // import { User } from '../auth/user.entity';
 import { CreateSeriesDto } from './dto/create-series.dto';
+import { CreateSeriesData } from './dto/create-series-data';
 import { GetSeriesWithFilterDto } from './dto/get-series-filter.dto';
 import { CreateGuessesDto } from './dto/create-guesses.dto';
 import { User } from 'src/auth/user.entity';
@@ -42,6 +44,7 @@ import { SpontaneousGuessService } from 'src/spontaneous-guess/spontaneous-guess
 import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
 import { DateTime } from 'luxon';
 import { MatchupCategory } from 'src/player-matchup-bet/matchup-category.enum';
+import { TeamService } from 'src/team/team.service';
 
 export type TournamentInfo = {
   id: string;
@@ -50,8 +53,15 @@ export type TournamentInfo = {
   name: string;
 } | null;
 
-function toTournamentInfo(t: { id: string; sportType: string; year: number; name: string } | null | undefined): TournamentInfo {
-  return t ? { id: t.id, sportType: t.sportType, year: t.year, name: t.name } : null;
+function toTournamentInfo(
+  t:
+    | { id: string; sportType: string; year: number; name: string }
+    | null
+    | undefined,
+): TournamentInfo {
+  return t
+    ? { id: t.id, sportType: t.sportType, year: t.year, name: t.name }
+    : null;
 }
 
 export type SeriesForHomePage = Omit<Series, 'bestOf7BetId' | 'tournament'> & {
@@ -72,6 +82,7 @@ export class SeriesService {
   private logger = new Logger('SeriesService', { timestamp: true });
   constructor(
     private seriesRepository: SeriesRepository,
+    private teamService: TeamService,
     private teamWinGuessService: TeamWinGuessService,
     private bestOf7GuessService: BestOf7GuessService,
     private playerMatchupGuessService: PlayerMatchupGuessService,
@@ -97,15 +108,17 @@ export class SeriesService {
       .map((s) => s.trim().replace(/^"|"$/g, '')) as MatchupCategory[]; // remove optional quotes
   }
 
-  async getSeriesForHomePage(tournamentId?: string): Promise<SeriesForHomePage[]> {
+  async getSeriesForHomePage(
+    tournamentId?: string,
+  ): Promise<SeriesForHomePage[]> {
     try {
       const baseQuery = this.seriesRepository
         .createQueryBuilder('series')
         .leftJoinAndSelect('series.tournament', 'tournament')
+        .leftJoinAndSelect('series.team1Relation', 'team1Relation')
+        .leftJoinAndSelect('series.team2Relation', 'team2Relation')
         .select([
           'series.id',
-          'series.team1',
-          'series.team2',
           'series.seed1',
           'series.seed2',
           'series.conference',
@@ -117,6 +130,12 @@ export class SeriesService {
           'tournament.sportType',
           'tournament.year',
           'tournament.name',
+          'team1Relation.id',
+          'team1Relation.name',
+          'team1Relation.abbreviation',
+          'team2Relation.id',
+          'team2Relation.name',
+          'team2Relation.abbreviation',
         ]);
 
       if (tournamentId) {
@@ -220,8 +239,29 @@ export class SeriesService {
   }
   async createSeries(createSeriesDto: CreateSeriesDto): Promise<Series> {
     try {
-      const newSeries =
-        await this.seriesRepository.createSeries(createSeriesDto);
+      const [team1, team2] = await Promise.all([
+        this.teamService.findByNameOrAbbreviationOrThrow(createSeriesDto.team1),
+        this.teamService.findByNameOrAbbreviationOrThrow(createSeriesDto.team2),
+      ]);
+      if (team1.id === team2.id) {
+        throw new BadRequestException(
+          'team1Name and team2Name must refer to distinct teams.',
+        );
+      }
+      const payload: CreateSeriesData = {
+        team1Id: team1.id,
+        team2Id: team2.id,
+        seed1: createSeriesDto.seed1,
+        seed2: createSeriesDto.seed2,
+        round: createSeriesDto.round,
+        conference: createSeriesDto.conference,
+        dateOfStart: createSeriesDto.dateOfStart,
+        timeOfStart: createSeriesDto.timeOfStart,
+        ...(createSeriesDto.tournamentId && {
+          tournamentId: createSeriesDto.tournamentId,
+        }),
+      };
+      const newSeries = await this.seriesRepository.createSeries(payload);
       await this.bestOf7BetService.createBestOf7Bet({
         seriesId: newSeries.id,
         fantasyPoints: 4,
@@ -232,17 +272,58 @@ export class SeriesService {
       });
       return await this.seriesRepository.findOne({
         where: { id: newSeries.id },
+        relations: ['team1Relation', 'team2Relation', 'tournament'],
       });
     } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       this.logger.error(`Failed to create new Series `);
       throw new InternalServerErrorException(`Failed to create new Series`);
     }
   }
+
+  async updateSeriesFromLastNightWinners(payload: {
+    date: string;
+    games: { gameId: string; winnerTeamId: string }[];
+  }): Promise<{ updated: number; closed: number }> {
+    let updated = 0;
+    let closed = 0;
+    for (const game of payload.games) {
+      const series = await this.seriesRepository.findInProgressSeriesByTeamId(
+        game.winnerTeamId,
+      );
+      if (!series) {
+        this.logger.verbose(
+          `No in-progress series found for winnerTeamId ${game.winnerTeamId} (gameId ${game.gameId}), skipping.`,
+        );
+        continue;
+      }
+      const teamWon = series.team1Relation?.id === game.winnerTeamId ? 1 : 2;
+      await this.bestOf7BetService.incrementGameWin(
+        series.bestOf7BetId.id,
+        teamWon as 1 | 2,
+      );
+      updated++;
+      const bet = await this.bestOf7BetService.getBestOf7BetLight(
+        series.bestOf7BetId.id,
+      );
+      const score = bet.seriesScore ?? [0, 0];
+      if (score[0] === 4 || score[1] === 4) {
+        await this.optimizedCloseAllBetsInSeries(series.id);
+        closed++;
+      }
+    }
+    return { updated, closed };
+  }
+
   async getSeriesNoGuesses(seriesId: string): Promise<Series> {
     try {
       const query = await this.seriesRepository
         .createQueryBuilder('series')
         .leftJoinAndSelect('series.tournament', 'tournament')
+        .leftJoinAndSelect('series.team1Relation', 'team1Relation')
+        .leftJoinAndSelect('series.team2Relation', 'team2Relation')
         .leftJoinAndSelect('series.playerMatchupBets', 'playerMatchupBet')
         .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
         .leftJoinAndSelect('series.spontaneousBets', 'spontaneousBet')
@@ -264,7 +345,10 @@ export class SeriesService {
     }
   }
   async getSeriesByID(id: string): Promise<Series> {
-    const foundSeries = await this.seriesRepository.findOne({ where: { id } });
+    const foundSeries = await this.seriesRepository.findOne({
+      where: { id },
+      relations: ['team1Relation', 'team2Relation', 'tournament'],
+    });
 
     if (!foundSeries) {
       this.logger.error(`Series with ID "${id}" not found .`);
@@ -787,8 +871,9 @@ export class SeriesService {
   }
   async optimizedCloseAllBetsInSeries(
     seriesId: string,
-    user: User,
+    user?: User,
   ): Promise<void> {
+    const actor = user?.username ?? 'system';
     try {
       const [series, playerMatchupBets, spontaneousBets] = await Promise.all([
         this.getSeriesBasicData(seriesId),
@@ -908,11 +993,11 @@ export class SeriesService {
       // );
     } catch (error) {
       this.logger.error(
-        `User: ${user.username} failed to close all bets for series: ${seriesId}`,
+        `User: ${actor} failed to close all bets for series: ${seriesId}`,
         error.stack,
       );
       throw new InternalServerErrorException(
-        `Failed to close bets for series: ${seriesId}`,
+        `User: ${actor} failed to close all bets for series: ${seriesId}`,
       );
     }
   }
@@ -1030,11 +1115,11 @@ export class SeriesService {
       await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
     } catch (error) {
       this.logger.error(
-        `User: ${user.username} faild to close all bets results to series: ${seriesId}`,
+        `User: ${user.username} failed to close all bets results to series: ${seriesId}`,
         error.stack,
       );
       throw new InternalServerErrorException(
-        `User: ${user.username} faild to close all bets results to series: ${seriesId}`,
+        `User: ${user.username} failed to close all bets results to series: ${seriesId}`,
       );
     }
   }
@@ -1127,20 +1212,41 @@ export class SeriesService {
   //   }
   // }
   async getSeriesNamesAndIds(): Promise<{
-    [seriesId: string]: { team1: string; team2: string };
+    [seriesId: string]: {
+      team1Id: string;
+      team2Id: string;
+      team1Name: string;
+      team2Name: string;
+    };
   }> {
     const series = await this.seriesRepository
       .createQueryBuilder('series')
-      .select(['series.id', 'series.team1', 'series.team2'])
+      .leftJoinAndSelect('series.team1Relation', 'team1Relation')
+      .leftJoinAndSelect('series.team2Relation', 'team2Relation')
+      .select([
+        'series.id',
+        'team1Relation.id',
+        'team1Relation.name',
+        'team2Relation.id',
+        'team2Relation.name',
+      ])
       .getMany();
 
-    const seriesMap: { [seriesId: string]: { team1: string; team2: string } } =
-      {};
+    const seriesMap: {
+      [seriesId: string]: {
+        team1Id: string;
+        team2Id: string;
+        team1Name: string;
+        team2Name: string;
+      };
+    } = {};
 
     series.forEach((s) => {
       seriesMap[s.id] = {
-        team1: s.team1,
-        team2: s.team2,
+        team1Id: s.team1Relation?.id ?? '',
+        team2Id: s.team2Relation?.id ?? '',
+        team1Name: s.team1Relation?.name ?? '',
+        team2Name: s.team2Relation?.name ?? '',
       };
     });
 
@@ -1148,15 +1254,25 @@ export class SeriesService {
   }
 
   async getSeriesNamesIdsAndTournament(tournamentId?: string): Promise<{
-    [seriesId: string]: { team1: string; team2: string; tournament: TournamentInfo };
+    [seriesId: string]: {
+      team1Id: string;
+      team2Id: string;
+      team1Name: string;
+      team2Name: string;
+      tournament: TournamentInfo;
+    };
   }> {
     const query = this.seriesRepository
       .createQueryBuilder('series')
       .leftJoinAndSelect('series.tournament', 'tournament')
+      .leftJoinAndSelect('series.team1Relation', 'team1Relation')
+      .leftJoinAndSelect('series.team2Relation', 'team2Relation')
       .select([
         'series.id',
-        'series.team1',
-        'series.team2',
+        'team1Relation.id',
+        'team1Relation.name',
+        'team2Relation.id',
+        'team2Relation.name',
         'tournament.id',
         'tournament.sportType',
         'tournament.year',
@@ -1170,13 +1286,21 @@ export class SeriesService {
     const series = await query.getMany();
 
     const seriesMap: {
-      [seriesId: string]: { team1: string; team2: string; tournament: TournamentInfo };
+      [seriesId: string]: {
+        team1Id: string;
+        team2Id: string;
+        team1Name: string;
+        team2Name: string;
+        tournament: TournamentInfo;
+      };
     } = {};
 
     series.forEach((s) => {
       seriesMap[s.id] = {
-        team1: s.team1,
-        team2: s.team2,
+        team1Id: s.team1Relation?.id ?? '',
+        team2Id: s.team2Relation?.id ?? '',
+        team1Name: s.team1Relation?.name ?? '',
+        team2Name: s.team2Relation?.name ?? '',
         tournament: toTournamentInfo(s.tournament),
       };
     });
@@ -1232,7 +1356,7 @@ export class SeriesService {
         if (!bestOf7GuessIds.has(bet.id)) {
           if (!result[bet.seriesId]) {
             result[bet.seriesId] = {
-              seriesName: `${series[bet.seriesId].team1} vs ${series[bet.seriesId].team2}`,
+              seriesName: `${series[bet.seriesId].team1Name} vs ${series[bet.seriesId].team2Name}`,
               gamesAndWinner: true,
               playerMatchup: [],
               spontaneousBets: [],
@@ -1246,7 +1370,7 @@ export class SeriesService {
         if (!matchupGuessIds.has(bet.id)) {
           if (!result[bet.seriesId]) {
             result[bet.seriesId] = {
-              seriesName: `${series[bet.seriesId].team1} vs ${series[bet.seriesId].team2}`,
+              seriesName: `${series[bet.seriesId].team1Name} vs ${series[bet.seriesId].team2Name}`,
               gamesAndWinner: false,
               playerMatchup: [],
               spontaneousBets: [],
@@ -1261,7 +1385,7 @@ export class SeriesService {
         if (!spontaneousGuessIds.has(bet.id)) {
           if (!result[bet.seriesId]) {
             result[bet.seriesId] = {
-              seriesName: `${series[bet.seriesId].team1} vs ${series[bet.seriesId].team2}`,
+              seriesName: `${series[bet.seriesId].team1Name} vs ${series[bet.seriesId].team2Name}`,
               gamesAndWinner: false,
               playerMatchup: [],
               spontaneousBets: [],
@@ -1717,9 +1841,9 @@ export class SeriesService {
         const seriesForTournament =
           await this.getSeriesNamesIdsAndTournament(tournamentId);
         const tournamentSeriesIds = new Set(Object.keys(seriesForTournament));
-        startedSeriesIds = new Set([...startedSeriesIds].filter((id) =>
-          tournamentSeriesIds.has(id),
-        ));
+        startedSeriesIds = new Set(
+          [...startedSeriesIds].filter((id) => tournamentSeriesIds.has(id)),
+        );
       }
       const bestOf7 = await this.bestOf7BetService.getAllWithResults();
 
@@ -1753,19 +1877,24 @@ export class SeriesService {
     const query = this.seriesRepository
       .createQueryBuilder('series')
       .leftJoinAndSelect('series.tournament', 'tournament')
+      .leftJoinAndSelect('series.team1Relation', 'team1Relation')
+      .leftJoinAndSelect('series.team2Relation', 'team2Relation')
       .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
       .leftJoinAndSelect('series.teamWinBetId', 'teamWinBet')
       .leftJoinAndSelect('series.playerMatchupBets', 'matchup')
       .leftJoinAndSelect('series.spontaneousBets', 'spontaneous')
       .select([
         'series.id',
-        'series.team1',
-        'series.team2',
         'series.conference',
         'series.round',
         'series.dateOfStart',
         'series.timeOfStart',
-
+        'team1Relation.id',
+        'team1Relation.name',
+        'team1Relation.abbreviation',
+        'team2Relation.id',
+        'team2Relation.name',
+        'team2Relation.abbreviation',
         'tournament.id',
         'tournament.sportType',
         'tournament.year',
@@ -1817,8 +1946,12 @@ export class SeriesService {
 
   async getAllBets(tournamentId?: string): Promise<{
     [key: string]: {
-      team1: string;
-      team2: string;
+      team1Id: string;
+      team2Id: string;
+      team1Name: string;
+      team2Name: string;
+      team1Abbreviation: string;
+      team2Abbreviation: string;
       conference: Conference;
       round: Round;
       startDate: Date;
@@ -1832,8 +1965,12 @@ export class SeriesService {
   }> {
     const bettingData: {
       [key: string]: {
-        team1: string;
-        team2: string;
+        team1Id: string;
+        team2Id: string;
+        team1Name: string;
+        team2Name: string;
+        team1Abbreviation: string;
+        team2Abbreviation: string;
         conference: Conference;
         round: Round;
         startDate: Date;
@@ -1851,8 +1988,12 @@ export class SeriesService {
 
       series.forEach((s) => {
         bettingData[s.id] = {
-          team1: s.team1,
-          team2: s.team2,
+          team1Id: s.team1Relation?.id ?? '',
+          team2Id: s.team2Relation?.id ?? '',
+          team1Name: s.team1Relation?.name ?? '',
+          team2Name: s.team2Relation?.name ?? '',
+          team1Abbreviation: s.team1Relation?.abbreviation ?? '',
+          team2Abbreviation: s.team2Relation?.abbreviation ?? '',
           conference: s.conference,
           round: s.round,
           startDate: s.dateOfStart,

@@ -13,10 +13,12 @@ import { PlayerMatchupBetModule } from 'src/player-matchup-bet/player-matchup-be
 import { SpontaneousBetModule } from 'src/spontaneous-bet/spontaneous-bet.module';
 import { SpontaneousGuessModule } from 'src/spontaneous-guess/spontaneous-guess.module';
 import { UserSeriesPointsModule } from 'src/user-series-points/user-series-points.module';
+import { TeamModule } from 'src/team/team.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([SeriesRepository]),
+    TeamModule,
     forwardRef(() => AuthModule),
     TeamWinGuessModule,
     BestOf7GuessModule,

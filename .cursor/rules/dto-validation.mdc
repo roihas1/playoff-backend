@@ -1,0 +1,11 @@
+---
+description: DTO and class-validator conventions
+globs: src/**/*.dto.ts
+alwaysApply: false
+---
+
+# DTOs and validation
+
+- DTOs are classes with **class-validator** decorators (`@IsString()`, `@IsNumber()`, `@IsOptional()`, `@IsEnum()`, `@IsUUID()`, `@IsDateString()`, `@Min()`, `@Max()`, etc.).
+- File names: `create-*.dto.ts`, `update-*.dto.ts`, or descriptive names like `get-series-filter.dto.ts`. Keep one main DTO per file; optional interfaces for response shapes in the same file (e.g. `src/team/dto/python-team-response.dto.ts`).
+- Use shared enums from the right module (e.g. `Round`, `Conference` from series) via relative or `src/` imports.

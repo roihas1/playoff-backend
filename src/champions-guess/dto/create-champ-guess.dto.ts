@@ -3,12 +3,12 @@ import { Conference } from 'src/series/conference.enum';
 
 export class CreateChampGuessDto {
   champTeamGuess: {
-    team: string;
+    teamId: string;
     fantasyPoints?: number;
   };
   conferenceFinalGuess: {
-    team1: string;
-    team2: string;
+    team1Id: string;
+    team2Id: string;
     conference: Conference;
     fantasyPoints?: number;
   }[];

@@ -40,6 +40,8 @@ import { HomePageModule } from './home-page/home-page.module';
 import { ComparisonPageModule } from './comprison-page/comparison-page.module';
 import { UserInitializationModule } from './user-initialization/user-initialization.module';
 import { TournamentModule } from './tournament/tournament.module';
+import { TeamModule } from './team/team.module';
+import { CronModule } from './cron/cron.module';
 
 @Module({
   imports: [
@@ -85,6 +87,8 @@ import { TournamentModule } from './tournament/tournament.module';
     ComparisonPageModule,
     UserInitializationModule,
     TournamentModule,
+    TeamModule,
+    CronModule,
   ],
   controllers: [AppController],
   providers: [

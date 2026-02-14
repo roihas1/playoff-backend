@@ -264,6 +264,26 @@ export class BestOf7BetService {
     }
   }
 
+  async incrementGameWin(betId: string, teamWon: 1 | 2): Promise<void> {
+    const bet = await this.getBestOf7BetLight(betId);
+    if (!bet.seriesScore || bet.seriesScore.length < 2) {
+      bet.seriesScore = [0, 0];
+    }
+    bet.seriesScore[teamWon - 1] += 1;
+    try {
+      await this.bestOf7BetRepository.save(bet);
+      this.logger.verbose(
+        `BestOf7Bet with ID "${betId}" incremented series score for team ${teamWon}.`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to increment bet series score with ID: "${betId}".`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
   async updateGame(
     id: string,
     updateGame: UpdateGameDto,

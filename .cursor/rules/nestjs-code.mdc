@@ -1,0 +1,13 @@
+---
+description: TypeScript and NestJS code style for controllers, services, repositories
+globs: src/**/*.ts
+alwaysApply: false
+---
+
+# TypeScript and NestJS code style
+
+- **Controllers:** Use `@Controller('kebab-path')`. Add `private logger = new Logger('ControllerName', { timestamp: true })`. Protect routes with `@UseGuards(JwtAuthGuard)`; use `@GetUser() user: User` for current user. Restrict admin-only with `@Roles(Role.ADMIN)` and `@UseGuards(RolesGuard)`.
+- **Services:** `@Injectable()`, inject dependencies in constructor, use a private `Logger` with the service name and `{ timestamp: true }`.
+- **Repositories:** Extend `Repository<Entity>`, inject `DataSource`, call `super(Entity, dataSource.createEntityManager())`. Put custom queries in repository methods; services call repositories, not raw TypeORM in services.
+- **Imports:** Use `src/` for cross-module imports (e.g. `src/auth/get-user.decorator`, `src/auth/user.entity`). Use relative paths within the same feature (e.g. `./team.entity`, `./dto/create-series.dto`).
+- **Config:** Env validation via Joi in `src/config.schema.ts`; use `ConfigService` where needed. Do not add new env vars without schema entries.

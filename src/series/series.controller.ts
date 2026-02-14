@@ -217,7 +217,12 @@ export class SeriesController {
       gamesAndWinner: boolean;
       playerMatchup: PlayerMatchupBet[];
       spontaneousBets: SpontaneousBet[];
-      tournament: { id: string; sportType: string; year: number; name: string } | null;
+      tournament: {
+        id: string;
+        sportType: string;
+        year: number;
+        name: string;
+      } | null;
     };
   }> {
     this.logger.verbose(
@@ -285,12 +290,22 @@ export class SeriesController {
     @Query('tournamentId') tournamentId?: string,
   ): Promise<{
     [key: string]: {
-      team1: string;
-      team2: string;
+      team1Id: string;
+      team2Id: string;
+      team1Name: string;
+      team2Name: string;
+      team1Abbreviation: string;
+      team2Abbreviation: string;
       conference: Conference;
       round: Round;
       startDate: Date;
-      tournament: { id: string; sportType: string; year: number; name: string } | null;
+      timeOfStart: string;
+      tournament: {
+        id: string;
+        sportType: string;
+        year: number;
+        name: string;
+      } | null;
       bestOf7Bet: BestOf7Bet;
       teamWinBet: TeamWinBet;
       playerMatchupBets: PlayerMatchupBet[];
