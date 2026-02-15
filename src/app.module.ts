@@ -40,6 +40,9 @@ import { HomePageModule } from './home-page/home-page.module';
 import { ComparisonPageModule } from './comprison-page/comparison-page.module';
 import { UserInitializationModule } from './user-initialization/user-initialization.module';
 
+import { NbaController } from 'src/StatisticsApi/controllers/NbaController';
+import { NbaStatisticsService } from 'src/StatisticsApi/services/NbaStatisticsService';
+
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -84,7 +87,7 @@ import { UserInitializationModule } from './user-initialization/user-initializat
     ComparisonPageModule,
     UserInitializationModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController,NbaController],
   providers: [
     AppLogger,
     AppService,
@@ -92,6 +95,7 @@ import { UserInitializationModule } from './user-initialization/user-initializat
       provide: APP_FILTER,
       useClass: UnauthorizedExceptionFilter,
     },
+    NbaStatisticsService,
   ],
   exports: [AppLogger],
 })
