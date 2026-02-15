@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ComparisonPageService } from './comparison-page.service';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { User } from 'src/auth/user.entity';
@@ -13,7 +13,8 @@ export class ComparisonPageController {
   @Get('load')
   async getComparisonData(
     @GetUser() user: User,
+    @Query('tournamentId') tournamentId?: string,
   ): Promise<GetComparisonDataDto> {
-    return this.comparisonService.getComparisonData(user);
+    return this.comparisonService.getComparisonData(user, tournamentId);
   }
 }

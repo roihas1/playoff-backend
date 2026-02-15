@@ -43,7 +43,19 @@ import { UserSeriesPointsService } from 'src/user-series-points/user-series-poin
 import { DateTime } from 'luxon';
 import { MatchupCategory } from 'src/player-matchup-bet/matchup-category.enum';
 
-export type SeriesForHomePage = Omit<Series, 'bestOf7BetId'> & {
+export type TournamentInfo = {
+  id: string;
+  sportType: string;
+  year: number;
+  name: string;
+} | null;
+
+function toTournamentInfo(t: { id: string; sportType: string; year: number; name: string } | null | undefined): TournamentInfo {
+  return t ? { id: t.id, sportType: t.sportType, year: t.year, name: t.name } : null;
+}
+
+export type SeriesForHomePage = Omit<Series, 'bestOf7BetId' | 'tournament'> & {
+  tournament: TournamentInfo;
   spontaneousBets: SpontaneousBet[];
   playerMatchupBets: PlayerMatchupBet[];
   bestOf7BetId: {
@@ -85,10 +97,11 @@ export class SeriesService {
       .map((s) => s.trim().replace(/^"|"$/g, '')) as MatchupCategory[]; // remove optional quotes
   }
 
-  async getSeriesForHomePage(): Promise<SeriesForHomePage[]> {
+  async getSeriesForHomePage(tournamentId?: string): Promise<SeriesForHomePage[]> {
     try {
       const baseQuery = this.seriesRepository
         .createQueryBuilder('series')
+        .leftJoinAndSelect('series.tournament', 'tournament')
         .select([
           'series.id',
           'series.team1',
@@ -100,7 +113,17 @@ export class SeriesService {
           'series.round',
           'series.dateOfStart',
           'series.timeOfStart',
+          'tournament.id',
+          'tournament.sportType',
+          'tournament.year',
+          'tournament.name',
         ]);
+
+      if (tournamentId) {
+        baseQuery.andWhere('series.tournamentId = :tournamentId', {
+          tournamentId,
+        });
+      }
 
       const seriesList = await baseQuery.getMany();
       const seriesIds = seriesList.map((s) => s.id);
@@ -164,6 +187,7 @@ export class SeriesService {
       const enrichedSeriesList: SeriesForHomePage[] = seriesList.map(
         (series) => ({
           ...series,
+          tournament: toTournamentInfo(series.tournament),
           spontaneousBets: spontaneousMap.get(series.id) ?? [],
           playerMatchupBets: matchupMap.get(series.id) ?? [],
           bestOf7BetId: bestOf7Map.get(series.id) ?? null,
@@ -218,6 +242,7 @@ export class SeriesService {
     try {
       const query = await this.seriesRepository
         .createQueryBuilder('series')
+        .leftJoinAndSelect('series.tournament', 'tournament')
         .leftJoinAndSelect('series.playerMatchupBets', 'playerMatchupBet')
         .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
         .leftJoinAndSelect('series.spontaneousBets', 'spontaneousBet')
@@ -238,7 +263,6 @@ export class SeriesService {
       throw new InternalServerErrorException('Failed to fetch series data');
     }
   }
-  F;
   async getSeriesByID(id: string): Promise<Series> {
     const foundSeries = await this.seriesRepository.findOne({ where: { id } });
 
@@ -895,7 +919,6 @@ export class SeriesService {
 
   async closeAllBetsInSeries(seriesId: string, user: User): Promise<void> {
     try {
-
       const series = await this.getSeriesByID(seriesId);
       series.lastUpdate = new Date();
       const prevTeamWinResult = series.teamWinBetId.result;
@@ -1005,7 +1028,6 @@ export class SeriesService {
       });
 
       await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
-
     } catch (error) {
       this.logger.error(
         `User: ${user.username} faild to close all bets results to series: ${seriesId}`,
@@ -1125,17 +1147,58 @@ export class SeriesService {
     return seriesMap;
   }
 
-  async getOptimizedMissingBets(user: User): Promise<{
+  async getSeriesNamesIdsAndTournament(tournamentId?: string): Promise<{
+    [seriesId: string]: { team1: string; team2: string; tournament: TournamentInfo };
+  }> {
+    const query = this.seriesRepository
+      .createQueryBuilder('series')
+      .leftJoinAndSelect('series.tournament', 'tournament')
+      .select([
+        'series.id',
+        'series.team1',
+        'series.team2',
+        'tournament.id',
+        'tournament.sportType',
+        'tournament.year',
+        'tournament.name',
+      ]);
+
+    if (tournamentId) {
+      query.andWhere('series.tournamentId = :tournamentId', { tournamentId });
+    }
+
+    const series = await query.getMany();
+
+    const seriesMap: {
+      [seriesId: string]: { team1: string; team2: string; tournament: TournamentInfo };
+    } = {};
+
+    series.forEach((s) => {
+      seriesMap[s.id] = {
+        team1: s.team1,
+        team2: s.team2,
+        tournament: toTournamentInfo(s.tournament),
+      };
+    });
+
+    return seriesMap;
+  }
+
+  async getOptimizedMissingBets(
+    user: User,
+    tournamentId?: string,
+  ): Promise<{
     [seriesId: string]: {
       seriesName: string;
       gamesAndWinner: boolean;
       playerMatchup: any[];
       spontaneousBets: any[];
+      tournament: TournamentInfo;
     };
   }> {
     try {
       const userWithGuesses = await this.getUserGuesses(user.id);
-      const series = await this.getSeriesNamesAndIds();
+      const series = await this.getSeriesNamesIdsAndTournament(tournamentId);
       const bestOf7GuessIds = new Set(
         userWithGuesses.bestOf7Guesses.map((g) => g.betId),
       );
@@ -1162,6 +1225,7 @@ export class SeriesService {
           gamesAndWinner: boolean;
           playerMatchup: any[];
           spontaneousBets: any[];
+          tournament: TournamentInfo;
         };
       } = {};
       for (const bet of bestOf7) {
@@ -1172,6 +1236,7 @@ export class SeriesService {
               gamesAndWinner: true,
               playerMatchup: [],
               spontaneousBets: [],
+              tournament: series[bet.seriesId].tournament,
             };
           }
         }
@@ -1185,6 +1250,7 @@ export class SeriesService {
               gamesAndWinner: false,
               playerMatchup: [],
               spontaneousBets: [],
+              tournament: series[bet.seriesId].tournament,
             };
           }
           result[bet.seriesId].playerMatchup.push(bet);
@@ -1199,6 +1265,7 @@ export class SeriesService {
               gamesAndWinner: false,
               playerMatchup: [],
               spontaneousBets: [],
+              tournament: series[bet.seriesId].tournament,
             };
           }
           result[bet.seriesId].spontaneousBets.push(bet);
@@ -1216,6 +1283,7 @@ export class SeriesService {
   }
   async checkIfUserGuessedAll(
     user: User,
+    tournamentId?: string,
   ): Promise<{ [seriesId: string]: boolean }> {
     try {
       const bestOf7GuessIds = new Set(
@@ -1243,6 +1311,15 @@ export class SeriesService {
         this.spontaneousBetService.getAllBets(),
       ]);
 
+      const validSeriesIds =
+        tournamentId != null
+          ? new Set(
+              Object.keys(
+                await this.getSeriesNamesIdsAndTournament(tournamentId),
+              ),
+            )
+          : null;
+
       const betsBySeries: {
         [seriesId: string]: {
           bestOf7?: string;
@@ -1254,6 +1331,7 @@ export class SeriesService {
 
       // Organize bets per series
       for (const bet of bestOf7) {
+        if (validSeriesIds && !validSeriesIds.has(bet.seriesId)) continue;
         if (!betsBySeries[bet.seriesId])
           betsBySeries[bet.seriesId] = { matchup: [], spontaneous: [] };
         betsBySeries[bet.seriesId].bestOf7 = bet.id;
@@ -1266,12 +1344,14 @@ export class SeriesService {
       // }
 
       for (const bet of matchupBets) {
+        if (validSeriesIds && !validSeriesIds.has(bet.seriesId)) continue;
         if (!betsBySeries[bet.seriesId])
           betsBySeries[bet.seriesId] = { matchup: [], spontaneous: [] };
         betsBySeries[bet.seriesId].matchup.push(bet.id);
       }
 
       for (const bet of spontaneous) {
+        if (validSeriesIds && !validSeriesIds.has(bet.seriesId)) continue;
         if (!betsBySeries[bet.seriesId])
           betsBySeries[bet.seriesId] = { matchup: [], spontaneous: [] };
         betsBySeries[bet.seriesId].spontaneous.push(bet.id);
@@ -1628,10 +1708,19 @@ export class SeriesService {
   }
   async getPointsPerSeriesForUser(
     userId: string,
+    tournamentId?: string,
   ): Promise<{ [key: string]: number }> {
     try {
       const userWithGuesses = await this.getUserGuesses(userId);
-      const startedSeriesIds = await this.getStartedSeriesIds();
+      let startedSeriesIds = await this.getStartedSeriesIds();
+      if (tournamentId) {
+        const seriesForTournament =
+          await this.getSeriesNamesIdsAndTournament(tournamentId);
+        const tournamentSeriesIds = new Set(Object.keys(seriesForTournament));
+        startedSeriesIds = new Set([...startedSeriesIds].filter((id) =>
+          tournamentSeriesIds.has(id),
+        ));
+      }
       const bestOf7 = await this.bestOf7BetService.getAllWithResults();
 
       const teamWin = await this.teamWinBetService.getAllWithResults();
@@ -1660,9 +1749,10 @@ export class SeriesService {
       );
     }
   }
-  async getAllSeriesNoGuesses(): Promise<Series[]> {
-    return await this.seriesRepository
+  async getAllSeriesNoGuesses(tournamentId?: string): Promise<Series[]> {
+    const query = this.seriesRepository
       .createQueryBuilder('series')
+      .leftJoinAndSelect('series.tournament', 'tournament')
       .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
       .leftJoinAndSelect('series.teamWinBetId', 'teamWinBet')
       .leftJoinAndSelect('series.playerMatchupBets', 'matchup')
@@ -1675,6 +1765,11 @@ export class SeriesService {
         'series.round',
         'series.dateOfStart',
         'series.timeOfStart',
+
+        'tournament.id',
+        'tournament.sportType',
+        'tournament.year',
+        'tournament.name',
 
         // BestOf7Bet (no guesses)
         'bestOf7Bet.id',
@@ -1711,11 +1806,16 @@ export class SeriesService {
         'spontaneous.currentStats',
         'spontaneous.playerGames',
         'spontaneous.startTime',
-      ])
-      .getMany();
+      ]);
+
+    if (tournamentId) {
+      query.andWhere('series.tournamentId = :tournamentId', { tournamentId });
+    }
+
+    return query.getMany();
   }
 
-  async getAllBets(): Promise<{
+  async getAllBets(tournamentId?: string): Promise<{
     [key: string]: {
       team1: string;
       team2: string;
@@ -1723,6 +1823,7 @@ export class SeriesService {
       round: Round;
       startDate: Date;
       timeOfStart: string;
+      tournament: TournamentInfo;
       bestOf7Bet: BestOf7Bet;
       teamWinBet: TeamWinBet;
       playerMatchupBets: PlayerMatchupBet[];
@@ -1737,6 +1838,7 @@ export class SeriesService {
         round: Round;
         startDate: Date;
         timeOfStart: string;
+        tournament: TournamentInfo;
         bestOf7Bet: BestOf7Bet;
         teamWinBet: TeamWinBet;
         playerMatchupBets: PlayerMatchupBet[];
@@ -1745,7 +1847,7 @@ export class SeriesService {
     } = {};
 
     try {
-      const series = await this.getAllSeriesNoGuesses();
+      const series = await this.getAllSeriesNoGuesses(tournamentId);
 
       series.forEach((s) => {
         bettingData[s.id] = {
@@ -1755,6 +1857,7 @@ export class SeriesService {
           round: s.round,
           startDate: s.dateOfStart,
           timeOfStart: s.timeOfStart,
+          tournament: toTournamentInfo(s.tournament),
           bestOf7Bet: {
             ...s.bestOf7BetId,
           },

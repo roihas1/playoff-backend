@@ -1,4 +1,4 @@
-import { Controller, Get, Logger, UseGuards } from '@nestjs/common';
+import { Controller, Get, Logger, Query, UseGuards } from '@nestjs/common';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { User } from 'src/auth/user.entity';
 import { HomePageService } from './home-page.service';
@@ -11,7 +11,10 @@ export class HomePageController {
   constructor(private readonly homePageService: HomePageService) {}
 
   @Get('load')
-  async loadHomepageData(@GetUser() user: User) {
-    return this.homePageService.getHomepageData(user);
+  async loadHomepageData(
+    @GetUser() user: User,
+    @Query('tournamentId') tournamentId?: string,
+  ) {
+    return this.homePageService.getHomepageData(user, tournamentId);
   }
 }
