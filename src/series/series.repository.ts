@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { Series } from './series.entity';
-import { CreateSeriesDto } from './dto/create-series.dto';
+import { CreateSeriesData } from './dto/create-series-data';
 import { GetSeriesWithFilterDto } from './dto/get-series-filter.dto';
 
 @Injectable()
@@ -17,9 +17,11 @@ export class SeriesRepository extends Repository<Series> {
   async getSeriesWithFilters(
     filters: GetSeriesWithFilterDto,
   ): Promise<Series[]> {
-    const { round, coast, team, tournamentId } = filters;
+    const { round, coast, teamId, tournamentId } = filters;
     const query = this.createQueryBuilder('series')
       .leftJoinAndSelect('series.tournament', 'tournament')
+      .leftJoinAndSelect('series.team1Relation', 'team1Relation')
+      .leftJoinAndSelect('series.team2Relation', 'team2Relation')
       .leftJoinAndSelect('series.playerMatchupBets', 'playerMatchupBet')
       .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
       .leftJoinAndSelect('series.spontaneousBets', 'spontaneousBet');
@@ -31,11 +33,10 @@ export class SeriesRepository extends Repository<Series> {
       query.andWhere('series.coast = :coast', { coast });
     }
 
-    if (team) {
-      query.andWhere(
-        'LOWER(series.team1) = LOWER(:team) or LOWER(series.team2) = LOWER(:team)',
-        { team },
-      );
+    if (teamId) {
+      query.andWhere('series.team1Id = :teamId OR series.team2Id = :teamId', {
+        teamId,
+      });
     }
 
     if (tournamentId) {
@@ -50,10 +51,38 @@ export class SeriesRepository extends Repository<Series> {
     return series;
   }
 
-  async createSeries(createSeriesDto: CreateSeriesDto): Promise<Series> {
+  async findInProgressSeriesByTeamId(
+    winnerTeamId: string,
+  ): Promise<Series | null> {
+    const list = await this.createQueryBuilder('series')
+      .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
+      .leftJoinAndSelect('series.team1Relation', 'team1')
+      .leftJoinAndSelect('series.team2Relation', 'team2')
+      .where(
+        'series.team1Id = :winnerTeamId OR series.team2Id = :winnerTeamId',
+        {
+          winnerTeamId,
+        },
+      )
+      .orderBy('series.dateOfStart', 'DESC')
+      .getMany();
+
+    for (const series of list) {
+      const score = series.bestOf7BetId?.seriesScore;
+      if (score && Array.isArray(score) && score.length >= 2) {
+        const maxWins = Math.max(score[0], score[1]);
+        if (maxWins < 4) return series;
+      } else {
+        return series;
+      }
+    }
+    return null;
+  }
+
+  async createSeries(data: CreateSeriesData): Promise<Series> {
     const {
-      team1,
-      team2,
+      team1Id,
+      team2Id,
       seed1,
       seed2,
       round,
@@ -61,11 +90,11 @@ export class SeriesRepository extends Repository<Series> {
       dateOfStart,
       timeOfStart,
       tournamentId,
-    } = createSeriesDto;
+    } = data;
 
     const series = this.create({
-      team1,
-      team2,
+      team1Relation: { id: team1Id } as any,
+      team2Relation: { id: team2Id } as any,
       seed1,
       seed2,
       round,
@@ -78,12 +107,12 @@ export class SeriesRepository extends Repository<Series> {
     try {
       const savedSeries = await this.save(series);
       this.logger.verbose(
-        `Series of "${savedSeries.team1}" versus "${savedSeries.team2}" created successfully.`,
+        `Series created successfully (team1Id: ${savedSeries.team1Relation?.id ?? team1Id}, team2Id: ${savedSeries.team2Relation?.id ?? team2Id}).`,
       );
       return savedSeries;
     } catch (error) {
       this.logger.error(
-        `Failed to create series of "${series.team1}" versus "${series.team2}".`,
+        `Failed to create series (team1Id: ${team1Id}, team2Id: ${team2Id}).`,
         error.stack,
       );
       throw new InternalServerErrorException();

@@ -31,7 +31,7 @@ export class ChampionsGuessService {
   ) {}
 
   private async createChampTeamGuess(
-    team: string,
+    teamId: string,
     stage: PlayoffStage,
     user: User,
     fantasyPoints?: number,
@@ -46,14 +46,14 @@ export class ChampionsGuessService {
       if (!found) {
         const teamguess = this.championTeamGuessRepo.create({
           createdBy: user,
-          team,
+          teamRelation: { id: teamId } as any,
           fantasyPoints,
           stage,
         });
 
         return await this.championTeamGuessRepo.save(teamguess);
       }
-      found.team = team;
+      found.teamRelation = { id: teamId } as any;
       return await this.championTeamGuessRepo.save(found);
     } catch (error) {
       if (error.code == '23505') {
@@ -74,8 +74,8 @@ export class ChampionsGuessService {
   }
   private async createConferenceFinalGuess(
     user: User,
-    team1: string,
-    team2: string,
+    team1Id: string,
+    team2Id: string,
     conference: Conference,
     fantasyPoints: number,
     stage: PlayoffStage,
@@ -91,8 +91,8 @@ export class ChampionsGuessService {
       if (!found) {
         const conferenceFinalGuess = this.conferenceFinalGuessRepo.create({
           createdBy: user,
-          team1,
-          team2,
+          team1Relation: { id: team1Id } as any,
+          team2Relation: { id: team2Id } as any,
           conference,
           fantasyPoints,
           stage,
@@ -100,8 +100,8 @@ export class ChampionsGuessService {
 
         return await this.conferenceFinalGuessRepo.save(conferenceFinalGuess);
       }
-      found.team1 = team1;
-      found.team2 = team2;
+      found.team1Relation = { id: team1Id } as any;
+      found.team2Relation = { id: team2Id } as any;
       return await this.conferenceFinalGuessRepo.save(found);
     } catch (error) {
       this.logger.error(
@@ -161,7 +161,7 @@ export class ChampionsGuessService {
         user,
       );
       const champTeamNewGuess = await this.createChampTeamGuess(
-        champTeamGuess.team,
+        champTeamGuess.teamId,
         playoffsStage,
         user,
         champTeamGuess.fantasyPoints,
@@ -171,10 +171,10 @@ export class ChampionsGuessService {
           conferenceFinalGuess.map(async (guess) => {
             return await this.createConferenceFinalGuess(
               user,
-              guess.team1,
-              guess.team2,
+              guess.team1Id,
+              guess.team2Id,
               guess.conference,
-              guess.fantasyPoints,
+              guess.fantasyPoints ?? 10,
               playoffsStage,
             );
           }),
@@ -220,7 +220,7 @@ export class ChampionsGuessService {
         2,
       );
       const champTeamNewGuess = await this.createChampTeamGuess(
-        champTeamGuess.team,
+        champTeamGuess.teamId,
         playoffsStage,
         user,
         4,
@@ -237,12 +237,13 @@ export class ChampionsGuessService {
     }
   }
   checkChampionTeamPointsForUser(
-    championTeam: string,
+    championTeamId: string,
     guesses: ChampionTeamGuess[],
   ): number {
     let fantasyPoints = 0;
     guesses.forEach((guess) => {
-      fantasyPoints += guess.team === championTeam ? guess.fantasyPoints : 0;
+      fantasyPoints +=
+        guess.teamRelation?.id === championTeamId ? guess.fantasyPoints : 0;
     });
     return fantasyPoints;
   }
@@ -263,20 +264,14 @@ export class ChampionsGuessService {
     const userGuess = conferenceFinalGuesses.filter(
       (guess) => guess.createdBy.id === userId,
     )[0];
-    if (userGuess) {
-      if (
-        (userGuess.team1 === conferenceFinalResult[0] &&
-          userGuess.team2 === conferenceFinalResult[1]) ||
-        (userGuess.team2 === conferenceFinalResult[0] &&
-          userGuess.team1 === conferenceFinalResult[1])
-      ) {
+    const t1Id = userGuess?.team1Relation?.id;
+    const t2Id = userGuess?.team2Relation?.id;
+    const r0 = conferenceFinalResult[0];
+    const r1 = conferenceFinalResult[1];
+    if (userGuess && t1Id && t2Id && r0 && r1) {
+      if ((t1Id === r0 && t2Id === r1) || (t2Id === r0 && t1Id === r1)) {
         fantasyPoints = userGuess.conference === Conference.FINALS ? 12 : 10;
-      } else if (
-        userGuess.team1 === conferenceFinalResult[0] ||
-        userGuess.team1 === conferenceFinalResult[1] ||
-        userGuess.team2 === conferenceFinalResult[0] ||
-        userGuess.team2 === conferenceFinalResult[1]
-      ) {
+      } else if (t1Id === r0 || t1Id === r1 || t2Id === r0 || t2Id === r1) {
         fantasyPoints = userGuess.conference === Conference.FINALS ? 5 : 4;
       }
     }
@@ -288,38 +283,36 @@ export class ChampionsGuessService {
     conferenceFinalResult: string[],
     guesses: ConferenceFinalGuess[],
   ): Promise<void> {
-    let fantasyPoints = 0;
+    const r0 = conferenceFinalResult[0];
+    const r1 = conferenceFinalResult[1];
     await Promise.all(
       guesses.map(async (guess) => {
-        if (
-          (guess.team1 === conferenceFinalResult[0] &&
-            guess.team2 === conferenceFinalResult[1]) ||
-          (guess.team2 === conferenceFinalResult[0] &&
-            guess.team1 === conferenceFinalResult[1])
-        ) {
-          fantasyPoints = guess.conference === Conference.FINALS ? 12 : 10;
-        } else if (
-          guess.team1 === conferenceFinalResult[0] ||
-          guess.team1 === conferenceFinalResult[1] ||
-          guess.team2 === conferenceFinalResult[0] ||
-          guess.team2 === conferenceFinalResult[1]
-        ) {
-          fantasyPoints = guess.conference === Conference.FINALS ? 5 : 4;
+        const t1Id = guess.team1Relation?.id;
+        const t2Id = guess.team2Relation?.id;
+        let fantasyPoints = 0;
+        if (t1Id && t2Id && r0 && r1) {
+          if ((t1Id === r0 && t2Id === r1) || (t2Id === r0 && t1Id === r1)) {
+            fantasyPoints = guess.conference === Conference.FINALS ? 12 : 10;
+          } else if (t1Id === r0 || t1Id === r1 || t2Id === r0 || t2Id === r1) {
+            fantasyPoints = guess.conference === Conference.FINALS ? 5 : 4;
+          }
         }
-        await this.usersService.updateFantasyPoints(
-          guess.createdBy,
-          fantasyPoints,
-        );
+        if (fantasyPoints > 0) {
+          await this.usersService.updateFantasyPoints(
+            guess.createdBy,
+            fantasyPoints,
+          );
+        }
       }),
     );
   }
   async updatePointsForUserChampionTeam(
-    championTeam: string,
+    championTeamId: string,
     guesses: ChampionTeamGuess[],
   ): Promise<void> {
     await Promise.all(
       guesses.map(async (guess) => {
-        if (guess.team === championTeam) {
+        if (guess.teamRelation?.id === championTeamId) {
           await this.usersService.updateFantasyPoints(
             guess.createdBy,
             guess.fantasyPoints,
@@ -413,14 +406,20 @@ export class ChampionsGuessService {
         .createQueryBuilder('guess')
         .leftJoin('guess.createdBy', 'createdBy')
         .leftJoin('guess.stage', 'stage')
+        .leftJoinAndSelect('guess.team1Relation', 'team1Relation')
+        .leftJoinAndSelect('guess.team2Relation', 'team2Relation')
         .select([
           'guess.id',
-          'guess.team1',
-          'guess.team2',
           'guess.conference',
           'guess.fantasyPoints',
           'createdBy.id',
           'stage.id',
+          'team1Relation.id',
+          'team1Relation.name',
+          'team1Relation.abbreviation',
+          'team2Relation.id',
+          'team2Relation.name',
+          'team2Relation.abbreviation',
         ])
         .getMany();
 
@@ -445,12 +444,15 @@ export class ChampionsGuessService {
         .createQueryBuilder('guess')
         .leftJoin('guess.createdBy', 'createdBy')
         .leftJoin('guess.stage', 'stage')
+        .leftJoinAndSelect('guess.teamRelation', 'teamRelation')
         .select([
           'guess.id',
-          'guess.team',
           'guess.fantasyPoints',
           'createdBy.id',
           'stage.id',
+          'teamRelation.id',
+          'teamRelation.name',
+          'teamRelation.abbreviation',
         ])
         .getMany();
 

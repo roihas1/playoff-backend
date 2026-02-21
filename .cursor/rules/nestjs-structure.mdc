@@ -1,0 +1,12 @@
+---
+description: NestJS module layout and folder conventions
+alwaysApply: true
+---
+
+# Project structure and module layout
+
+- Feature folders under `src/` are **kebab-case** (e.g. `team`, `playoffs-stage`, `best-of7-bet`).
+- One feature per folder. Standard files: `*.module.ts`, `*.controller.ts`, `*.service.ts`; add `*.repository.ts` when needed; entities as `*.entity.ts` or under `entities/` for multi-entity features (e.g. `champions-guess`).
+- DTOs live in a `dto/` subfolder with `*.dto.ts` suffix.
+- Register new modules in `src/app.module.ts`. Register new entities in `src/data-source.ts` (TypeORM + CLI).
+- New shared cross-cutting code: put in the appropriate place (e.g. guards/decorators in `auth/`, filters in `filters/`, interceptors at `src/` root).

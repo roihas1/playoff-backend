@@ -1,0 +1,10 @@
+---
+description: How to run and lint the project
+alwaysApply: true
+---
+
+# Running and quality checks
+
+- **Run:** `npm run start:dev` (dev), `npm run start:prod` (prod). Env via `.env.stage.<STAGE>` or env vars (see `config.schema.ts`).
+- **Lint/format:** Run `npm run lint` and `npm run format` before committing; follow existing `.eslintrc.js` and Prettier setup.
+- **Tests:** Jest with `rootDir: src`; use `*.spec.ts` next to the file under test when adding tests.

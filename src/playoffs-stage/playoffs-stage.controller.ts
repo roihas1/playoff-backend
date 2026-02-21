@@ -26,11 +26,13 @@ import { Role } from 'src/auth/user-role.enum';
 export interface PriorGuesses {
   conferenceFinalGuesses: {
     id: string;
-    team1: string;
-    team2: string;
+    team1Id: string;
+    team2Id: string;
+    team1Name: string;
+    team2Name: string;
     conference: string;
   }[];
-  championTeamGuesses: { id: string; team: string }[];
+  championTeamGuesses: { id: string; teamId: string; teamName: string }[];
   mvpGuesses: { id: string; player: string }[];
 }
 

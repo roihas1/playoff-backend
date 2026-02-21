@@ -15,17 +15,20 @@ import { Round } from './round.enum';
 import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 import { UserSeriesPoints } from 'src/user-series-points/user-series-points.entity';
 import { Tournament } from 'src/tournament/tournament.entity';
+import { Team } from 'src/team/team.entity';
 
 @Entity()
 export class Series {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
-  team1: string;
+  @ManyToOne(() => Team, { eager: false })
+  @JoinColumn({ name: 'team1Id' })
+  team1Relation: Team;
 
-  @Column()
-  team2: string;
+  @ManyToOne(() => Team, { eager: false })
+  @JoinColumn({ name: 'team2Id' })
+  team2Relation: Team;
   @Column({ nullable: true })
   seed1: number;
   @Column({ nullable: true })

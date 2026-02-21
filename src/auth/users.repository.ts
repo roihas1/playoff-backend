@@ -56,11 +56,14 @@ export class UsersRepository extends Repository<User> {
       .leftJoinAndSelect(
         'user.conferenceFinalGuesses',
         'conferenceFinalGuesses',
-      ) // Join and select related data
+      )
       .leftJoinAndSelect('user.championTeamGuesses', 'championTeamGuesses')
       .leftJoinAndSelect('user.mvpGuesses', 'mvpGuesses')
       .leftJoinAndSelect('conferenceFinalGuesses.stage', 'playoffsStage1')
+      .leftJoinAndSelect('conferenceFinalGuesses.team1Relation', 'cfTeam1')
+      .leftJoinAndSelect('conferenceFinalGuesses.team2Relation', 'cfTeam2')
       .leftJoinAndSelect('championTeamGuesses.stage', 'playoffsStage2')
+      .leftJoinAndSelect('championTeamGuesses.teamRelation', 'ctTeam')
       .leftJoinAndSelect('mvpGuesses.stage', 'playoffsStage3')
       .where('user.id = :id', { id });
 

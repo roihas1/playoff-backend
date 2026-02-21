@@ -13,7 +13,7 @@ export class GetSeriesWithFilterDto {
 
   @IsString()
   @IsOptional()
-  team?: string;
+  teamId?: string;
 
   @IsOptional()
   @IsUUID()

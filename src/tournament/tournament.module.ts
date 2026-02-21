@@ -7,10 +7,7 @@ import { Tournament } from './tournament.entity';
 import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Tournament]),
-    AuthModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Tournament]), AuthModule],
   controllers: [TournamentController],
   providers: [TournamentService, TournamentRepository],
   exports: [TournamentService],

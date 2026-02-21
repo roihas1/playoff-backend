@@ -1,6 +1,7 @@
 import { User } from 'src/auth/user.entity';
 import { PlayoffStage } from 'src/playoffs-stage/playoffs-stage.entity';
 import { Conference } from 'src/series/conference.enum';
+import { Team } from 'src/team/team.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -19,11 +20,13 @@ export class ConferenceFinalGuess {
   @ManyToOne(() => User, (user) => user.conferenceFinalGuesses)
   createdBy: User;
 
-  @Column()
-  team1: string;
+  @ManyToOne(() => Team, { eager: false })
+  @JoinColumn({ name: 'team1Id' })
+  team1Relation: Team;
 
-  @Column()
-  team2: string;
+  @ManyToOne(() => Team, { eager: false })
+  @JoinColumn({ name: 'team2Id' })
+  team2Relation: Team;
 
   @Column({
     type: 'enum',

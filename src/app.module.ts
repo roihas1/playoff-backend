@@ -40,6 +40,8 @@ import { HomePageModule } from './home-page/home-page.module';
 import { ComparisonPageModule } from './comprison-page/comparison-page.module';
 import { UserInitializationModule } from './user-initialization/user-initialization.module';
 import { TournamentModule } from './tournament/tournament.module';
+import { TeamModule } from './team/team.module';
+import { CronModule } from './cron/cron.module';
 
 import { NbaController } from 'src/StatisticsApi/controllers/NbaController';
 import { NbaStatisticsService } from 'src/StatisticsApi/services/NbaStatisticsService';
@@ -88,6 +90,8 @@ import { NbaStatisticsService } from 'src/StatisticsApi/services/NbaStatisticsSe
     ComparisonPageModule,
     UserInitializationModule,
     TournamentModule,
+    TeamModule,
+    CronModule,
   ],
   controllers: [AppController,NbaController],
   providers: [

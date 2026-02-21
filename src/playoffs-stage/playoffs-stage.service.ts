@@ -108,7 +108,7 @@ export class PlayoffsStageService {
         easternConferenceFinal,
         westernConferenceFinal,
         finals,
-        championTeam,
+        championTeamId,
         mvp,
       } = closeGuessesDto;
 
@@ -153,7 +153,7 @@ export class PlayoffsStageService {
         );
 
         totalPoints += this.championGuessService.checkChampionTeamPointsForUser(
-          championTeam,
+          championTeamId,
           championTeamGuesses.filter((g) => g.createdBy.id === user.id),
         );
 
@@ -361,13 +361,16 @@ export class PlayoffsStageService {
   ): any {
     const conferenceFinalGuessesNew = conferenceFinalGuesses.map((guess) => ({
       id: guess.id,
-      team1: guess.team1,
-      team2: guess.team2,
+      team1Id: guess.team1Relation?.id,
+      team2Id: guess.team2Relation?.id,
+      team1Name: guess.team1Relation?.name,
+      team2Name: guess.team2Relation?.name,
       conference: guess.conference,
     }));
     const championTeamGuessesNew = championTeamGuesses.map((guess) => ({
       id: guess.id,
-      team: guess.team,
+      teamId: guess.teamRelation?.id,
+      teamName: guess.teamRelation?.name,
     }));
 
     // Extract mvpGuesses with selected properties

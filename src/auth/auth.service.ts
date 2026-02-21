@@ -367,6 +367,10 @@ export class AuthService {
         .createQueryBuilder('user')
         .leftJoinAndSelect('user.championTeamGuesses', 'championTeamGuesses')
         .leftJoinAndSelect('championTeamGuesses.stage', 'championStage')
+        .leftJoinAndSelect(
+          'championTeamGuesses.teamRelation',
+          'championTeamRelation',
+        )
         .addSelect(['championStage.name'])
         .leftJoinAndSelect('user.mvpGuesses', 'mvpGuesses')
         .leftJoinAndSelect('mvpGuesses.stage', 'mvpStage')
@@ -376,6 +380,8 @@ export class AuthService {
           'conferenceFinalGuesses',
         )
         .leftJoinAndSelect('conferenceFinalGuesses.stage', 'conferenceStage')
+        .leftJoinAndSelect('conferenceFinalGuesses.team1Relation', 'cfTeam1')
+        .leftJoinAndSelect('conferenceFinalGuesses.team2Relation', 'cfTeam2')
         .addSelect(['conferenceStage.name'])
         .where('user.id = :userId', { userId })
         .getOne();
