@@ -41,6 +41,9 @@ import { ComparisonPageModule } from './comprison-page/comparison-page.module';
 import { UserInitializationModule } from './user-initialization/user-initialization.module';
 import { TournamentModule } from './tournament/tournament.module';
 
+import { NbaController } from 'src/StatisticsApi/controllers/NbaController';
+import { NbaStatisticsService } from 'src/StatisticsApi/services/NbaStatisticsService';
+
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -86,7 +89,7 @@ import { TournamentModule } from './tournament/tournament.module';
     UserInitializationModule,
     TournamentModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController,NbaController],
   providers: [
     AppLogger,
     AppService,
@@ -94,6 +97,7 @@ import { TournamentModule } from './tournament/tournament.module';
       provide: APP_FILTER,
       useClass: UnauthorizedExceptionFilter,
     },
+    NbaStatisticsService,
   ],
   exports: [AppLogger],
 })
