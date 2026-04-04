@@ -6,7 +6,9 @@ import { RequestInit } from 'node-fetch';
 export class NbaStatisticsService {
   private baseUrl: string;
   // הגדרת הלוגר כפי שרועי ביקש
-  private readonly logger = new Logger('NbaStatisticsService', { timestamp: true });
+  private readonly logger = new Logger('NbaStatisticsService', {
+    timestamp: true,
+  });
 
   constructor() {
     this.baseUrl = 'http://127.0.0.1:8000'; // כתובת שרת הפייתון
@@ -14,7 +16,7 @@ export class NbaStatisticsService {
 
   private async request(endpoint: string, options: RequestInit = {}) {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     try {
       this.logger.log(`Sending request to: ${endpoint}`); // לוג לפני שליחה
       const response = await fetch(url, options);
@@ -26,8 +28,11 @@ export class NbaStatisticsService {
       return await response.json();
     } catch (error) {
       // החלפת console.error בלוגר של NestJS
-      this.logger.error(`Fetch error for ${endpoint}: ${error.message}`, error.stack);
-      throw error; 
+      this.logger.error(
+        `Fetch error for ${endpoint}: ${error.message}`,
+        error.stack,
+      );
+      throw error;
     }
   }
 
@@ -43,13 +48,17 @@ export class NbaStatisticsService {
   }
 
   async fetchDailyBoxScores(game_date?: string) {
-    this.logger.log(`Fetching daily box scores for date: ${game_date || 'today'}`);
+    this.logger.log(
+      `Fetching daily box scores for date: ${game_date || 'today'}`,
+    );
     const query = this.buildQueryString({ game_date });
     return this.request(`/api/team/team-stat/boxscore/daily${query}`);
   }
 
   async fetchTeamPlayerStats(teamId?: string, season?: string) {
-    this.logger.log(`Fetching team player stats: Team ${teamId}, Season ${season}`);
+    this.logger.log(
+      `Fetching team player stats: Team ${teamId}, Season ${season}`,
+    );
     const query = this.buildQueryString({ teamId, season });
     return this.request(`/api/team/team-stat/player-stats${query}`);
   }
@@ -72,13 +81,17 @@ export class NbaStatisticsService {
   }
 
   async fetchPlayerSeasonStats(playerId: string, season?: string) {
-    this.logger.log(`Fetching season stats for player ${playerId}, Season: ${season}`);
+    this.logger.log(
+      `Fetching season stats for player ${playerId}, Season: ${season}`,
+    );
     const query = this.buildQueryString({ season });
     return this.request(`/api/player/${playerId}/averages${query}`);
   }
 
   async fetchStatsVsOpponent(queryParams: any) {
-    this.logger.log(`Fetching stats vs opponent for: ${queryParams.player_name}`);
+    this.logger.log(
+      `Fetching stats vs opponent for: ${queryParams.player_name}`,
+    );
     const query = this.buildQueryString(queryParams);
     return this.request(`/api/player/averages-vs-opponent${query}`);
   }

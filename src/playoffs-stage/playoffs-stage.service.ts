@@ -18,6 +18,8 @@ import { ChampionTeamGuess } from 'src/champions-guess/entities/champion-team-gu
 import { MVPGuess } from 'src/champions-guess/entities/mvp-guess.entity';
 import { PriorGuesses, PriorGuessesByStage } from './playoffs-stage.controller';
 import { AuthService } from 'src/auth/auth.service';
+import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
+import { UserTournamentPointsService } from 'src/user-tournament-points/user-tournament-points.service';
 
 @Injectable()
 export class PlayoffsStageService {
@@ -27,6 +29,7 @@ export class PlayoffsStageService {
     @Inject(forwardRef(() => ChampionsGuessService))
     private championGuessService: ChampionsGuessService,
     private authService: AuthService,
+    private readonly userTournamentPointsService: UserTournamentPointsService,
   ) {}
 
   async createPlayoffsStage(
@@ -36,9 +39,13 @@ export class PlayoffsStageService {
     this.logger.verbose(
       `User ${user.username} attempt to create PlayoffsStage ${createPlayoffsStageDto.name}.`,
     );
+    const tournamentId =
+      createPlayoffsStageDto.tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+
     const found = await this.playoffsStageRepo.findOne({
       where: {
         name: createPlayoffsStageDto.name,
+        tournament: { id: tournamentId },
       },
     });
     if (!found) {
@@ -46,6 +53,7 @@ export class PlayoffsStageService {
         createPlayoffsStageDto.name,
         createPlayoffsStageDto.startDate,
         createPlayoffsStageDto.timeOfStart,
+        tournamentId,
       );
     }
     if (createPlayoffsStageDto.startDate) {
@@ -110,6 +118,7 @@ export class PlayoffsStageService {
         finals,
         championTeamId,
         mvp,
+        tournamentId = LEGACY_MIGRATION_TOURNAMENT_ID,
       } = closeGuessesDto;
 
       const mvpGuesses = await this.championGuessService.getMVPGuesses();
@@ -170,7 +179,15 @@ export class PlayoffsStageService {
         }
       }
 
-      await this.authService.bulkUpdateChampionPoints(updates);
+      await Promise.all(
+        updates.map(({ userId, points }) =>
+          this.userTournamentPointsService.incrementChampionPoints(
+            userId,
+            tournamentId,
+            points,
+          ),
+        ),
+      );
 
       this.logger.verbose('Champion guesses closed and points awarded');
     } catch (error) {

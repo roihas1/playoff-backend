@@ -8,7 +8,6 @@ import { DataSource, Repository } from 'typeorm';
 import { User } from './user.entity';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import * as bcrypt from 'bcryptjs';
-import { AppDataSource } from 'src/data-source';
 
 @Injectable()
 export class UsersRepository extends Repository<User> {
@@ -72,6 +71,7 @@ export class UsersRepository extends Repository<User> {
   }
   async getUsersWithCursor(
     limit: number,
+    tournamentId: string,
     cursor?: { totalPoints: number; id: string },
     prevCursor?: { totalPoints: number; id: string },
     leagueId?: string,
@@ -79,15 +79,24 @@ export class UsersRepository extends Repository<User> {
     const order = prevCursor ? 'ASC' : 'DESC';
     const realLimit = limit + 1;
 
+    const totalExpr =
+      'COALESCE(utp.fantasyPoints, 0) + COALESCE(utp.championPoints, 0)';
+
     const query = this.createQueryBuilder('user')
       .leftJoin('user.privateLeagues', 'league')
-      .addSelect('user.fantasyPoints + user.championPoints', 'totalPoints')
+      .leftJoin(
+        'user.tournamentPoints',
+        'utp',
+        'utp.tournamentId = :tournamentId',
+        { tournamentId },
+      )
+      .addSelect('COALESCE(utp.fantasyPoints, 0)', 'scopedFantasy')
+      .addSelect('COALESCE(utp.championPoints, 0)', 'scopedChampion')
+      .addSelect(totalExpr, 'totalPoints')
       .take(realLimit)
       .distinct(true);
 
-    query
-      .orderBy('user.fantasyPoints + user.championPoints', order)
-      .addOrderBy('user.id', order);
+    query.orderBy(totalExpr, order).addOrderBy('user.id', order);
 
     if (leagueId) {
       query.andWhere('league.id = :leagueId', { leagueId });
@@ -95,12 +104,12 @@ export class UsersRepository extends Repository<User> {
 
     if (prevCursor) {
       query.andWhere(
-        '(user.fantasyPoints + user.championPoints > :points OR ((user.fantasyPoints + user.championPoints = :points) AND user.id > :id))',
+        `(${totalExpr} > :points OR ((${totalExpr} = :points) AND user.id > :id))`,
         { points: prevCursor.totalPoints, id: prevCursor.id },
       );
     } else if (cursor) {
       query.andWhere(
-        '(user.fantasyPoints + user.championPoints < :points OR ((user.fantasyPoints + user.championPoints = :points) AND user.id < :id))',
+        `(${totalExpr} < :points OR ((${totalExpr} = :points) AND user.id < :id))`,
         { points: cursor.totalPoints, id: cursor.id },
       );
     }
@@ -112,8 +121,8 @@ export class UsersRepository extends Repository<User> {
       username: raw.user_username,
       firstName: raw.user_firstName,
       lastName: raw.user_lastName,
-      fantasyPoints: raw.user_fantasyPoints,
-      championPoints: raw.user_championPoints,
+      fantasyPoints: Number(raw.scopedFantasy ?? raw.scopedfantasy ?? 0),
+      championPoints: Number(raw.scopedChampion ?? raw.scopedchampion ?? 0),
       totalPoints: Number(raw.totalPoints),
     }));
 
@@ -142,7 +151,16 @@ export class UsersRepository extends Repository<User> {
       };
 
       const firstUser = await this.createQueryBuilder('user')
-        .orderBy('user.fantasyPoints + user.championPoints', 'DESC')
+        .leftJoin(
+          'user.tournamentPoints',
+          'utp',
+          'utp.tournamentId = :tournamentId',
+          { tournamentId },
+        )
+        .orderBy(
+          'COALESCE(utp.fantasyPoints, 0) + COALESCE(utp.championPoints, 0)',
+          'DESC',
+        )
         .addOrderBy('user.id', 'DESC')
         .getOne();
 
@@ -176,68 +194,38 @@ export class UsersRepository extends Repository<User> {
     };
   }
 
-  async updateBulkFantasyPoints(
-    userPointsMap: { id: string; points: number }[],
-  ): Promise<void> {
-    const queryRunner = AppDataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+  async getAllUsersWithTournamentPoints(tournamentId: string): Promise<
+    {
+      id: string;
+      username: string;
+      firstName: string;
+      lastName: string;
+      fantasyPoints: number;
+      championPoints: number;
+    }[]
+  > {
+    const rows = await this.createQueryBuilder('user')
+      .leftJoin(
+        'user.tournamentPoints',
+        'utp',
+        'utp.tournamentId = :tournamentId',
+        { tournamentId },
+      )
+      .select('user.id', 'id')
+      .addSelect('user.username', 'username')
+      .addSelect('user.firstName', 'firstName')
+      .addSelect('user.lastName', 'lastName')
+      .addSelect('COALESCE(utp.fantasyPoints, 0)', 'scopedFantasy')
+      .addSelect('COALESCE(utp.championPoints, 0)', 'scopedChampion')
+      .getRawMany();
 
-    try {
-      for (const user of userPointsMap) {
-        await queryRunner.manager.update(User, user.id, {
-          fantasyPoints: user.points,
-        });
-      }
-
-      await queryRunner.commitTransaction();
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      throw error;
-    } finally {
-      await queryRunner.release();
-    }
-  }
-
-  async updateFantasyPoints(user: User, points: number): Promise<void> {
-    const queryRunner = AppDataSource.createQueryRunner();
-
-    // Start the transaction
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      console.log(
-        `Before user id: ${user.id} ${user.fantasyPoints} added ${points}`,
-      );
-
-      user.fantasyPoints += points;
-
-      console.log(
-        `After user id: ${user.id} ${user.fantasyPoints} added ${points}`,
-      );
-
-      // Use queryRunner to ensure the operation is part of the transaction
-      await queryRunner.manager.update(User, user.id, {
-        fantasyPoints: user.fantasyPoints,
-      });
-
-      // Commit the transaction explicitly
-      await queryRunner.commitTransaction();
-      this.logger.verbose(
-        `User: ${user.username} points were updated. added (${points})`,
-      );
-    } catch (error) {
-      // Rollback on error
-      await queryRunner.rollbackTransaction();
-      this.logger.error(
-        `Failed to update fantasy points for user:${user.username}`,
-        error.stack,
-      );
-      throw error;
-    } finally {
-      // Release the query runner
-      await queryRunner.release();
-    }
+    return rows.map((raw) => ({
+      id: raw.id,
+      username: raw.username,
+      firstName: raw.firstName,
+      lastName: raw.lastName,
+      fantasyPoints: Number(raw.scopedFantasy ?? raw.scopedfantasy ?? 0),
+      championPoints: Number(raw.scopedChampion ?? raw.scopedchampion ?? 0),
+    }));
   }
 }

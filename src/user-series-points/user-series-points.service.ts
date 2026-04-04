@@ -8,9 +8,8 @@ import {
 import { UserSeriesPointsRepository } from './user-series-points.repository';
 import { UserSeriesPoints } from './user-series-points.entity';
 import { SeriesService } from 'src/series/series.service';
-import { User } from 'src/auth/user.entity';
 import { AuthService } from 'src/auth/auth.service';
-import { Cron } from '@nestjs/schedule';
+import { UserTournamentPointsService } from 'src/user-tournament-points/user-tournament-points.service';
 
 @Injectable()
 export class UserSeriesPointsService {
@@ -21,6 +20,7 @@ export class UserSeriesPointsService {
     private seriesService: SeriesService,
     @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
+    private readonly userTournamentPointsService: UserTournamentPointsService,
   ) {}
 
   async updatePointsForUser(userId: string): Promise<void> {
@@ -62,6 +62,10 @@ export class UserSeriesPointsService {
       }
 
       await this.userSeriesPointsRepository.save(toSave);
+
+      await this.userTournamentPointsService.recalculateFantasyFromUserSeriesPoints(
+        userId,
+      );
 
       this.logger.log(`Updated series points for user ${userId}`);
     } catch (error) {
@@ -154,24 +158,13 @@ export class UserSeriesPointsService {
     this.logger.log('Starting daily update of series points for all users...');
     try {
       const users = await this.authService.getAllUserIds();
-      const pointsToUpdate: { id: string; points: number }[] = [];
 
       for (const user of users) {
         await this.updatePointsForUser(user.id);
-
-        const userPointsPerSeries = await this.findByUserId(user.id);
-        const totalPoints = Object.values(userPointsPerSeries).reduce(
-          (sum, points) => sum + points,
-          0,
-        );
-
-        pointsToUpdate.push({ id: user.id, points: totalPoints });
       }
 
-      await this.authService.updateAllUsersTotalFantasyPoints(pointsToUpdate);
-
       this.logger.log(
-        'Finished updating series and total points for all users.',
+        'Finished updating series and per-tournament fantasy totals for all users.',
       );
     } catch (error) {
       this.logger.error(`Cron job failed: ${error.message}`, error.stack);

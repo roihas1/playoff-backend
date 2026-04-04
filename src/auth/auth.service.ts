@@ -23,6 +23,7 @@ import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
 import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
 import { UserInitializationService } from 'src/user-initialization/user-initialization.service';
+import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 
 @Injectable()
 export class AuthService {
@@ -172,7 +173,7 @@ export class AuthService {
       throw error;
     }
   }
-  async getAllUsersWithSelection(): Promise<
+  async getAllUsersWithSelection(tournamentId?: string): Promise<
     {
       id: string;
       username: string;
@@ -183,16 +184,9 @@ export class AuthService {
     }[]
   > {
     try {
-      const users = await this.usersRepository.find({
-        select: [
-          'id',
-          'username',
-          'firstName',
-          'lastName',
-          'fantasyPoints',
-          'championPoints',
-        ],
-      });
+      const tid = tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+      const users =
+        await this.usersRepository.getAllUsersWithTournamentPoints(tid);
       this.logger.verbose(`All users retrieved successfully.`);
       return users;
     } catch (error) {
@@ -216,10 +210,13 @@ export class AuthService {
     prevCursor?: { totalPoints: number; id: string },
     limit: number = 15,
     leagueId?: string,
+    tournamentId?: string,
   ) {
     try {
+      const tid = tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
       const response = await this.usersRepository.getUsersWithCursor(
         limit,
+        tid,
         cursor,
         prevCursor,
         leagueId,
@@ -227,36 +224,6 @@ export class AuthService {
       return response;
     } catch (error) {
       this.logger.error(`Failed to get users with cursor.`, error.stack);
-      throw error;
-    }
-  }
-
-  async updateAllUsersTotalFantasyPoints(
-    pointsToUpdate: { id: string; points: number }[],
-  ): Promise<void> {
-    this.logger.log('Starting update of total fantasy points for all users...');
-    try {
-      await this.usersRepository.updateBulkFantasyPoints(pointsToUpdate);
-      this.logger.log('Updated total fantasy points for all users.');
-    } catch (error) {
-      this.logger.error(
-        `Failed to update total fantasy points for all users.`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        'Failed to update total fantasy points.',
-      );
-    }
-  }
-
-  async updateFantasyPoints(user: User, points: number): Promise<void> {
-    try {
-      await this.usersRepository.updateFantasyPoints(user, points);
-    } catch (error) {
-      this.logger.error(
-        `Failed to update fantasy points for user:${user.username}`,
-        error.stack,
-      );
       throw error;
     }
   }
@@ -474,16 +441,5 @@ export class AuthService {
       this.logger.error(`Failed to search for users. ${error.stack}`);
       throw new InternalServerErrorException(`Failed to search for users.`);
     }
-  }
-  async bulkUpdateChampionPoints(
-    updates: { userId: string; points: number }[],
-  ): Promise<void> {
-    const updatePromises = updates.map(({ userId, points }) =>
-      this.usersRepository.update(userId, {
-        championPoints: () => `"championPoints" + ${points}`,
-      }),
-    );
-
-    await Promise.all(updatePromises);
   }
 }

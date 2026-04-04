@@ -9,6 +9,7 @@ import { PlayoffsStageService } from 'src/playoffs-stage/playoffs-stage.service'
 import { PrivateLeagueService } from 'src/private-league/private-league.service';
 import { SeriesService } from 'src/series/series.service';
 import { GetComparisonDataDto } from './dto/get-comparison-data.dto';
+import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 
 @Injectable()
 export class ComparisonPageService {
@@ -24,14 +25,17 @@ export class ComparisonPageService {
     tournamentId?: string,
   ): Promise<GetComparisonDataDto> {
     try {
+      const resolvedTournamentId =
+        tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
       const [allBets, userLeagues, allUsers, passedStages] = await Promise.all([
         this.seriesService.getAllBets(tournamentId),
         this.privateLeagueService.getUserLeagues(user),
-        this.authService.getAllUsersWithSelection(),
+        this.authService.getAllUsersWithSelection(resolvedTournamentId),
         this.playoffsStageService.getPassedStages(),
       ]);
 
       return {
+        tournamentId: resolvedTournamentId,
         allBets,
         userLeagues,
         allUsers,

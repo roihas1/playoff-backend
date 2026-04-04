@@ -10,9 +10,9 @@ import { CreatePrivateLeagueDto } from './dto/CreatePrivateLeagueDto';
 import { User } from 'src/auth/user.entity';
 import { PrivateLeague } from './private-league.entity';
 import { JoinLeagueDto } from './dto/join-league.dto';
-import { NotFoundError } from 'rxjs';
 import { AuthService } from 'src/auth/auth.service';
 import { RemoveUsersDto } from './dto/remove-users.dto';
+import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 
 @Injectable()
 export class PrivateLeagueService {
@@ -106,7 +106,10 @@ export class PrivateLeagueService {
       );
     }
   }
-  async getAllUsersForLeague(leagueId: string): Promise<
+  async getAllUsersForLeague(
+    leagueId: string,
+    tournamentId?: string,
+  ): Promise<
     {
       id: string;
       username: string;
@@ -117,19 +120,33 @@ export class PrivateLeagueService {
     }[]
   > {
     try {
-      const users = await this.privateLeagueRepo
+      const tid = tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+      const rawUsers = await this.privateLeagueRepo
         .createQueryBuilder('league')
         .leftJoin('league.users', 'user')
-        .select([
-          'user.id AS "id"',
-          'user.username AS "username"',
-          'user.firstName AS "firstName"',
-          'user.lastName AS "lastName"',
-          'user.fantasyPoints AS "fantasyPoints"',
-          'user.championPoints AS "championPoints"',
-        ])
+        .leftJoin(
+          'user.tournamentPoints',
+          'utp',
+          'utp.tournamentId = :tournamentId',
+          { tournamentId: tid },
+        )
+        .select('user.id', 'id')
+        .addSelect('user.username', 'username')
+        .addSelect('user.firstName', 'firstName')
+        .addSelect('user.lastName', 'lastName')
+        .addSelect('COALESCE(utp.fantasyPoints, 0)', 'scopedFantasy')
+        .addSelect('COALESCE(utp.championPoints, 0)', 'scopedChampion')
         .where('league.id = :leagueId', { leagueId })
         .getRawMany();
+
+      const users = rawUsers.map((raw) => ({
+        id: raw.id,
+        username: raw.username,
+        firstName: raw.firstName,
+        lastName: raw.lastName,
+        fantasyPoints: Number(raw.scopedFantasy ?? raw.scopedfantasy ?? 0),
+        championPoints: Number(raw.scopedChampion ?? raw.scopedchampion ?? 0),
+      }));
 
       return users;
     } catch (error) {

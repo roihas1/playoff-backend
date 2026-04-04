@@ -1006,14 +1006,6 @@ export class SeriesService {
     try {
       const series = await this.getSeriesByID(seriesId);
       series.lastUpdate = new Date();
-      const prevTeamWinResult = series.teamWinBetId.result;
-      const prevMatchupResult = series.playerMatchupBets.reduce(
-        (acc, matchup) => {
-          acc[matchup.id] = matchup.result;
-          return acc;
-        },
-        {},
-      );
 
       const bestOf7Bet = await this.bestOf7BetService.updateResultForSeries(
         series.bestOf7BetId.id,
@@ -1040,77 +1032,7 @@ export class SeriesService {
         await this.spontaneousBetService.updateResultForSeries(matchup);
       }
 
-      const users = await this.authService.getAllUsers();
-
-      // series = await this.getSeriesByID(seriesId);
-      users.map(async (user) => {
-        let totalPoints = 0;
-
-        // Calculate points for Team Win Bet
-        if (series.teamWinBetId) {
-          if (isSeriesFinished) {
-            const userGuess = await this.bestOf7BetService.getUserGuess(
-              series.bestOf7BetId,
-              user.id,
-            );
-            if (userGuess && userGuess.guess === bestOf7Bet.result) {
-              totalPoints += bestOf7Bet.fantasyPoints;
-            }
-          }
-          const userGuess = await this.teamWinBetService.getUserGuess(
-            series.teamWinBetId,
-            user.id,
-          );
-          if (userGuess) {
-            totalPoints += this.calculatePointsForGuess(
-              userGuess,
-              series.teamWinBetId,
-              prevTeamWinResult,
-            );
-            console.log(`added teamwin points ${totalPoints}`);
-          }
-        }
-
-        // Calculate points for Player Matchup Bets
-        for (const matchup of series.playerMatchupBets) {
-          const userMatchupGuess =
-            await this.playerMatcupBetService.getUserGuessForMatchup(
-              matchup,
-              user.id,
-            );
-          if (userMatchupGuess) {
-            totalPoints += this.calculatePointsForGuess(
-              userMatchupGuess,
-              matchup,
-              prevMatchupResult[matchup.id],
-            );
-            console.log(`added matchup points ${totalPoints}`);
-          }
-        }
-        for (const matchup of series.spontaneousBets) {
-          const userMatchupGuess =
-            await this.spontaneousBetService.getUserGuessForMatchup(
-              matchup,
-              user.id,
-            );
-          if (userMatchupGuess) {
-            totalPoints += this.calculatePointsForGuess(
-              userMatchupGuess,
-              matchup,
-              prevMatchupResult[matchup.id],
-            );
-            console.log(`added matchup points ${totalPoints}`);
-          }
-        }
-
-        // If the user earned any points, update them
-        if (totalPoints !== 0) {
-          await this.authService.updateFantasyPoints(user, totalPoints);
-          this.logger.verbose(
-            `User: ${user.username} earned ${totalPoints} points for series: ${seriesId}`,
-          );
-        }
-      });
+      await this.userSeriesPointsService.updateAllUserPointsTotalFSP();
 
       await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
     } catch (error) {

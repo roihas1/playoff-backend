@@ -4,9 +4,14 @@ import { PrivateLeagueService } from './private-league.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PrivateLeagueRepository } from './private-league.repository';
 import { AuthModule } from 'src/auth/auth.module';
+import { UserTournamentPointsModule } from 'src/user-tournament-points/user-tournament-points.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PrivateLeagueRepository]), AuthModule],
+  imports: [
+    TypeOrmModule.forFeature([PrivateLeagueRepository]),
+    AuthModule,
+    UserTournamentPointsModule,
+  ],
   controllers: [PrivateLeagueController],
   providers: [PrivateLeagueService, PrivateLeagueRepository],
   exports: [PrivateLeagueService],

@@ -1,4 +1,4 @@
-import { IsString, IsArray } from 'class-validator';
+import { IsString, IsArray, IsOptional, IsUUID } from 'class-validator';
 
 export class CloseGuessesDto {
   @IsArray()
@@ -18,4 +18,8 @@ export class CloseGuessesDto {
 
   @IsString()
   mvp: string;
+
+  @IsOptional()
+  @IsUUID()
+  tournamentId?: string;
 }

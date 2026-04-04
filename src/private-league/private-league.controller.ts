@@ -5,10 +5,12 @@ import {
   Get,
   Logger,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { PrivateLeagueService } from './private-league.service';
@@ -18,9 +20,11 @@ import { User } from 'src/auth/user.entity';
 import { CreatePrivateLeagueDto } from './dto/CreatePrivateLeagueDto';
 import { JoinLeagueDto } from './dto/join-league.dto';
 import { RemoveUsersDto } from './dto/remove-users.dto';
+import { MergeUserTournamentPointsInterceptor } from 'src/user-tournament-points/merge-user-tournament-points.interceptor';
 
 @Controller('private-league')
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(MergeUserTournamentPointsInterceptor)
 export class PrivateLeagueController {
   private logger = new Logger('PrivateLeagueController', {
     timestamp: true,
@@ -61,6 +65,8 @@ export class PrivateLeagueController {
   async getAllUsersForLeague(
     @Param('leagueId') leagueId: string,
     @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
   ): Promise<
     {
       id: string;
@@ -74,7 +80,10 @@ export class PrivateLeagueController {
     this.logger.verbose(
       `User: ${user.username} attempting to get all users league.`,
     );
-    return await this.privateLeagueService.getAllUsersForLeague(leagueId);
+    return await this.privateLeagueService.getAllUsersForLeague(
+      leagueId,
+      tournamentId,
+    );
   }
 
   @Patch('/:leagueId/:newName/updateName')

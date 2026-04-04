@@ -19,15 +19,16 @@ export class PlayoffsStageRepository extends Repository<PlayoffStage> {
     name: string,
     startDate: string,
     timeOfStart: string,
+    tournamentId: string,
   ): Promise<PlayoffStage> {
     const stage = this.create({
       name,
       startDate,
       timeOfStart,
+      tournament: { id: tournamentId },
     });
     try {
-      const savedStage = this.save(stage);
-      return savedStage;
+      return await this.save(stage);
     } catch (error) {
       this.logger.error(
         `Failed to create stage ${name} that start at ${startDate}`,

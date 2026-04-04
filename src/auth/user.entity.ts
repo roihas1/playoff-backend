@@ -16,6 +16,7 @@ import { Exclude } from 'class-transformer';
 import { PrivateLeague } from 'src/private-league/private-league.entity';
 import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
 import { UserSeriesPoints } from 'src/user-series-points/user-series-points.entity';
+import { UserTournamentPoints } from 'src/user-tournament-points/user-tournament-points.entity';
 
 @Entity()
 export class User {
@@ -28,12 +29,6 @@ export class User {
   @Column({ nullable: true })
   @Exclude()
   password: string;
-
-  @Column({ default: 0 })
-  fantasyPoints: number;
-
-  @Column({ default: 0 })
-  championPoints: number;
 
   @Column({
     type: 'enum',
@@ -119,4 +114,7 @@ export class User {
 
   @OneToMany(() => UserSeriesPoints, (usp) => usp.user)
   seriesPoints: UserSeriesPoints[];
+
+  @OneToMany(() => UserTournamentPoints, (utp) => utp.user)
+  tournamentPoints: UserTournamentPoints[];
 }

@@ -20,6 +20,10 @@ import { UserSeriesPoints } from './user-series-points/user-series-points.entity
 import { UserMissingBet } from './user-missing-bets/user-missing-bets.entity';
 import { Tournament } from './tournament/tournament.entity';
 import { Team } from './team/team.entity';
+import { UserTournamentPoints } from './user-tournament-points/user-tournament-points.entity';
+import { UserTournamentPointsAndPlayoffStageTournament1743787200000 } from './migrations/1743787200000-user-tournament-points-and-playoff-stage-tournament';
+import { DropUserLegacyPointColumns1744000000000 } from './migrations/1744000000000-drop-user-legacy-point-columns';
+
 ConfigModule.forRoot({
   isGlobal: true,
   envFilePath: [`.env.stage.${process.env.STAGE}`],
@@ -53,7 +57,13 @@ export const AppDataSource = new DataSource({
     UserMissingBet,
     Tournament,
     Team,
+    UserTournamentPoints,
   ],
+  migrations: [
+    UserTournamentPointsAndPlayoffStageTournament1743787200000,
+    DropUserLegacyPointColumns1744000000000,
+  ],
+  migrationsTableName: 'typeorm_migrations',
   synchronize: true,
   logging: false,
 });

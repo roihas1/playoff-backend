@@ -12,6 +12,7 @@ import googleOauthConfig from './google-oauth.config';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { AppLogger } from 'src/logging/logger.service';
 import { UserInitializationModule } from 'src/user-initialization/user-initialization.module';
+import { UserTournamentPointsModule } from 'src/user-tournament-points/user-tournament-points.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { UserInitializationModule } from 'src/user-initialization/user-initializ
     }),
     TypeOrmModule.forFeature([User]),
     forwardRef(() => UserInitializationModule),
+    UserTournamentPointsModule,
   ],
   controllers: [AuthController],
   providers: [
