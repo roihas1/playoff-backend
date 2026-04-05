@@ -9,7 +9,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { BestOf7BetService } from './best-of7-bet.service';
 import { CreateBestOf7BetDto } from './dto/create-best-of7-bet.dto';
 import { GetUser } from '../auth/get-user.decorator';
@@ -23,12 +23,14 @@ import { Role } from 'src/auth/user-role.enum';
 import { RolesGuard } from 'src/auth/roles.guard';
 
 @Controller('best-of7-bet')
-@UseGuards(AuthGuard())
+@UseGuards(JwtAuthGuard)
 export class BestOf7BetController {
   private logger = new Logger('BestOf7BetController', { timestamp: true });
   constructor(private bestOf7BetService: BestOf7BetService) {}
 
   @Post()
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async createBestOf7Bet(
     @Body() createBestOf7Bet: CreateBestOf7BetDto,
     @GetUser() user: User,
@@ -51,6 +53,8 @@ export class BestOf7BetController {
   }
 
   @Delete('/:id')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async deleteBestOf7Bet(
     @Param('id') id: string,
     @GetUser() user: User,
@@ -62,6 +66,8 @@ export class BestOf7BetController {
   }
 
   @Patch('/:id/result')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateResult(
     @Param('id') id: string,
     @Body() updateResultDto: UpdateResultDto,
@@ -73,6 +79,8 @@ export class BestOf7BetController {
     return await this.bestOf7BetService.updateResult(updateResultDto, id);
   }
   @Patch('/:id/updateFSP')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateFantasyPoints(
     @Param('id') id: string,
     @Body() updateFantasyPointsDto: UpdateFantasyPointsDto,
@@ -87,6 +95,8 @@ export class BestOf7BetController {
     );
   }
   @Patch('/:id/updateGame')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateGameResult(
     @Param('id') id: string,
     @Body() updateGame: UpdateGameDto,
@@ -95,6 +105,6 @@ export class BestOf7BetController {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to update bestOf7Bet game with ID: "${id}".`,
     );
-    return await this.bestOf7BetService.updateGame(id, updateGame, user);
+    return await this.bestOf7BetService.updateGame(id, updateGame);
   }
 }

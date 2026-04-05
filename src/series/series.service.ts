@@ -838,7 +838,6 @@ export class SeriesService {
       await this.bestOf7BetService.updateGame(
         series.bestOf7BetId.id,
         updateGame,
-        user,
       );
     } catch (error) {
       this.logger.error(

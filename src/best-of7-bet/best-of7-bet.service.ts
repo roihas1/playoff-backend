@@ -13,7 +13,6 @@ import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFantasyPointsDto } from './dto/update-fantasy-points.dto';
 import { SeriesService } from 'src/series/series.service';
 import { UpdateGameDto } from '../series/dto/update-game.dto';
-import { User } from 'src/auth/user.entity';
 import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
 import { BestOf7GuessService } from 'src/best-of7-guess/best-of7-guess.service';
 import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
@@ -287,11 +286,7 @@ export class BestOf7BetService {
     }
   }
 
-  async updateGame(
-    id: string,
-    updateGame: UpdateGameDto,
-    user: User,
-  ): Promise<void> {
+  async updateGame(id: string, updateGame: UpdateGameDto): Promise<void> {
     const bet = await this.getBestOf7betById(id);
     const { teamWon } = updateGame;
     bet.seriesScore[teamWon - 1] += 1;

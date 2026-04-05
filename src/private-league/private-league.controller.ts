@@ -86,6 +86,7 @@ export class PrivateLeagueController {
     );
     return await this.privateLeagueService.getAllUsersForLeague(
       leagueId,
+      user,
       tournamentId,
     );
   }
@@ -99,7 +100,11 @@ export class PrivateLeagueController {
     this.logger.verbose(
       `User: ${user.username} attempting to change league name`,
     );
-    return await this.privateLeagueService.updateLeagueName(leagueId, newName);
+    return await this.privateLeagueService.updateLeagueName(
+      leagueId,
+      newName,
+      user,
+    );
   }
   @Delete('/:leagueId')
   async deletePrivateLeague(
@@ -109,7 +114,7 @@ export class PrivateLeagueController {
     this.logger.verbose(
       `User: ${user.username} attempting to delete league: ${leagueId}`,
     );
-    return await this.privateLeagueService.deletePrivateLeague(leagueId);
+    return await this.privateLeagueService.deletePrivateLeague(leagueId, user);
   }
   @Patch('/:leagueId/removeUsers')
   async removeUsersFromLeague(
@@ -123,6 +128,7 @@ export class PrivateLeagueController {
     return await this.privateLeagueService.removeUsersFromLeague(
       removeUsersDto,
       leagueId,
+      user,
     );
   }
   @Patch('/:leagueId/leaveLeague')

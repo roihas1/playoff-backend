@@ -3,6 +3,9 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UserMissingBetsService } from './user-missing-bets.service';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { User } from 'src/auth/user.entity';
+import { Roles } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Role } from 'src/auth/user-role.enum';
 
 @Controller('user-missing-bets')
 @UseGuards(JwtAuthGuard)
@@ -25,6 +28,8 @@ export class UserMissingBetsController {
     return await this.userMissingBetsService.updateMissingBetsForUser(user);
   }
   @Patch('/user/updateAllUsers')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateMissingBetsToAllUsers(@GetUser() user: User): Promise<void> {
     this.logger.verbose(
       `User ${user.username} attempting to update missing bets to all users`,

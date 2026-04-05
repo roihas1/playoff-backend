@@ -23,7 +23,6 @@ import { Logger } from '@nestjs/common';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { Role } from './user-role.enum';
-import { LogoutCredentialsDto } from './dto/logout-credentials.dto';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 import { GoogleAuthGuard } from './google-auth/google-auth.guard';
 import { AppLogger } from 'src/logging/logger.service';
@@ -70,14 +69,14 @@ export class AuthController {
   }
 
   @Patch('/logout')
-  // @UseGuards(JwtAuthGuard)
-  async logout(@Body() credentials: LogoutCredentialsDto): Promise<void> {
+  @UseGuards(JwtAuthGuard)
+  async logout(@GetUser() user: User): Promise<void> {
     this.logger.verbose(
-      `User loging out attempt with username: "${credentials.username}".`,
+      `User logout attempt for username: "${user.username}".`,
       'AuthController',
     );
 
-    return await this.authService.logout(credentials.username);
+    return await this.authService.logout(user);
   }
 
   @Patch()

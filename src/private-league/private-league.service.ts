@@ -1,5 +1,7 @@
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -16,6 +18,7 @@ import { AuthService } from 'src/auth/auth.service';
 import { RemoveUsersDto } from './dto/remove-users.dto';
 import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 import { Tournament } from 'src/tournament/tournament.entity';
+import { Role } from 'src/auth/user-role.enum';
 
 @Injectable()
 export class PrivateLeagueService {
@@ -26,6 +29,36 @@ export class PrivateLeagueService {
     @InjectRepository(Tournament)
     private tournamentRepo: Repository<Tournament>,
   ) {}
+
+  private async loadLeagueWithMembers(
+    leagueId: string,
+  ): Promise<PrivateLeague | null> {
+    return this.privateLeagueRepo.findOne({
+      where: { id: leagueId },
+      relations: ['users', 'admin', 'tournament'],
+    });
+  }
+
+  private assertMemberOrAppAdmin(user: User, league: PrivateLeague): void {
+    if (user.role === Role.ADMIN) {
+      return;
+    }
+    const isMember = league.users?.some((u) => u.id === user.id);
+    if (!isMember) {
+      throw new ForbiddenException('You do not have access to this league.');
+    }
+  }
+
+  private assertLeagueAdminOrAppAdmin(user: User, league: PrivateLeague): void {
+    if (user.role === Role.ADMIN) {
+      return;
+    }
+    if (league.admin?.id !== user.id) {
+      throw new ForbiddenException(
+        'Only the league admin can perform this action.',
+      );
+    }
+  }
 
   async createPrivateLeague(
     createPrivateLeagueDto: CreatePrivateLeagueDto,
@@ -133,6 +166,7 @@ export class PrivateLeagueService {
   }
   async getAllUsersForLeague(
     leagueId: string,
+    user: User,
     tournamentId?: string,
   ): Promise<
     {
@@ -145,20 +179,23 @@ export class PrivateLeagueService {
     }[]
   > {
     try {
+      const leagueEntity = await this.loadLeagueWithMembers(leagueId);
+      if (!leagueEntity) {
+        this.logger.error(`League with id: ${leagueId} was not found.`);
+        throw new NotFoundException(
+          `League with id: ${leagueId} was not found.`,
+        );
+      }
+      this.assertMemberOrAppAdmin(user, leagueEntity);
       let tid: string;
       if (tournamentId) {
-        tid = tournamentId;
-      } else {
-        const leagueEntity = await this.privateLeagueRepo.findOne({
-          where: { id: leagueId },
-          relations: ['tournament'],
-        });
-        if (!leagueEntity) {
-          this.logger.error(`League with id: ${leagueId} was not found.`);
-          throw new NotFoundException(
-            `League with id: ${leagueId} was not found.`,
+        if (tournamentId !== leagueEntity.tournament.id) {
+          throw new BadRequestException(
+            'tournamentId does not match this league.',
           );
         }
+        tid = tournamentId;
+      } else {
         tid = leagueEntity.tournament.id;
       }
       const rawUsers = await this.privateLeagueRepo
@@ -190,7 +227,11 @@ export class PrivateLeagueService {
 
       return users;
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(
@@ -203,20 +244,29 @@ export class PrivateLeagueService {
     }
   }
 
-  async updateLeagueName(leagueId: string, newName: string): Promise<void> {
+  async updateLeagueName(
+    leagueId: string,
+    newName: string,
+    user: User,
+  ): Promise<void> {
     try {
-      const league = await this.privateLeagueRepo.findOne({
-        where: { id: leagueId },
-      });
+      const league = await this.loadLeagueWithMembers(leagueId);
       if (!league) {
         this.logger.error(`League with id: ${leagueId} was not found.`);
         throw new NotFoundException(
           `League with id: ${leagueId} was not found.`,
         );
       }
+      this.assertLeagueAdminOrAppAdmin(user, league);
       league.name = newName;
       await this.privateLeagueRepo.save(league);
     } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
       this.logger.error(
         `Failed to update league name for league:${leagueId}`,
         error.stack,
@@ -226,19 +276,24 @@ export class PrivateLeagueService {
       );
     }
   }
-  async deletePrivateLeague(leagueId: string): Promise<void> {
+  async deletePrivateLeague(leagueId: string, user: User): Promise<void> {
     try {
-      const league = await this.privateLeagueRepo.findOne({
-        where: { id: leagueId },
-      });
+      const league = await this.loadLeagueWithMembers(leagueId);
       if (!league) {
         this.logger.error(`League with id: ${leagueId} was not found.`);
         throw new NotFoundException(
           `League with id: ${leagueId} was not found.`,
         );
       }
+      this.assertLeagueAdminOrAppAdmin(user, league);
       await this.privateLeagueRepo.delete(league.id);
     } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
       this.logger.error(
         `Failed to delete league for league:${leagueId}`,
         error.stack,
@@ -251,24 +306,29 @@ export class PrivateLeagueService {
   async removeUsersFromLeague(
     removeUsersDto: RemoveUsersDto,
     leagueId: string,
+    user: User,
   ): Promise<void> {
     try {
-      const league = await this.privateLeagueRepo.findOne({
-        where: { id: leagueId },
-        relations: ['users'],
-      });
+      const league = await this.loadLeagueWithMembers(leagueId);
       if (!league) {
         this.logger.error(`League with id: ${leagueId} was not found.`);
         throw new NotFoundException(
           `League with id: ${leagueId} was not found.`,
         );
       }
+      this.assertLeagueAdminOrAppAdmin(user, league);
       const { users } = removeUsersDto;
       league.users = league.users.filter(
         (user) => !users.some((removeUser) => removeUser.id === user.id),
       );
       await this.privateLeagueRepo.save(league);
     } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
       this.logger.error(
         `Failed to remove users from league:${leagueId}`,
         error.stack,

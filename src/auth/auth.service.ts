@@ -112,17 +112,16 @@ export class AuthService {
     );
     return { accessToken, expiresIn, userRole: user.role, username };
   }
-  async logout(username: string): Promise<void> {
-    try {
-      const found = await this.usersRepository.findOne({
-        where: { username: username },
-      });
-      found.isActive = false;
-      await this.usersRepository.save(found);
-      this.logger.verbose(`User "${username}" logout.`);
-    } catch (error) {
-      throw new NotFoundException(`User ${username} not found.`);
+  async logout(user: User): Promise<void> {
+    const found = await this.usersRepository.findOne({
+      where: { id: user.id },
+    });
+    if (!found) {
+      throw new NotFoundException(`User with id ${user.id} not found.`);
     }
+    found.isActive = false;
+    await this.usersRepository.save(found);
+    this.logger.verbose(`User "${found.username}" logout.`);
   }
   async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.usersRepository.findOne({ where: { id } });
