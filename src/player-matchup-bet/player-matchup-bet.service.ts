@@ -32,6 +32,9 @@ export class PlayerMatchupBetService {
     );
   }
   async getBySeriesIds(seriesIds: string[]): Promise<PlayerMatchupBet[]> {
+    if (seriesIds.length === 0) {
+      return [];
+    }
     return this.playerMatchupBetRepository
       .createQueryBuilder('bet')
       .select([

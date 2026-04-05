@@ -25,7 +25,7 @@ export class PlayerMatchupGuessService {
 
     const found = await this.playerMatchupGuessRepository.findOne({
       where: {
-        createdBy: user,
+        createdBy: { id: user.id },
         bet: { id: playerMatchupBetId },
       },
     });

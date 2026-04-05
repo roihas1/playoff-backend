@@ -3,8 +3,15 @@ import { User } from './user.entity';
 
 type ScopedPoints = { fantasyPoints: number; championPoints: number };
 
+/** JWT user plus tournament-scoped totals (not columns on User). */
+export type AuthUserPayload = Pick<
+  User,
+  'id' | 'username' | 'firstName' | 'lastName'
+> &
+  ScopedPoints;
+
 export const GetUser = createParamDecorator(
-  (_data, ctx: ExecutionContext): Partial<User> => {
+  (_data, ctx: ExecutionContext): AuthUserPayload => {
     const req = ctx.switchToHttp().getRequest();
     const user: User = req.user;
     const scoped = req.userTournamentScopedPoints as ScopedPoints | undefined;

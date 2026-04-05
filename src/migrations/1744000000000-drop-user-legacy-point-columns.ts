@@ -4,7 +4,9 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * Drops legacy per-user aggregate columns after cutover to user_tournament_points.
  * Run only after user_tournament_points is populated and all app instances use UTP.
  */
-export class DropUserLegacyPointColumns1744000000000 implements MigrationInterface {
+export class DropUserLegacyPointColumns1744000000000
+  implements MigrationInterface
+{
   name = 'DropUserLegacyPointColumns1744000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

@@ -47,7 +47,7 @@ export class ChampionsGuessService {
       const found = await this.championTeamGuessRepo.findOne({
         where: {
           stage,
-          createdBy: user,
+          createdBy: { id: user.id },
         },
       });
       if (!found) {
@@ -90,7 +90,7 @@ export class ChampionsGuessService {
     try {
       const found = await this.conferenceFinalGuessRepo.findOne({
         where: {
-          createdBy: user,
+          createdBy: { id: user.id },
           stage,
           conference,
         },
@@ -127,7 +127,7 @@ export class ChampionsGuessService {
   ): Promise<MVPGuess> {
     try {
       const found = await this.mvpGuessRepository.findOne({
-        where: { createdBy: user, stage },
+        where: { createdBy: { id: user.id }, stage },
       });
 
       if (!found) {
@@ -164,7 +164,7 @@ export class ChampionsGuessService {
       createChampGuessDto;
     try {
       const playoffsStage = await this.playoffsStageService.createPlayoffsStage(
-        { name: stage },
+        { name: stage, tournamentId: createChampGuessDto.tournamentId },
         user,
       );
       const champTeamNewGuess = await this.createChampTeamGuess(
@@ -217,7 +217,11 @@ export class ChampionsGuessService {
       updateChampionGuessDto;
     try {
       const playoffsStage = await this.playoffsStageService.createPlayoffsStage(
-        { name: stage, startDate: deadline },
+        {
+          name: stage,
+          startDate: deadline,
+          tournamentId: updateChampionGuessDto.tournamentId,
+        },
         user,
       );
       const newMVPGuess = await this.createMvpGuess(
@@ -349,10 +353,11 @@ export class ChampionsGuessService {
   async hasChampionTeamGuess(
     stageName: string,
     userId: string,
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
   ): Promise<boolean> {
     const count = await this.championTeamGuessRepo.count({
       where: {
-        stage: { name: stageName },
+        stage: { name: stageName, tournament: { id: tournamentId } },
         createdBy: { id: userId },
       },
     });
@@ -362,20 +367,25 @@ export class ChampionsGuessService {
   async hasConferenceFinalGuess(
     stageName: string,
     userId: string,
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
   ): Promise<boolean> {
     const count = await this.conferenceFinalGuessRepo.count({
       where: {
-        stage: { name: stageName },
+        stage: { name: stageName, tournament: { id: tournamentId } },
         createdBy: { id: userId },
       },
     });
     return count > 0;
   }
 
-  async hasMVPGuess(stageName: string, userId: string): Promise<boolean> {
+  async hasMVPGuess(
+    stageName: string,
+    userId: string,
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
+  ): Promise<boolean> {
     const count = await this.mvpGuessRepository.count({
       where: {
-        stage: { name: stageName },
+        stage: { name: stageName, tournament: { id: tournamentId } },
         createdBy: { id: userId },
       },
     });

@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConsoleLogger,
   ForbiddenException,
   forwardRef,
   Inject,
@@ -98,6 +97,31 @@ export class SeriesService {
 
   async getAllSeries(): Promise<Series[]> {
     return await this.seriesRepository.getAllSeries();
+  }
+
+  /** tournamentId per series (null when series has no tournament). */
+  async getTournamentIdsForSeriesIds(
+    seriesIds: string[],
+  ): Promise<Record<string, string | null>> {
+    if (seriesIds.length === 0) {
+      return {};
+    }
+    const rows = await this.seriesRepository
+      .createQueryBuilder('series')
+      .select('series.id', 'id')
+      .addSelect('series.tournamentId', 'tournamentId')
+      .where('series.id IN (:...ids)', { ids: seriesIds })
+      .getRawMany();
+
+    const out: Record<string, string | null> = {};
+    for (const r of rows) {
+      const id = r.id ?? r.series_id;
+      const tid = r.tournamentId ?? r.tournamentid ?? null;
+      if (id) {
+        out[id] = tid;
+      }
+    }
+    return out;
   }
   parsePostgresArray(str: string): MatchupCategory[] {
     if (!str.startsWith('{') || !str.endsWith('}'))
@@ -1330,41 +1354,36 @@ export class SeriesService {
   async checkIfUserGuessedAll(
     user: User,
     tournamentId?: string,
+    seriesIds?: string[],
   ): Promise<{ [seriesId: string]: boolean }> {
     try {
-      const bestOf7GuessIds = new Set(
-        (await this.bestOf7GuessService.getGuessesByUser(user.id)).map(
-          (g) => g.betId,
-        ),
-      );
-
-      const matchupGuessIds = new Set(
-        (await this.playerMatchupGuessService.getGuessesByUser(user.id)).map(
-          (g) => g.betId,
-        ),
-      );
-
-      const spontaneousGuessIds = new Set(
-        (await this.spontaneousGuessService.getGuessesByUser(user.id)).map(
-          (g) => g.betId,
-        ),
-      );
-
-      const [bestOf7, matchupBets, spontaneous] = await Promise.all([
-        this.bestOf7BetService.getAllBets(),
-        // this.teamWinBetService.getActiveBets(),
-        this.playerMatcupBetService.getAllBets(),
-        this.spontaneousBetService.getAllBets(),
+      const [
+        bestOf7Guesses,
+        matchupGuesses,
+        spontaneousGuesses,
+        scopedSeriesIds,
+      ] = await Promise.all([
+        this.bestOf7GuessService.getGuessesByUser(user.id),
+        this.playerMatchupGuessService.getGuessesByUser(user.id),
+        this.spontaneousGuessService.getGuessesByUser(user.id),
+        this.resolveSeriesIdsForGuessCheck(tournamentId, seriesIds),
       ]);
 
-      const validSeriesIds =
-        tournamentId != null
-          ? new Set(
-              Object.keys(
-                await this.getSeriesNamesIdsAndTournament(tournamentId),
-              ),
-            )
-          : null;
+      if (scopedSeriesIds.length === 0) {
+        return {};
+      }
+
+      const [bestOf7, matchupBets, spontaneous] = await Promise.all([
+        this.bestOf7BetService.getBySeriesIds(scopedSeriesIds),
+        this.playerMatcupBetService.getBySeriesIds(scopedSeriesIds),
+        this.spontaneousBetService.getBySeriesIds(scopedSeriesIds),
+      ]);
+
+      const bestOf7GuessIds = new Set(bestOf7Guesses.map((g) => g.betId));
+      const matchupGuessIds = new Set(matchupGuesses.map((g) => g.betId));
+      const spontaneousGuessIds = new Set(
+        spontaneousGuesses.map((g) => g.betId),
+      );
 
       const betsBySeries: {
         [seriesId: string]: {
@@ -1374,13 +1393,16 @@ export class SeriesService {
           spontaneous: string[];
         };
       } = {};
+      const getSeriesId = (bet: { seriesId?: string; seriesid?: string }) =>
+        bet.seriesId ?? bet.seriesid ?? '';
 
       // Organize bets per series
       for (const bet of bestOf7) {
-        if (validSeriesIds && !validSeriesIds.has(bet.seriesId)) continue;
-        if (!betsBySeries[bet.seriesId])
-          betsBySeries[bet.seriesId] = { matchup: [], spontaneous: [] };
-        betsBySeries[bet.seriesId].bestOf7 = bet.id;
+        const seriesId = getSeriesId(bet);
+        if (!seriesId) continue;
+        if (!betsBySeries[seriesId])
+          betsBySeries[seriesId] = { matchup: [], spontaneous: [] };
+        betsBySeries[seriesId].bestOf7 = bet.id;
       }
 
       // for (const bet of teamWin) {
@@ -1390,17 +1412,19 @@ export class SeriesService {
       // }
 
       for (const bet of matchupBets) {
-        if (validSeriesIds && !validSeriesIds.has(bet.seriesId)) continue;
-        if (!betsBySeries[bet.seriesId])
-          betsBySeries[bet.seriesId] = { matchup: [], spontaneous: [] };
-        betsBySeries[bet.seriesId].matchup.push(bet.id);
+        const seriesId = getSeriesId(bet);
+        if (!seriesId) continue;
+        if (!betsBySeries[seriesId])
+          betsBySeries[seriesId] = { matchup: [], spontaneous: [] };
+        betsBySeries[seriesId].matchup.push(bet.id);
       }
 
       for (const bet of spontaneous) {
-        if (validSeriesIds && !validSeriesIds.has(bet.seriesId)) continue;
-        if (!betsBySeries[bet.seriesId])
-          betsBySeries[bet.seriesId] = { matchup: [], spontaneous: [] };
-        betsBySeries[bet.seriesId].spontaneous.push(bet.id);
+        const seriesId = getSeriesId(bet);
+        if (!seriesId) continue;
+        if (!betsBySeries[seriesId])
+          betsBySeries[seriesId] = { matchup: [], spontaneous: [] };
+        betsBySeries[seriesId].spontaneous.push(bet.id);
       }
 
       // Check if all bets are guessed
@@ -1432,6 +1456,26 @@ export class SeriesService {
         `Could not verify complete guesses for user ${user.username}`,
       );
     }
+  }
+
+  private async resolveSeriesIdsForGuessCheck(
+    tournamentId?: string,
+    seriesIds?: string[],
+  ): Promise<string[]> {
+    if (seriesIds !== undefined) {
+      return [...new Set(seriesIds)];
+    }
+
+    const qb = this.seriesRepository
+      .createQueryBuilder('series')
+      .select('series.id', 'id');
+
+    if (tournamentId) {
+      qb.where('series.tournamentId = :tournamentId', { tournamentId });
+    }
+
+    const rows = await qb.getRawMany<{ id: string }>();
+    return rows.map((row) => row.id).filter(Boolean);
   }
 
   // async checkIfUserGuessedAll(user: User): Promise<{ [key: string]: boolean }> {
@@ -1795,6 +1839,10 @@ export class SeriesService {
       );
     }
   }
+  /**
+   * Series + teams + tournament + best-of-7 + team-win only (no matchup/spontaneous collections).
+   * Matchup and spontaneous bets are loaded separately to avoid a Cartesian product in SQL.
+   */
   async getAllSeriesNoGuesses(tournamentId?: string): Promise<Series[]> {
     const query = this.seriesRepository
       .createQueryBuilder('series')
@@ -1803,8 +1851,6 @@ export class SeriesService {
       .leftJoinAndSelect('series.team2Relation', 'team2Relation')
       .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
       .leftJoinAndSelect('series.teamWinBetId', 'teamWinBet')
-      .leftJoinAndSelect('series.playerMatchupBets', 'matchup')
-      .leftJoinAndSelect('series.spontaneousBets', 'spontaneous')
       .select([
         'series.id',
         'series.conference',
@@ -1832,31 +1878,6 @@ export class SeriesService {
         'teamWinBet.id',
         'teamWinBet.result',
         'teamWinBet.fantasyPoints',
-
-        // PlayerMatchupBets (no guesses)
-        'matchup.id',
-        'matchup.result',
-        'matchup.typeOfMatchup',
-        'matchup.categories',
-        'matchup.fantasyPoints',
-        'matchup.player1',
-        'matchup.player2',
-        'matchup.differential',
-        'matchup.currentStats',
-        'matchup.playerGames',
-
-        // SpontaneousBets (no guesses)
-        'spontaneous.id',
-        'spontaneous.result',
-        'spontaneous.typeOfMatchup',
-        'spontaneous.categories',
-        'spontaneous.fantasyPoints',
-        'spontaneous.player1',
-        'spontaneous.player2',
-        'spontaneous.differential',
-        'spontaneous.currentStats',
-        'spontaneous.playerGames',
-        'spontaneous.startTime',
       ]);
 
     if (tournamentId) {
@@ -1907,6 +1928,55 @@ export class SeriesService {
 
     try {
       const series = await this.getAllSeriesNoGuesses(tournamentId);
+      if (series.length === 0) {
+        return {};
+      }
+
+      const seriesIds = series.map((s) => s.id);
+      const [allMatchups, allSpontaneous] = await Promise.all([
+        this.playerMatcupBetService.getBySeriesIds(seriesIds),
+        this.spontaneousBetService.getBySeriesIds(seriesIds),
+      ]);
+
+      const matchupMap = new Map<string, PlayerMatchupBet[]>();
+      for (const bet of allMatchups) {
+        const categoriesArray =
+          typeof bet.categories === 'string'
+            ? this.parsePostgresArray(bet.categories)
+            : Array.isArray(bet.categories)
+              ? bet.categories
+              : [];
+        const seriesId =
+          (bet as PlayerMatchupBet & { seriesid?: string }).seriesId ??
+          (bet as PlayerMatchupBet & { seriesid?: string }).seriesid;
+        if (!seriesId) continue;
+        const mappedBet = {
+          ...bet,
+          categories: categoriesArray,
+        };
+        if (!matchupMap.has(seriesId)) matchupMap.set(seriesId, []);
+        matchupMap.get(seriesId)!.push(mappedBet);
+      }
+
+      const spontaneousMap = new Map<string, SpontaneousBet[]>();
+      for (const bet of allSpontaneous) {
+        const categoriesArray =
+          typeof bet.categories === 'string'
+            ? this.parsePostgresArray(bet.categories)
+            : Array.isArray(bet.categories)
+              ? bet.categories
+              : [];
+        const seriesId =
+          (bet as SpontaneousBet & { seriesid?: string }).seriesId ??
+          (bet as SpontaneousBet & { seriesid?: string }).seriesid;
+        if (!seriesId) continue;
+        const mappedBet = {
+          ...bet,
+          categories: categoriesArray,
+        };
+        if (!spontaneousMap.has(seriesId)) spontaneousMap.set(seriesId, []);
+        spontaneousMap.get(seriesId)!.push(mappedBet);
+      }
 
       series.forEach((s) => {
         bettingData[s.id] = {
@@ -1928,10 +1998,12 @@ export class SeriesService {
             ...s.teamWinBetId,
           },
 
-          playerMatchupBets: s.playerMatchupBets.map((bet) => ({
+          playerMatchupBets: (matchupMap.get(s.id) ?? []).map((bet) => ({
             ...bet,
           })),
-          spontaneousBets: s.spontaneousBets.map((bet) => ({ ...bet })),
+          spontaneousBets: (spontaneousMap.get(s.id) ?? []).map((bet) => ({
+            ...bet,
+          })),
         };
       });
       return bettingData;

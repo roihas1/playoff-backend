@@ -30,7 +30,7 @@ export class UserMissingBetsService {
   }> {
     try {
       const missingBets = await this.userMissingBetsRepository.find({
-        where: { user },
+        where: { user: { id: user.id } },
       });
 
       const result: {

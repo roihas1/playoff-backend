@@ -4,6 +4,7 @@ import {
   Get,
   Logger,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -56,19 +57,29 @@ export class PlayoffsStageController {
     return await this.playoffsStageService.getAllPlayoffsStages();
   }
   @Get('/plain')
-  async getPlainPlayoffStages(@GetUser() user: User): Promise<PlayoffStage[]> {
+  async getPlainPlayoffStages(
+    @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
+  ): Promise<PlayoffStage[]> {
     this.logger.log(`User ${user.username} requested plain playoff stages`);
-    return await this.playoffsStageService.getPlainPlayoffsStages();
+    return await this.playoffsStageService.getPlainPlayoffsStages(tournamentId);
   }
   @Get('/checkGuess')
   async checkGuess(
     @Query('stage') stage: PlayoffsStage,
     @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
   ): Promise<boolean> {
     this.logger.verbose(
       `User: ${user.username} checking if he has guessed already.`,
     );
-    const check = await this.playoffsStageService.checkGuess(stage, user);
+    const check = await this.playoffsStageService.checkGuess(
+      stage,
+      user,
+      tournamentId,
+    );
     return !check;
   }
   @Post()

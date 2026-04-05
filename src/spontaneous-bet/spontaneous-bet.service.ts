@@ -33,6 +33,9 @@ export class SpontaneousBetService {
     }
   }
   async getBySeriesIds(seriesIds: string[]): Promise<SpontaneousBet[]> {
+    if (seriesIds.length === 0) {
+      return [];
+    }
     return this.spontaneousBetRepo
       .createQueryBuilder('bet')
       .select([

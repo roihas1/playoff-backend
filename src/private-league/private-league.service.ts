@@ -5,6 +5,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { PrivateLeagueRepository } from './private-league.repository';
 import { CreatePrivateLeagueDto } from './dto/CreatePrivateLeagueDto';
 import { User } from 'src/auth/user.entity';
@@ -13,6 +15,7 @@ import { JoinLeagueDto } from './dto/join-league.dto';
 import { AuthService } from 'src/auth/auth.service';
 import { RemoveUsersDto } from './dto/remove-users.dto';
 import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
+import { Tournament } from 'src/tournament/tournament.entity';
 
 @Injectable()
 export class PrivateLeagueService {
@@ -20,6 +23,8 @@ export class PrivateLeagueService {
   constructor(
     private privateLeagueRepo: PrivateLeagueRepository,
     private authService: AuthService,
+    @InjectRepository(Tournament)
+    private tournamentRepo: Repository<Tournament>,
   ) {}
 
   async createPrivateLeague(
@@ -27,15 +32,29 @@ export class PrivateLeagueService {
     user: User,
   ): Promise<PrivateLeague> {
     try {
+      const tournamentId =
+        createPrivateLeagueDto.tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+      const tournamentExists = await this.tournamentRepo.exist({
+        where: { id: tournamentId },
+      });
+      if (!tournamentExists) {
+        throw new NotFoundException(
+          `Tournament with id: ${tournamentId} was not found.`,
+        );
+      }
       const league = await this.privateLeagueRepo.create({
         name: createPrivateLeagueDto.name,
         users: [user],
         admin: user,
+        tournament: { id: tournamentId },
       });
       const savedLeague = await this.privateLeagueRepo.save(league);
       this.logger.verbose(`Private league created.`);
       return savedLeague;
     } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
       this.logger.error(
         `Failed to create private league by: ${user} ${error.stack}`,
       );
@@ -92,9 +111,15 @@ export class PrivateLeagueService {
       throw new InternalServerErrorException(`Failed to join private league`);
     }
   }
-  async getUserLeagues(user: User): Promise<PrivateLeague[]> {
+  async getUserLeagues(
+    user: User,
+    tournamentId?: string,
+  ): Promise<PrivateLeague[]> {
     try {
-      const leagues = await this.authService.getAllUserLeagues(user);
+      const leagues = await this.authService.getAllUserLeagues(
+        user,
+        tournamentId,
+      );
       return leagues;
     } catch (error) {
       this.logger.error(
@@ -120,7 +145,22 @@ export class PrivateLeagueService {
     }[]
   > {
     try {
-      const tid = tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+      let tid: string;
+      if (tournamentId) {
+        tid = tournamentId;
+      } else {
+        const leagueEntity = await this.privateLeagueRepo.findOne({
+          where: { id: leagueId },
+          relations: ['tournament'],
+        });
+        if (!leagueEntity) {
+          this.logger.error(`League with id: ${leagueId} was not found.`);
+          throw new NotFoundException(
+            `League with id: ${leagueId} was not found.`,
+          );
+        }
+        tid = leagueEntity.tournament.id;
+      }
       const rawUsers = await this.privateLeagueRepo
         .createQueryBuilder('league')
         .leftJoin('league.users', 'user')
@@ -150,6 +190,9 @@ export class PrivateLeagueService {
 
       return users;
     } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
       this.logger.error(
         `Failed to get all users for league:${leagueId}`,
         error.stack,

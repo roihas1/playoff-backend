@@ -66,6 +66,9 @@ export class BestOf7BetService {
       seriesId: string;
     }[]
   > {
+    if (seriesIds.length === 0) {
+      return [];
+    }
     return await this.bestOf7BetRepository
       .createQueryBuilder('bet')
       .leftJoin('bet.series', 'series')

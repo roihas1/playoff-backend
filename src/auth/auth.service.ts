@@ -17,7 +17,6 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ConfigService } from '@nestjs/config';
 import { Role } from './user-role.enum';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
-import { PrivateLeague } from 'src/private-league/private-league.entity';
 import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
 import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
@@ -391,21 +390,31 @@ export class AuthService {
     return await this.signUp(googleUser);
   }
 
-  async getAllUserLeagues(user: User): Promise<any[]> {
+  async getAllUserLeagues(user: User, tournamentId?: string): Promise<any[]> {
     try {
-      const leagues = await this.usersRepository
+      const qb = this.usersRepository
         .createQueryBuilder('user')
         .leftJoin('user.privateLeagues', 'league')
         .leftJoin('league.admin', 'admin')
-        .select(['league.id', 'league.name', 'league.code', 'admin.id'])
-        .where('user.id = :userId', { userId: user.id })
-        .getRawMany();
+        .select([
+          'league.id',
+          'league.name',
+          'league.code',
+          'league.tournamentId',
+          'admin.id',
+        ])
+        .where('user.id = :userId', { userId: user.id });
+      if (tournamentId) {
+        qb.andWhere('league.tournamentId = :tournamentId', { tournamentId });
+      }
+      const leagues = await qb.getRawMany();
 
       // Convert raw results to desired format
       const result = leagues.map((row) => ({
         id: row.league_id,
         name: row.league_name,
         code: row.league_code,
+        tournamentId: row.league_tournamentId,
         admin: { id: row.admin_id },
       }));
 

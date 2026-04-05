@@ -44,17 +44,31 @@ export class UserSeriesPointsService {
         existingMap.set(entry.seriesId, entry);
       }
 
+      const tournamentBySeries =
+        await this.seriesService.getTournamentIdsForSeriesIds(
+          Object.keys(seriesPoints),
+        );
+
       const toSave = [];
 
       for (const [seriesId, points] of Object.entries(seriesPoints)) {
+        const tournamentIdForSeries = tournamentBySeries[seriesId] ?? null;
+        const tournamentRef = tournamentIdForSeries
+          ? ({ id: tournamentIdForSeries } as any)
+          : null;
+
         const existing = existingMap.get(seriesId);
         if (existing) {
-          existing.points = points;
-          toSave.push(existing);
+          toSave.push({
+            id: existing.id,
+            points,
+            tournament: tournamentRef,
+          } as UserSeriesPoints);
         } else {
           const newEntry = this.userSeriesPointsRepository.create({
             user: { id: userId } as any,
             series: { id: seriesId } as any,
+            tournament: tournamentRef,
             points,
           });
           toSave.push(newEntry);
@@ -90,14 +104,22 @@ export class UserSeriesPointsService {
     }
   }
 
-  async findByUserId(userId: string): Promise<{ [seriesId: string]: number }> {
+  async findByUserId(
+    userId: string,
+    tournamentId?: string,
+  ): Promise<{ [seriesId: string]: number }> {
     try {
-      const entries = await this.userSeriesPointsRepository
+      const qb = this.userSeriesPointsRepository
         .createQueryBuilder('usp')
         .select(['usp.points AS points', 'series.id AS seriesId'])
         .innerJoin('usp.series', 'series')
-        .where('usp.userId = :userId', { userId })
-        .getRawMany();
+        .where('usp.userId = :userId', { userId });
+
+      if (tournamentId != null) {
+        qb.andWhere('series.tournamentId = :tournamentId', { tournamentId });
+      }
+
+      const entries = await qb.getRawMany();
       const result: { [seriesId: string]: number } = {};
 
       for (const entry of entries) {

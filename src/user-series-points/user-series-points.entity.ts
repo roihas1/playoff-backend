@@ -5,9 +5,11 @@ import {
   Column,
   ManyToOne,
   Unique,
+  JoinColumn,
 } from 'typeorm';
 import { User } from 'src/auth/user.entity';
 import { Series } from 'src/series/series.entity';
+import { Tournament } from 'src/tournament/tournament.entity';
 
 @Entity()
 @Unique(['user', 'series'])
@@ -23,6 +25,10 @@ export class UserSeriesPoints {
     onDelete: 'CASCADE',
   })
   series: Series;
+
+  @ManyToOne(() => Tournament, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'tournamentId' })
+  tournament: Tournament | null;
 
   @Column()
   points: number;

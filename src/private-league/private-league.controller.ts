@@ -55,11 +55,15 @@ export class PrivateLeagueController {
     return await this.privateLeagueService.joinLeague(joinLeagueDto, user);
   }
   @Get()
-  async getUserLeagues(@GetUser() user: User): Promise<PrivateLeague[]> {
+  async getUserLeagues(
+    @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
+  ): Promise<PrivateLeague[]> {
     this.logger.verbose(
       `User: ${user.username} attempting to get all his private leagues.`,
     );
-    return await this.privateLeagueService.getUserLeagues(user);
+    return await this.privateLeagueService.getUserLeagues(user, tournamentId);
   }
   @Get('/:leagueId/users')
   async getAllUsersForLeague(
