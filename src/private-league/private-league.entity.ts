@@ -1,9 +1,11 @@
 import { randomBytes } from 'crypto';
 import { User } from 'src/auth/user.entity';
+import { Tournament } from 'src/tournament/tournament.entity';
 import {
   BeforeInsert,
   Column,
   Entity,
+  JoinColumn,
   JoinTable,
   ManyToMany,
   ManyToOne,
@@ -33,6 +35,10 @@ export class PrivateLeague {
     nullable: false,
   })
   admin: User;
+
+  @ManyToOne(() => Tournament, (t) => t.privateLeagues, { nullable: false })
+  @JoinColumn({ name: 'tournamentId' })
+  tournament: Tournament;
 
   @BeforeInsert()
   generateCode() {

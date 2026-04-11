@@ -1,14 +1,22 @@
 // controllers/NbaController.ts
-import { Controller, Get, Post, Body, Query, Param,UseGuards,Logger } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  Param,
+  UseGuards,
+  Logger,
+} from '@nestjs/common';
 import { NbaStatisticsService } from '../services/NbaStatisticsService';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
-
 
 @Controller('api/nba')
 @UseGuards(JwtAuthGuard)
 export class NbaController {
   private readonly logger = new Logger('NbaController', { timestamp: true });
-  
+
   // ב-NestJS מזריקים את הסרוויס בבנאי (Dependency Injection) במקום לעשות new
   constructor(private readonly service: NbaStatisticsService) {}
 
@@ -22,7 +30,7 @@ export class NbaController {
   @Get('team-stats')
   async getTeamPlayerStats(
     @Query('teamId') teamId: string,
-    @Query('season') season: string
+    @Query('season') season: string,
   ) {
     return this.service.fetchTeamPlayerStats(teamId, season);
   }
@@ -45,7 +53,7 @@ export class NbaController {
   @Get('player/:id/season')
   async getPlayerSeasonStats(
     @Param('id') id: string,
-    @Query('season') season: string
+    @Query('season') season: string,
   ) {
     return this.service.fetchPlayerSeasonStats(id, season);
   }

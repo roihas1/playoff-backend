@@ -12,9 +12,8 @@ import { BestOf7Bet } from './bestOf7.entity';
 import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFantasyPointsDto } from './dto/update-fantasy-points.dto';
 import { SeriesService } from 'src/series/series.service';
-import { AuthService } from 'src/auth/auth.service';
 import { UpdateGameDto } from '../series/dto/update-game.dto';
-import { User } from 'src/auth/user.entity';
+import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
 import { BestOf7GuessService } from 'src/best-of7-guess/best-of7-guess.service';
 import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 
@@ -25,8 +24,8 @@ export class BestOf7BetService {
     private bestOf7BetRepository: BestOf7BetRepository,
     @Inject(forwardRef(() => SeriesService))
     private seriesService: SeriesService,
-    @Inject(forwardRef(() => AuthService))
-    private usersService: AuthService,
+    @Inject(forwardRef(() => UserSeriesPointsService))
+    private userSeriesPointsService: UserSeriesPointsService,
     @Inject(forwardRef(() => BestOf7GuessService))
     private bestOf7GuessService: BestOf7GuessService,
   ) {}
@@ -66,6 +65,9 @@ export class BestOf7BetService {
       seriesId: string;
     }[]
   > {
+    if (seriesIds.length === 0) {
+      return [];
+    }
     return await this.bestOf7BetRepository
       .createQueryBuilder('bet')
       .leftJoin('bet.series', 'series')
@@ -191,15 +193,15 @@ export class BestOf7BetService {
     try {
       const savedBet = await this.bestOf7BetRepository.save(bet);
       this.logger.verbose(`BestOf7 Bet with ID "${id}" successfully updated.`);
+      const userIds = new Set(
+        savedBet.guesses
+          .map((g) => g.createdBy?.id ?? g.createdById)
+          .filter(Boolean),
+      );
       await Promise.all(
-        savedBet.guesses.map(async (guess) => {
-          if (guess.guess === savedBet.result) {
-            await this.usersService.updateFantasyPoints(
-              guess.createdBy,
-              savedBet.fantasyPoints,
-            );
-          }
-        }),
+        [...userIds].map((userId) =>
+          this.userSeriesPointsService.updatePointsForUser(userId),
+        ),
       );
       return savedBet;
     } catch (error) {
@@ -284,11 +286,7 @@ export class BestOf7BetService {
     }
   }
 
-  async updateGame(
-    id: string,
-    updateGame: UpdateGameDto,
-    user: User,
-  ): Promise<void> {
+  async updateGame(id: string, updateGame: UpdateGameDto): Promise<void> {
     const bet = await this.getBestOf7betById(id);
     const { teamWon } = updateGame;
     bet.seriesScore[teamWon - 1] += 1;

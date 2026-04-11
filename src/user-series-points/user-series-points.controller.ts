@@ -4,9 +4,10 @@ import {
   Param,
   NotFoundException,
   UseGuards,
-  Post,
   Patch,
   Logger,
+  Query,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { UserSeriesPointsService } from './user-series-points.service';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
@@ -31,11 +32,15 @@ export class UserSeriesPointsController {
   }
 
   @Get('/user')
-  async getPointsForUser(@GetUser() user: User) {
+  async getPointsForUser(
+    @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
+  ) {
     this.logger.verbose(
       `Attempting to fetch series points for user: ${user.username}`,
     );
-    return this.userSeriesPointsService.findByUserId(user.id);
+    return this.userSeriesPointsService.findByUserId(user.id, tournamentId);
   }
 
   @Get('/series/:seriesId')

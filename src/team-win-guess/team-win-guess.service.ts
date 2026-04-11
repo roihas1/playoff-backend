@@ -29,7 +29,7 @@ export class TeamWinGuessService {
 
     const found = await this.teamWinGuessRepository.findOne({
       where: {
-        createdBy: user,
+        createdBy: { id: user.id },
         bet: { id: teamWinBetId }, // this works
       },
     });
@@ -89,7 +89,7 @@ export class TeamWinGuessService {
   ): Promise<TeamWinGuess> {
     // const bet = await this.teamWinBetService.getTeamWinBetById(id);
     const found = await this.teamWinGuessRepository.findOne({
-      where: { createdBy: user, bet: teamWinBet },
+      where: { createdBy: { id: user.id }, bet: teamWinBet },
       relations: ['bet', 'createdBy'],
     });
     if (!found) {

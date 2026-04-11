@@ -17,12 +17,12 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ConfigService } from '@nestjs/config';
 import { Role } from './user-role.enum';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
-import { PrivateLeague } from 'src/private-league/private-league.entity';
 import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
 import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
 import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
 import { UserInitializationService } from 'src/user-initialization/user-initialization.service';
+import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 
 @Injectable()
 export class AuthService {
@@ -88,8 +88,10 @@ export class AuthService {
     const user = await this.usersRepository.findOne({ where: { username } });
 
     if (!user) {
-      this.logger.error(`User "${username}" not found.`);
-      throw new NotFoundException(`User "${username}" not found.`);
+      this.logger.warn(
+        `Sign-in failed for user "${username}" due to invalid credentials.`,
+      );
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -112,17 +114,16 @@ export class AuthService {
     );
     return { accessToken, expiresIn, userRole: user.role, username };
   }
-  async logout(username: string): Promise<void> {
-    try {
-      const found = await this.usersRepository.findOne({
-        where: { username: username },
-      });
-      found.isActive = false;
-      await this.usersRepository.save(found);
-      this.logger.verbose(`User "${username}" logout.`);
-    } catch (error) {
-      throw new NotFoundException(`User ${username} not found.`);
+  async logout(user: User): Promise<void> {
+    const found = await this.usersRepository.findOne({
+      where: { id: user.id },
+    });
+    if (!found) {
+      throw new NotFoundException(`User with id ${user.id} not found.`);
     }
+    found.isActive = false;
+    await this.usersRepository.save(found);
+    this.logger.verbose(`User "${found.username}" logout.`);
   }
   async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.usersRepository.findOne({ where: { id } });
@@ -172,7 +173,7 @@ export class AuthService {
       throw error;
     }
   }
-  async getAllUsersWithSelection(): Promise<
+  async getAllUsersWithSelection(tournamentId?: string): Promise<
     {
       id: string;
       username: string;
@@ -183,16 +184,9 @@ export class AuthService {
     }[]
   > {
     try {
-      const users = await this.usersRepository.find({
-        select: [
-          'id',
-          'username',
-          'firstName',
-          'lastName',
-          'fantasyPoints',
-          'championPoints',
-        ],
-      });
+      const tid = tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+      const users =
+        await this.usersRepository.getAllUsersWithTournamentPoints(tid);
       this.logger.verbose(`All users retrieved successfully.`);
       return users;
     } catch (error) {
@@ -216,10 +210,13 @@ export class AuthService {
     prevCursor?: { totalPoints: number; id: string },
     limit: number = 15,
     leagueId?: string,
+    tournamentId?: string,
   ) {
     try {
+      const tid = tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
       const response = await this.usersRepository.getUsersWithCursor(
         limit,
+        tid,
         cursor,
         prevCursor,
         leagueId,
@@ -231,43 +228,13 @@ export class AuthService {
     }
   }
 
-  async updateAllUsersTotalFantasyPoints(
-    pointsToUpdate: { id: string; points: number }[],
-  ): Promise<void> {
-    this.logger.log('Starting update of total fantasy points for all users...');
-    try {
-      await this.usersRepository.updateBulkFantasyPoints(pointsToUpdate);
-      this.logger.log('Updated total fantasy points for all users.');
-    } catch (error) {
-      this.logger.error(
-        `Failed to update total fantasy points for all users.`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        'Failed to update total fantasy points.',
-      );
-    }
-  }
-
-  async updateFantasyPoints(user: User, points: number): Promise<void> {
-    try {
-      await this.usersRepository.updateFantasyPoints(user, points);
-    } catch (error) {
-      this.logger.error(
-        `Failed to update fantasy points for user:${user.username}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
-
   /// Unfinished function, need to see if neccessary
   async checkIfGuessedForChampions(
     stage: PlayoffsStage,
     user: User,
   ): Promise<boolean> {
     try {
-      const foundUser = await this.usersRepository.getChampionsGuesses(user.id);
+      await this.usersRepository.getChampionsGuesses(user.id);
 
       return true;
     } catch (error) {
@@ -424,21 +391,31 @@ export class AuthService {
     return await this.signUp(googleUser);
   }
 
-  async getAllUserLeagues(user: User): Promise<any[]> {
+  async getAllUserLeagues(user: User, tournamentId?: string): Promise<any[]> {
     try {
-      const leagues = await this.usersRepository
+      const qb = this.usersRepository
         .createQueryBuilder('user')
         .leftJoin('user.privateLeagues', 'league')
         .leftJoin('league.admin', 'admin')
-        .select(['league.id', 'league.name', 'league.code', 'admin.id'])
-        .where('user.id = :userId', { userId: user.id })
-        .getRawMany();
+        .select([
+          'league.id',
+          'league.name',
+          'league.code',
+          'league.tournamentId',
+          'admin.id',
+        ])
+        .where('user.id = :userId', { userId: user.id });
+      if (tournamentId) {
+        qb.andWhere('league.tournamentId = :tournamentId', { tournamentId });
+      }
+      const leagues = await qb.getRawMany();
 
       // Convert raw results to desired format
       const result = leagues.map((row) => ({
         id: row.league_id,
         name: row.league_name,
         code: row.league_code,
+        tournamentId: row.league_tournamentId,
         admin: { id: row.admin_id },
       }));
 
@@ -474,16 +451,5 @@ export class AuthService {
       this.logger.error(`Failed to search for users. ${error.stack}`);
       throw new InternalServerErrorException(`Failed to search for users.`);
     }
-  }
-  async bulkUpdateChampionPoints(
-    updates: { userId: string; points: number }[],
-  ): Promise<void> {
-    const updatePromises = updates.map(({ userId, points }) =>
-      this.usersRepository.update(userId, {
-        championPoints: () => `"championPoints" + ${points}`,
-      }),
-    );
-
-    await Promise.all(updatePromises);
   }
 }

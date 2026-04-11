@@ -14,7 +14,8 @@ import { PlayoffStage } from 'src/playoffs-stage/playoffs-stage.entity';
 import { PlayoffsStageService } from 'src/playoffs-stage/playoffs-stage.service';
 import { Conference } from 'src/series/conference.enum';
 import { UpdateChamionGuessDto } from './dto/update-champ-guess.dto';
-import { AuthService } from 'src/auth/auth.service';
+import { UserTournamentPointsService } from 'src/user-tournament-points/user-tournament-points.service';
+import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 
 @Injectable()
 export class ChampionsGuessService {
@@ -27,8 +28,14 @@ export class ChampionsGuessService {
     @InjectRepository(MVPGuess)
     private mvpGuessRepository: Repository<MVPGuess>,
     private playoffsStageService: PlayoffsStageService,
-    private usersService: AuthService,
+    private readonly userTournamentPointsService: UserTournamentPointsService,
   ) {}
+
+  private tournamentIdFromGuessStage(
+    stage: { tournament?: { id: string } } | null | undefined,
+  ): string {
+    return stage?.tournament?.id ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+  }
 
   private async createChampTeamGuess(
     teamId: string,
@@ -40,7 +47,7 @@ export class ChampionsGuessService {
       const found = await this.championTeamGuessRepo.findOne({
         where: {
           stage,
-          createdBy: user,
+          createdBy: { id: user.id },
         },
       });
       if (!found) {
@@ -83,7 +90,7 @@ export class ChampionsGuessService {
     try {
       const found = await this.conferenceFinalGuessRepo.findOne({
         where: {
-          createdBy: user,
+          createdBy: { id: user.id },
           stage,
           conference,
         },
@@ -120,7 +127,7 @@ export class ChampionsGuessService {
   ): Promise<MVPGuess> {
     try {
       const found = await this.mvpGuessRepository.findOne({
-        where: { createdBy: user, stage },
+        where: { createdBy: { id: user.id }, stage },
       });
 
       if (!found) {
@@ -157,7 +164,7 @@ export class ChampionsGuessService {
       createChampGuessDto;
     try {
       const playoffsStage = await this.playoffsStageService.createPlayoffsStage(
-        { name: stage },
+        { name: stage, tournamentId: createChampGuessDto.tournamentId },
         user,
       );
       const champTeamNewGuess = await this.createChampTeamGuess(
@@ -210,7 +217,11 @@ export class ChampionsGuessService {
       updateChampionGuessDto;
     try {
       const playoffsStage = await this.playoffsStageService.createPlayoffsStage(
-        { name: stage, startDate: deadline },
+        {
+          name: stage,
+          startDate: deadline,
+          tournamentId: updateChampionGuessDto.tournamentId,
+        },
         user,
       );
       const newMVPGuess = await this.createMvpGuess(
@@ -298,8 +309,9 @@ export class ChampionsGuessService {
           }
         }
         if (fantasyPoints > 0) {
-          await this.usersService.updateFantasyPoints(
-            guess.createdBy,
+          await this.userTournamentPointsService.incrementFantasyPoints(
+            guess.createdBy.id,
+            this.tournamentIdFromGuessStage(guess.stage),
             fantasyPoints,
           );
         }
@@ -313,8 +325,9 @@ export class ChampionsGuessService {
     await Promise.all(
       guesses.map(async (guess) => {
         if (guess.teamRelation?.id === championTeamId) {
-          await this.usersService.updateFantasyPoints(
-            guess.createdBy,
+          await this.userTournamentPointsService.incrementFantasyPoints(
+            guess.createdBy.id,
+            this.tournamentIdFromGuessStage(guess.stage),
             guess.fantasyPoints,
           );
         }
@@ -328,8 +341,9 @@ export class ChampionsGuessService {
     await Promise.all(
       guesses.map(async (guess) => {
         if (guess.player === mvp) {
-          await this.usersService.updateFantasyPoints(
-            guess.createdBy,
+          await this.userTournamentPointsService.incrementFantasyPoints(
+            guess.createdBy.id,
+            this.tournamentIdFromGuessStage(guess.stage),
             guess.fantasyPoints,
           );
         }
@@ -339,10 +353,11 @@ export class ChampionsGuessService {
   async hasChampionTeamGuess(
     stageName: string,
     userId: string,
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
   ): Promise<boolean> {
     const count = await this.championTeamGuessRepo.count({
       where: {
-        stage: { name: stageName },
+        stage: { name: stageName, tournament: { id: tournamentId } },
         createdBy: { id: userId },
       },
     });
@@ -352,20 +367,25 @@ export class ChampionsGuessService {
   async hasConferenceFinalGuess(
     stageName: string,
     userId: string,
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
   ): Promise<boolean> {
     const count = await this.conferenceFinalGuessRepo.count({
       where: {
-        stage: { name: stageName },
+        stage: { name: stageName, tournament: { id: tournamentId } },
         createdBy: { id: userId },
       },
     });
     return count > 0;
   }
 
-  async hasMVPGuess(stageName: string, userId: string): Promise<boolean> {
+  async hasMVPGuess(
+    stageName: string,
+    userId: string,
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
+  ): Promise<boolean> {
     const count = await this.mvpGuessRepository.count({
       where: {
-        stage: { name: stageName },
+        stage: { name: stageName, tournament: { id: tournamentId } },
         createdBy: { id: userId },
       },
     });
@@ -376,17 +396,9 @@ export class ChampionsGuessService {
     try {
       const guesses = await this.mvpGuessRepository
         .createQueryBuilder('guess')
-        .leftJoin('guess.createdBy', 'createdBy')
-        .leftJoin('guess.stage', 'stage')
-        .select([
-          'guess.id',
-          'guess.player',
-          'guess.fantasyPoints',
-          'createdBy.id',
-          'stage.id',
-        ])
-        .addSelect('createdBy.id', 'guess_createdBy_id')
-        .addSelect('stage.id', 'guess_stage_id')
+        .leftJoinAndSelect('guess.createdBy', 'createdBy')
+        .leftJoinAndSelect('guess.stage', 'stage')
+        .leftJoinAndSelect('stage.tournament', 'stageTournament')
         .getMany();
 
       this.logger.verbose(`Retrieved ${guesses.length} MVP guesses.`);
@@ -404,23 +416,11 @@ export class ChampionsGuessService {
     try {
       const guesses = await this.conferenceFinalGuessRepo
         .createQueryBuilder('guess')
-        .leftJoin('guess.createdBy', 'createdBy')
-        .leftJoin('guess.stage', 'stage')
+        .leftJoinAndSelect('guess.createdBy', 'createdBy')
+        .leftJoinAndSelect('guess.stage', 'stage')
+        .leftJoinAndSelect('stage.tournament', 'stageTournament')
         .leftJoinAndSelect('guess.team1Relation', 'team1Relation')
         .leftJoinAndSelect('guess.team2Relation', 'team2Relation')
-        .select([
-          'guess.id',
-          'guess.conference',
-          'guess.fantasyPoints',
-          'createdBy.id',
-          'stage.id',
-          'team1Relation.id',
-          'team1Relation.name',
-          'team1Relation.abbreviation',
-          'team2Relation.id',
-          'team2Relation.name',
-          'team2Relation.abbreviation',
-        ])
         .getMany();
 
       this.logger.verbose(
@@ -442,18 +442,10 @@ export class ChampionsGuessService {
     try {
       const guesses = await this.championTeamGuessRepo
         .createQueryBuilder('guess')
-        .leftJoin('guess.createdBy', 'createdBy')
-        .leftJoin('guess.stage', 'stage')
+        .leftJoinAndSelect('guess.createdBy', 'createdBy')
+        .leftJoinAndSelect('guess.stage', 'stage')
+        .leftJoinAndSelect('stage.tournament', 'stageTournament')
         .leftJoinAndSelect('guess.teamRelation', 'teamRelation')
-        .select([
-          'guess.id',
-          'guess.fantasyPoints',
-          'createdBy.id',
-          'stage.id',
-          'teamRelation.id',
-          'teamRelation.name',
-          'teamRelation.abbreviation',
-        ])
         .getMany();
 
       this.logger.verbose(`Retrieved ${guesses.length} champion team guesses.`);

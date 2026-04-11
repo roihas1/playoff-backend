@@ -1,12 +1,22 @@
-import { Body, Controller, Logger, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Logger,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { PlayerMatchupGuessService } from './player-matchup-guess.service';
 import { CreatePlayerMatchupGuessDto } from './dto/create-player-matchup-guess.dto';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { PlayerMatchupGuess } from './player-matchup-guess.entity';
 import { User } from 'src/auth/user.entity';
 import { UpdateGuessDto } from './dto/update-guess.dto';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 
 @Controller('player-matchup-guess')
+@UseGuards(JwtAuthGuard)
 export class PlayerMatchupGuessController {
   private logger = new Logger('PlayerMatchupGuessController', {
     timestamp: true,

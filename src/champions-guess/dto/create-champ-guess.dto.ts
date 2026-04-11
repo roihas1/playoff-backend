@@ -1,3 +1,4 @@
+import { IsOptional, IsUUID } from 'class-validator';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 import { Conference } from 'src/series/conference.enum';
 
@@ -17,4 +18,8 @@ export class CreateChampGuessDto {
     fantasyPoints?: number;
   };
   stage: PlayoffsStage;
+
+  @IsUUID()
+  @IsOptional()
+  tournamentId?: string;
 }

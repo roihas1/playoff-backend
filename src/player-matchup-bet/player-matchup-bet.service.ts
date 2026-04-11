@@ -11,16 +11,16 @@ import { PlayerMatchupBet } from './player-matchup-bet.entity';
 import { UpdateResultDto } from './dto/update-result.dto';
 import { UpdateFieldsDto } from './dto/update-fields.dto';
 import { User } from 'src/auth/user.entity';
-import { AuthService } from 'src/auth/auth.service';
 import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
+import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
 
 @Injectable()
 export class PlayerMatchupBetService {
   private logger = new Logger('PlayerMatchupBetService', { timestamp: true });
   constructor(
     private playerMatchupBetRepository: PlayerMatchupBetRepository,
-    @Inject(forwardRef(() => AuthService))
-    private usersService: AuthService,
+    @Inject(forwardRef(() => UserSeriesPointsService))
+    private userSeriesPointsService: UserSeriesPointsService,
   ) {}
 
   async createPlayerMatchupBet(
@@ -32,6 +32,9 @@ export class PlayerMatchupBetService {
     );
   }
   async getBySeriesIds(seriesIds: string[]): Promise<PlayerMatchupBet[]> {
+    if (seriesIds.length === 0) {
+      return [];
+    }
     return this.playerMatchupBetRepository
       .createQueryBuilder('bet')
       .select([
@@ -94,15 +97,13 @@ export class PlayerMatchupBetService {
     try {
       const savedBet = await this.playerMatchupBetRepository.save(bet);
       this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
+      const userIds = new Set(
+        savedBet.guesses.map((g) => g.createdBy?.id).filter(Boolean),
+      );
       await Promise.all(
-        savedBet.guesses.map(async (guess) => {
-          if (guess.guess === savedBet.result) {
-            await this.usersService.updateFantasyPoints(
-              guess.createdBy,
-              savedBet.fantasyPoints,
-            );
-          }
-        }),
+        [...userIds].map((userId) =>
+          this.userSeriesPointsService.updatePointsForUser(userId),
+        ),
       );
       return savedBet;
     } catch (error) {

@@ -3,8 +3,8 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { AuthService } from 'src/auth/auth.service';
 import { User } from 'src/auth/user.entity';
+import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 import { PlayoffsStageService } from 'src/playoffs-stage/playoffs-stage.service';
 import { SeriesService } from 'src/series/series.service';
 import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
@@ -16,7 +16,6 @@ export class HomePageService {
   constructor(
     private readonly seriesService: SeriesService,
     private readonly userSeriesPointsService: UserSeriesPointsService,
-    private readonly authService: AuthService,
     private readonly playoffsStageService: PlayoffsStageService,
     // Add any other services you need
   ) {}
@@ -28,13 +27,18 @@ export class HomePageService {
     this.logger.verbose(`Loading homepage data for user: ${user.username}`);
 
     try {
-      const [userGuessedAll, seriesList, playoffsStages, userPoints] =
-        await Promise.all([
-          this.seriesService.checkIfUserGuessedAll(user, tournamentId),
-          this.seriesService.getSeriesForHomePage(tournamentId),
-          this.playoffsStageService.getPlainPlayoffsStages(),
-          this.userSeriesPointsService.findByUserId(user.id),
-        ]);
+      const [seriesList, playoffsStages, userPoints] = await Promise.all([
+        this.seriesService.getSeriesForHomePage(tournamentId),
+        this.playoffsStageService.getPlainPlayoffsStages(
+          tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID,
+        ),
+        this.userSeriesPointsService.findByUserId(user.id, tournamentId),
+      ]);
+      const userGuessedAll = await this.seriesService.checkIfUserGuessedAll(
+        user,
+        tournamentId,
+        seriesList.map((series) => series.id),
+      );
 
       this.logger.verbose(
         `Successfully loaded homepage data for ${user.username}`,

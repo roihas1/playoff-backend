@@ -1,4 +1,4 @@
-import { IsDateString, IsOptional } from 'class-validator';
+import { IsDateString, IsOptional, IsUUID } from 'class-validator';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 
 export class UpdateChamionGuessDto {
@@ -15,4 +15,8 @@ export class UpdateChamionGuessDto {
   @IsOptional()
   @IsDateString()
   deadline?: string;
+
+  @IsUUID()
+  @IsOptional()
+  tournamentId?: string;
 }

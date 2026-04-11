@@ -5,10 +5,12 @@ import {
   Get,
   Logger,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { PrivateLeagueService } from './private-league.service';
@@ -18,9 +20,11 @@ import { User } from 'src/auth/user.entity';
 import { CreatePrivateLeagueDto } from './dto/CreatePrivateLeagueDto';
 import { JoinLeagueDto } from './dto/join-league.dto';
 import { RemoveUsersDto } from './dto/remove-users.dto';
+import { MergeUserTournamentPointsInterceptor } from 'src/user-tournament-points/merge-user-tournament-points.interceptor';
 
 @Controller('private-league')
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(MergeUserTournamentPointsInterceptor)
 export class PrivateLeagueController {
   private logger = new Logger('PrivateLeagueController', {
     timestamp: true,
@@ -51,16 +55,22 @@ export class PrivateLeagueController {
     return await this.privateLeagueService.joinLeague(joinLeagueDto, user);
   }
   @Get()
-  async getUserLeagues(@GetUser() user: User): Promise<PrivateLeague[]> {
+  async getUserLeagues(
+    @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
+  ): Promise<PrivateLeague[]> {
     this.logger.verbose(
       `User: ${user.username} attempting to get all his private leagues.`,
     );
-    return await this.privateLeagueService.getUserLeagues(user);
+    return await this.privateLeagueService.getUserLeagues(user, tournamentId);
   }
   @Get('/:leagueId/users')
   async getAllUsersForLeague(
     @Param('leagueId') leagueId: string,
     @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
   ): Promise<
     {
       id: string;
@@ -74,7 +84,11 @@ export class PrivateLeagueController {
     this.logger.verbose(
       `User: ${user.username} attempting to get all users league.`,
     );
-    return await this.privateLeagueService.getAllUsersForLeague(leagueId);
+    return await this.privateLeagueService.getAllUsersForLeague(
+      leagueId,
+      user,
+      tournamentId,
+    );
   }
 
   @Patch('/:leagueId/:newName/updateName')
@@ -86,7 +100,11 @@ export class PrivateLeagueController {
     this.logger.verbose(
       `User: ${user.username} attempting to change league name`,
     );
-    return await this.privateLeagueService.updateLeagueName(leagueId, newName);
+    return await this.privateLeagueService.updateLeagueName(
+      leagueId,
+      newName,
+      user,
+    );
   }
   @Delete('/:leagueId')
   async deletePrivateLeague(
@@ -96,7 +114,7 @@ export class PrivateLeagueController {
     this.logger.verbose(
       `User: ${user.username} attempting to delete league: ${leagueId}`,
     );
-    return await this.privateLeagueService.deletePrivateLeague(leagueId);
+    return await this.privateLeagueService.deletePrivateLeague(leagueId, user);
   }
   @Patch('/:leagueId/removeUsers')
   async removeUsersFromLeague(
@@ -110,6 +128,7 @@ export class PrivateLeagueController {
     return await this.privateLeagueService.removeUsersFromLeague(
       removeUsersDto,
       leagueId,
+      user,
     );
   }
   @Patch('/:leagueId/leaveLeague')

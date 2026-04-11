@@ -1,23 +1,13 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Logger,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { Body, Controller, Logger, Post, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { User } from 'src/auth/user.entity';
 import { TeamWinGuess } from './team-win-guess.entity';
 import { CreateTeamWinGuessDto } from './dto/create-team-win-guess.dto';
 import { TeamWinGuessService } from './team-win-guess.service';
-import { UpdateGuessDto } from 'src/player-matchup-guess/dto/update-guess.dto';
 
 @Controller('team-win-guess')
-@UseGuards(AuthGuard())
+@UseGuards(JwtAuthGuard)
 export class TeamWinGuessController {
   private logger = new Logger('TeamWinGuessController', { timestamp: true });
   constructor(private teamWinGuessService: TeamWinGuessService) {}

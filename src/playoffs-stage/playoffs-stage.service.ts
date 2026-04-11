@@ -18,6 +18,8 @@ import { ChampionTeamGuess } from 'src/champions-guess/entities/champion-team-gu
 import { MVPGuess } from 'src/champions-guess/entities/mvp-guess.entity';
 import { PriorGuesses, PriorGuessesByStage } from './playoffs-stage.controller';
 import { AuthService } from 'src/auth/auth.service';
+import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
+import { UserTournamentPointsService } from 'src/user-tournament-points/user-tournament-points.service';
 
 @Injectable()
 export class PlayoffsStageService {
@@ -27,6 +29,7 @@ export class PlayoffsStageService {
     @Inject(forwardRef(() => ChampionsGuessService))
     private championGuessService: ChampionsGuessService,
     private authService: AuthService,
+    private readonly userTournamentPointsService: UserTournamentPointsService,
   ) {}
 
   async createPlayoffsStage(
@@ -36,9 +39,13 @@ export class PlayoffsStageService {
     this.logger.verbose(
       `User ${user.username} attempt to create PlayoffsStage ${createPlayoffsStageDto.name}.`,
     );
+    const tournamentId =
+      createPlayoffsStageDto.tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+
     const found = await this.playoffsStageRepo.findOne({
       where: {
         name: createPlayoffsStageDto.name,
+        tournament: { id: tournamentId },
       },
     });
     if (!found) {
@@ -46,6 +53,7 @@ export class PlayoffsStageService {
         createPlayoffsStageDto.name,
         createPlayoffsStageDto.startDate,
         createPlayoffsStageDto.timeOfStart,
+        tournamentId,
       );
     }
     if (createPlayoffsStageDto.startDate) {
@@ -59,10 +67,14 @@ export class PlayoffsStageService {
 
     return found;
   }
-  async getPlainPlayoffsStages(): Promise<PlayoffStage[]> {
+  async getPlainPlayoffsStages(
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
+  ): Promise<PlayoffStage[]> {
     try {
       const found = await this.playoffsStageRepo
         .createQueryBuilder('playoff-stage')
+        .leftJoinAndSelect('playoff-stage.tournament', 'tournament')
+        .where('playoff-stage.tournamentId = :tournamentId', { tournamentId })
         .getMany();
       this.logger.log(`Fetched ${found.length} playoff stages.`);
       return found;
@@ -80,12 +92,24 @@ export class PlayoffsStageService {
 
     return stages;
   }
-  async checkGuess(stageName: string, user: User): Promise<boolean> {
+  async checkGuess(
+    stageName: string,
+    user: User,
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
+  ): Promise<boolean> {
     try {
       const [hasChampion, hasConference, hasMVP] = await Promise.all([
-        this.championGuessService.hasChampionTeamGuess(stageName, user.id),
-        this.championGuessService.hasConferenceFinalGuess(stageName, user.id),
-        this.championGuessService.hasMVPGuess(stageName, user.id),
+        this.championGuessService.hasChampionTeamGuess(
+          stageName,
+          user.id,
+          tournamentId,
+        ),
+        this.championGuessService.hasConferenceFinalGuess(
+          stageName,
+          user.id,
+          tournamentId,
+        ),
+        this.championGuessService.hasMVPGuess(stageName, user.id, tournamentId),
       ]);
 
       if (stageName === 'Before playoffs') {
@@ -110,13 +134,22 @@ export class PlayoffsStageService {
         finals,
         championTeamId,
         mvp,
+        tournamentId = LEGACY_MIGRATION_TOURNAMENT_ID,
       } = closeGuessesDto;
 
-      const mvpGuesses = await this.championGuessService.getMVPGuesses();
-      const conferenceFinalGuesses =
-        await this.championGuessService.getConferenceFinalGuesses();
-      const championTeamGuesses =
-        await this.championGuessService.getChampionTeamGuesses();
+      const tournamentMatches = (guess: { stage?: PlayoffStage }) =>
+        (guess.stage?.tournament?.id ?? LEGACY_MIGRATION_TOURNAMENT_ID) ===
+        tournamentId;
+
+      const mvpGuesses = (
+        await this.championGuessService.getMVPGuesses()
+      ).filter(tournamentMatches);
+      const conferenceFinalGuesses = (
+        await this.championGuessService.getConferenceFinalGuesses()
+      ).filter(tournamentMatches);
+      const championTeamGuesses = (
+        await this.championGuessService.getChampionTeamGuesses()
+      ).filter(tournamentMatches);
       const users = await this.authService.getAllUsers();
 
       // Pre-filter guesses by conference
@@ -170,7 +203,15 @@ export class PlayoffsStageService {
         }
       }
 
-      await this.authService.bulkUpdateChampionPoints(updates);
+      await Promise.all(
+        updates.map(({ userId, points }) =>
+          this.userTournamentPointsService.incrementChampionPoints(
+            userId,
+            tournamentId,
+            points,
+          ),
+        ),
+      );
 
       this.logger.verbose('Champion guesses closed and points awarded');
     } catch (error) {

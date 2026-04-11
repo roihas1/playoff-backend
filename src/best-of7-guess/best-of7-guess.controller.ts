@@ -9,7 +9,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { BestOf7GuessService } from './best-of7-guess.service';
 import { CreateBestOf7GuessDto } from './dto/create-best-of7-guess.dto';
 import { GetUser } from 'src/auth/get-user.decorator';
@@ -17,7 +17,7 @@ import { User } from 'src/auth/user.entity';
 import { BestOf7Guess } from './best-of7-guess.entity';
 
 @Controller('best-of7-guess')
-@UseGuards(AuthGuard())
+@UseGuards(JwtAuthGuard)
 export class BestOf7GuessController {
   private logger = new Logger('BestOf7GuessController', { timestamp: true });
   constructor(private bestOf7GuessService: BestOf7GuessService) {}

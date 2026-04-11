@@ -17,6 +17,9 @@ export type TournamentInfoDto = {
 } | null;
 
 export class GetComparisonDataDto {
+  /** Tournament used for `allUsers` point columns and `currentUser` totals (via `tournamentId` query). */
+  tournamentId: string;
+
   allBets: {
     [seriesId: string]: {
       team1Id: string;

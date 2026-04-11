@@ -42,6 +42,7 @@ import { UserInitializationModule } from './user-initialization/user-initializat
 import { TournamentModule } from './tournament/tournament.module';
 import { TeamModule } from './team/team.module';
 import { CronModule } from './cron/cron.module';
+import { UserTournamentPointsModule } from './user-tournament-points/user-tournament-points.module';
 
 import { NbaController } from 'src/StatisticsApi/controllers/NbaController';
 import { NbaStatisticsService } from 'src/StatisticsApi/services/NbaStatisticsService';
@@ -92,8 +93,9 @@ import { NbaStatisticsService } from 'src/StatisticsApi/services/NbaStatisticsSe
     TournamentModule,
     TeamModule,
     CronModule,
+    UserTournamentPointsModule,
   ],
-  controllers: [AppController,NbaController],
+  controllers: [AppController, NbaController],
   providers: [
     AppLogger,
     AppService,

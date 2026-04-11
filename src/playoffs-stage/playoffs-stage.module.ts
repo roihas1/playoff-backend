@@ -6,12 +6,14 @@ import { PlayoffStage } from './playoffs-stage.entity';
 import { PlayoffsStageRepository } from './playoffs-stage.repository';
 import { ChampionsGuessModule } from 'src/champions-guess/champions-guess.module';
 import { AuthModule } from 'src/auth/auth.module';
+import { UserTournamentPointsModule } from 'src/user-tournament-points/user-tournament-points.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([PlayoffStage]),
     forwardRef(() => ChampionsGuessModule),
     AuthModule,
+    UserTournamentPointsModule,
   ],
   controllers: [PlayoffsStageController],
   providers: [PlayoffsStageService, PlayoffsStageRepository],

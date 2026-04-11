@@ -1,18 +1,24 @@
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { PrivateLeagueRepository } from './private-league.repository';
 import { CreatePrivateLeagueDto } from './dto/CreatePrivateLeagueDto';
 import { User } from 'src/auth/user.entity';
 import { PrivateLeague } from './private-league.entity';
 import { JoinLeagueDto } from './dto/join-league.dto';
-import { NotFoundError } from 'rxjs';
 import { AuthService } from 'src/auth/auth.service';
 import { RemoveUsersDto } from './dto/remove-users.dto';
+import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
+import { Tournament } from 'src/tournament/tournament.entity';
+import { Role } from 'src/auth/user-role.enum';
 
 @Injectable()
 export class PrivateLeagueService {
@@ -20,22 +26,68 @@ export class PrivateLeagueService {
   constructor(
     private privateLeagueRepo: PrivateLeagueRepository,
     private authService: AuthService,
+    @InjectRepository(Tournament)
+    private tournamentRepo: Repository<Tournament>,
   ) {}
+
+  private async loadLeagueWithMembers(
+    leagueId: string,
+  ): Promise<PrivateLeague | null> {
+    return this.privateLeagueRepo.findOne({
+      where: { id: leagueId },
+      relations: ['users', 'admin', 'tournament'],
+    });
+  }
+
+  private assertMemberOrAppAdmin(user: User, league: PrivateLeague): void {
+    if (user.role === Role.ADMIN) {
+      return;
+    }
+    const isMember = league.users?.some((u) => u.id === user.id);
+    if (!isMember) {
+      throw new ForbiddenException('You do not have access to this league.');
+    }
+  }
+
+  private assertLeagueAdminOrAppAdmin(user: User, league: PrivateLeague): void {
+    if (user.role === Role.ADMIN) {
+      return;
+    }
+    if (league.admin?.id !== user.id) {
+      throw new ForbiddenException(
+        'Only the league admin can perform this action.',
+      );
+    }
+  }
 
   async createPrivateLeague(
     createPrivateLeagueDto: CreatePrivateLeagueDto,
     user: User,
   ): Promise<PrivateLeague> {
     try {
+      const tournamentId =
+        createPrivateLeagueDto.tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+      const tournamentExists = await this.tournamentRepo.exist({
+        where: { id: tournamentId },
+      });
+      if (!tournamentExists) {
+        throw new NotFoundException(
+          `Tournament with id: ${tournamentId} was not found.`,
+        );
+      }
       const league = await this.privateLeagueRepo.create({
         name: createPrivateLeagueDto.name,
         users: [user],
         admin: user,
+        tournament: { id: tournamentId },
       });
       const savedLeague = await this.privateLeagueRepo.save(league);
       this.logger.verbose(`Private league created.`);
       return savedLeague;
     } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
       this.logger.error(
         `Failed to create private league by: ${user} ${error.stack}`,
       );
@@ -92,9 +144,15 @@ export class PrivateLeagueService {
       throw new InternalServerErrorException(`Failed to join private league`);
     }
   }
-  async getUserLeagues(user: User): Promise<PrivateLeague[]> {
+  async getUserLeagues(
+    user: User,
+    tournamentId?: string,
+  ): Promise<PrivateLeague[]> {
     try {
-      const leagues = await this.authService.getAllUserLeagues(user);
+      const leagues = await this.authService.getAllUserLeagues(
+        user,
+        tournamentId,
+      );
       return leagues;
     } catch (error) {
       this.logger.error(
@@ -106,7 +164,11 @@ export class PrivateLeagueService {
       );
     }
   }
-  async getAllUsersForLeague(leagueId: string): Promise<
+  async getAllUsersForLeague(
+    leagueId: string,
+    user: User,
+    tournamentId?: string,
+  ): Promise<
     {
       id: string;
       username: string;
@@ -117,22 +179,61 @@ export class PrivateLeagueService {
     }[]
   > {
     try {
-      const users = await this.privateLeagueRepo
+      const leagueEntity = await this.loadLeagueWithMembers(leagueId);
+      if (!leagueEntity) {
+        this.logger.error(`League with id: ${leagueId} was not found.`);
+        throw new NotFoundException(
+          `League with id: ${leagueId} was not found.`,
+        );
+      }
+      this.assertMemberOrAppAdmin(user, leagueEntity);
+      let tid: string;
+      if (tournamentId) {
+        if (tournamentId !== leagueEntity.tournament.id) {
+          throw new BadRequestException(
+            'tournamentId does not match this league.',
+          );
+        }
+        tid = tournamentId;
+      } else {
+        tid = leagueEntity.tournament.id;
+      }
+      const rawUsers = await this.privateLeagueRepo
         .createQueryBuilder('league')
         .leftJoin('league.users', 'user')
-        .select([
-          'user.id AS "id"',
-          'user.username AS "username"',
-          'user.firstName AS "firstName"',
-          'user.lastName AS "lastName"',
-          'user.fantasyPoints AS "fantasyPoints"',
-          'user.championPoints AS "championPoints"',
-        ])
+        .leftJoin(
+          'user.tournamentPoints',
+          'utp',
+          'utp.tournamentId = :tournamentId',
+          { tournamentId: tid },
+        )
+        .select('user.id', 'id')
+        .addSelect('user.username', 'username')
+        .addSelect('user.firstName', 'firstName')
+        .addSelect('user.lastName', 'lastName')
+        .addSelect('COALESCE(utp.fantasyPoints, 0)', 'scopedFantasy')
+        .addSelect('COALESCE(utp.championPoints, 0)', 'scopedChampion')
         .where('league.id = :leagueId', { leagueId })
         .getRawMany();
 
+      const users = rawUsers.map((raw) => ({
+        id: raw.id,
+        username: raw.username,
+        firstName: raw.firstName,
+        lastName: raw.lastName,
+        fantasyPoints: Number(raw.scopedFantasy ?? raw.scopedfantasy ?? 0),
+        championPoints: Number(raw.scopedChampion ?? raw.scopedchampion ?? 0),
+      }));
+
       return users;
     } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
       this.logger.error(
         `Failed to get all users for league:${leagueId}`,
         error.stack,
@@ -143,20 +244,29 @@ export class PrivateLeagueService {
     }
   }
 
-  async updateLeagueName(leagueId: string, newName: string): Promise<void> {
+  async updateLeagueName(
+    leagueId: string,
+    newName: string,
+    user: User,
+  ): Promise<void> {
     try {
-      const league = await this.privateLeagueRepo.findOne({
-        where: { id: leagueId },
-      });
+      const league = await this.loadLeagueWithMembers(leagueId);
       if (!league) {
         this.logger.error(`League with id: ${leagueId} was not found.`);
         throw new NotFoundException(
           `League with id: ${leagueId} was not found.`,
         );
       }
+      this.assertLeagueAdminOrAppAdmin(user, league);
       league.name = newName;
       await this.privateLeagueRepo.save(league);
     } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
       this.logger.error(
         `Failed to update league name for league:${leagueId}`,
         error.stack,
@@ -166,19 +276,24 @@ export class PrivateLeagueService {
       );
     }
   }
-  async deletePrivateLeague(leagueId: string): Promise<void> {
+  async deletePrivateLeague(leagueId: string, user: User): Promise<void> {
     try {
-      const league = await this.privateLeagueRepo.findOne({
-        where: { id: leagueId },
-      });
+      const league = await this.loadLeagueWithMembers(leagueId);
       if (!league) {
         this.logger.error(`League with id: ${leagueId} was not found.`);
         throw new NotFoundException(
           `League with id: ${leagueId} was not found.`,
         );
       }
+      this.assertLeagueAdminOrAppAdmin(user, league);
       await this.privateLeagueRepo.delete(league.id);
     } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
       this.logger.error(
         `Failed to delete league for league:${leagueId}`,
         error.stack,
@@ -191,24 +306,29 @@ export class PrivateLeagueService {
   async removeUsersFromLeague(
     removeUsersDto: RemoveUsersDto,
     leagueId: string,
+    user: User,
   ): Promise<void> {
     try {
-      const league = await this.privateLeagueRepo.findOne({
-        where: { id: leagueId },
-        relations: ['users'],
-      });
+      const league = await this.loadLeagueWithMembers(leagueId);
       if (!league) {
         this.logger.error(`League with id: ${leagueId} was not found.`);
         throw new NotFoundException(
           `League with id: ${leagueId} was not found.`,
         );
       }
+      this.assertLeagueAdminOrAppAdmin(user, league);
       const { users } = removeUsersDto;
       league.users = league.users.filter(
         (user) => !users.some((removeUser) => removeUser.id === user.id),
       );
       await this.privateLeagueRepo.save(league);
     } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
       this.logger.error(
         `Failed to remove users from league:${leagueId}`,
         error.stack,

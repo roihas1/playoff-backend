@@ -4,12 +4,14 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
   Req,
   Res,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
@@ -21,7 +23,6 @@ import { Logger } from '@nestjs/common';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { Role } from './user-role.enum';
-import { LogoutCredentialsDto } from './dto/logout-credentials.dto';
 import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 import { GoogleAuthGuard } from './google-auth/google-auth.guard';
 import { AppLogger } from 'src/logging/logger.service';
@@ -32,8 +33,10 @@ import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-gues
 import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
 import { RolesGuard } from './roles.guard';
 import { Roles } from './roles.decorator';
+import { MergeUserTournamentPointsInterceptor } from 'src/user-tournament-points/merge-user-tournament-points.interceptor';
 
 @Controller('auth')
+@UseInterceptors(MergeUserTournamentPointsInterceptor)
 export class AuthController {
   private logger = new Logger('AuthController', { timestamp: true });
 
@@ -66,14 +69,14 @@ export class AuthController {
   }
 
   @Patch('/logout')
-  // @UseGuards(JwtAuthGuard)
-  async logout(@Body() credentials: LogoutCredentialsDto): Promise<void> {
+  @UseGuards(JwtAuthGuard)
+  async logout(@GetUser() user: User): Promise<void> {
     this.logger.verbose(
-      `User loging out attempt with username: "${credentials.username}".`,
+      `User logout attempt for username: "${user.username}".`,
       'AuthController',
     );
 
-    return await this.authService.logout(credentials.username);
+    return await this.authService.logout(user);
   }
 
   @Patch()
@@ -104,7 +107,11 @@ export class AuthController {
   }
   @Get()
   @UseGuards(JwtAuthGuard)
-  async getAllUsers(@GetUser() user: User): Promise<
+  async getAllUsers(
+    @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
+  ): Promise<
     {
       id: string;
       username: string;
@@ -118,7 +125,7 @@ export class AuthController {
       `User with username: "${user.username}" is attempting to get all users.`,
       'AuthController',
     );
-    return await this.authService.getAllUsersWithSelection();
+    return await this.authService.getAllUsersWithSelection(tournamentId);
   }
   @Get('/search')
   @UseGuards(JwtAuthGuard)
@@ -143,6 +150,8 @@ export class AuthController {
     @Query('prevCursorId') prevCursorId?: string,
     @Query('limit') limit: number = 10,
     @Query('leagueId') leagueId?: string,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
   ) {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get paginated users with limit ${limit} and cursorId: ${cursorId}`,
@@ -158,6 +167,7 @@ export class AuthController {
         : undefined,
       limit,
       leagueId,
+      tournamentId,
     );
   }
 

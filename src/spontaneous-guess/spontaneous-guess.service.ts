@@ -27,7 +27,7 @@ export class SpontaneousGuessService {
 
       const found = await this.spontaneousGuessRepo.findOne({
         where: {
-          createdBy: user,
+          createdBy: { id: user.id },
           bet: { id: spontaneousBetId },
         },
       });
@@ -88,7 +88,7 @@ export class SpontaneousGuessService {
         if (!(id in spontaneousGuesses)) {
           await this.spontaneousGuessRepo.delete({
             betId: id,
-            createdBy: user,
+            createdBy: { id: user.id },
           });
         }
       }

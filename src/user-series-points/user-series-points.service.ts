@@ -8,9 +8,8 @@ import {
 import { UserSeriesPointsRepository } from './user-series-points.repository';
 import { UserSeriesPoints } from './user-series-points.entity';
 import { SeriesService } from 'src/series/series.service';
-import { User } from 'src/auth/user.entity';
 import { AuthService } from 'src/auth/auth.service';
-import { Cron } from '@nestjs/schedule';
+import { UserTournamentPointsService } from 'src/user-tournament-points/user-tournament-points.service';
 
 @Injectable()
 export class UserSeriesPointsService {
@@ -21,6 +20,7 @@ export class UserSeriesPointsService {
     private seriesService: SeriesService,
     @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
+    private readonly userTournamentPointsService: UserTournamentPointsService,
   ) {}
 
   async updatePointsForUser(userId: string): Promise<void> {
@@ -44,17 +44,31 @@ export class UserSeriesPointsService {
         existingMap.set(entry.seriesId, entry);
       }
 
+      const tournamentBySeries =
+        await this.seriesService.getTournamentIdsForSeriesIds(
+          Object.keys(seriesPoints),
+        );
+
       const toSave = [];
 
       for (const [seriesId, points] of Object.entries(seriesPoints)) {
+        const tournamentIdForSeries = tournamentBySeries[seriesId] ?? null;
+        const tournamentRef = tournamentIdForSeries
+          ? ({ id: tournamentIdForSeries } as any)
+          : null;
+
         const existing = existingMap.get(seriesId);
         if (existing) {
-          existing.points = points;
-          toSave.push(existing);
+          toSave.push({
+            id: existing.id,
+            points,
+            tournament: tournamentRef,
+          } as UserSeriesPoints);
         } else {
           const newEntry = this.userSeriesPointsRepository.create({
             user: { id: userId } as any,
             series: { id: seriesId } as any,
+            tournament: tournamentRef,
             points,
           });
           toSave.push(newEntry);
@@ -62,6 +76,10 @@ export class UserSeriesPointsService {
       }
 
       await this.userSeriesPointsRepository.save(toSave);
+
+      await this.userTournamentPointsService.recalculateFantasyFromUserSeriesPoints(
+        userId,
+      );
 
       this.logger.log(`Updated series points for user ${userId}`);
     } catch (error) {
@@ -86,14 +104,22 @@ export class UserSeriesPointsService {
     }
   }
 
-  async findByUserId(userId: string): Promise<{ [seriesId: string]: number }> {
+  async findByUserId(
+    userId: string,
+    tournamentId?: string,
+  ): Promise<{ [seriesId: string]: number }> {
     try {
-      const entries = await this.userSeriesPointsRepository
+      const qb = this.userSeriesPointsRepository
         .createQueryBuilder('usp')
         .select(['usp.points AS points', 'series.id AS seriesId'])
         .innerJoin('usp.series', 'series')
-        .where('usp.userId = :userId', { userId })
-        .getRawMany();
+        .where('usp.userId = :userId', { userId });
+
+      if (tournamentId != null) {
+        qb.andWhere('series.tournamentId = :tournamentId', { tournamentId });
+      }
+
+      const entries = await qb.getRawMany();
       const result: { [seriesId: string]: number } = {};
 
       for (const entry of entries) {
@@ -154,24 +180,13 @@ export class UserSeriesPointsService {
     this.logger.log('Starting daily update of series points for all users...');
     try {
       const users = await this.authService.getAllUserIds();
-      const pointsToUpdate: { id: string; points: number }[] = [];
 
       for (const user of users) {
         await this.updatePointsForUser(user.id);
-
-        const userPointsPerSeries = await this.findByUserId(user.id);
-        const totalPoints = Object.values(userPointsPerSeries).reduce(
-          (sum, points) => sum + points,
-          0,
-        );
-
-        pointsToUpdate.push({ id: user.id, points: totalPoints });
       }
 
-      await this.authService.updateAllUsersTotalFantasyPoints(pointsToUpdate);
-
       this.logger.log(
-        'Finished updating series and total points for all users.',
+        'Finished updating series and per-tournament fantasy totals for all users.',
       );
     } catch (error) {
       this.logger.error(`Cron job failed: ${error.message}`, error.stack);

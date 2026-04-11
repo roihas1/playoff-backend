@@ -6,12 +6,14 @@ import { UserSeriesPointsRepository } from './user-series-points.repository';
 import { SeriesModule } from 'src/series/series.module';
 import { AuthModule } from 'src/auth/auth.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { UserTournamentPointsModule } from 'src/user-tournament-points/user-tournament-points.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserSeriesPointsRepository]),
     forwardRef(() => SeriesModule),
     forwardRef(() => AuthModule),
+    UserTournamentPointsModule,
     ScheduleModule,
   ],
   providers: [UserSeriesPointsService, UserSeriesPointsRepository],

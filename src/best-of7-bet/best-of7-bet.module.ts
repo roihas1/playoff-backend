@@ -3,14 +3,14 @@ import { BestOf7BetController } from './best-of7-bet.controller';
 import { BestOf7BetService } from './best-of7-bet.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BestOf7BetRepository } from './bestOf7.repository';
-import { AuthModule } from '../auth/auth.module';
 import { SeriesModule } from 'src/series/series.module';
 import { BestOf7GuessModule } from 'src/best-of7-guess/best-of7-guess.module';
+import { UserSeriesPointsModule } from 'src/user-series-points/user-series-points.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([BestOf7BetRepository]),
-    forwardRef(() => AuthModule),
+    forwardRef(() => UserSeriesPointsModule),
     forwardRef(() => SeriesModule),
     forwardRef(() => BestOf7GuessModule),
   ],
