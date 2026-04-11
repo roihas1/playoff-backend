@@ -8,6 +8,7 @@ import { DataSource, Repository } from 'typeorm';
 import { User } from './user.entity';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import * as bcrypt from 'bcryptjs';
+import { Role } from './user-role.enum';
 
 @Injectable()
 export class UsersRepository extends Repository<User> {
@@ -16,7 +17,7 @@ export class UsersRepository extends Repository<User> {
     super(User, dataSource.createEntityManager());
   }
   async createUser(authCredentialsDto: AuthCredentialsDto): Promise<User> {
-    const { username, password, role, firstName, lastName, email, googleId } =
+    const { username, password, firstName, lastName, email, googleId } =
       authCredentialsDto;
 
     const salt = await bcrypt.genSalt();
@@ -32,7 +33,7 @@ export class UsersRepository extends Repository<User> {
     const user = this.create({
       username: uniqueUsername,
       password: hashedPassword,
-      role: role,
+      role: Role.USER,
       firstName: firstName,
       lastName: lastName,
       email,
@@ -44,9 +45,8 @@ export class UsersRepository extends Repository<User> {
       if (error.code === '23505') {
         throw new ConflictException('Username already exists');
       } else {
-        throw new InternalServerErrorException(
-          `Failed to create user ${error}`,
-        );
+        this.logger.error('Failed to create user.', error.stack);
+        throw new InternalServerErrorException('Failed to create user');
       }
     }
   }

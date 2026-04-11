@@ -88,8 +88,10 @@ export class AuthService {
     const user = await this.usersRepository.findOne({ where: { username } });
 
     if (!user) {
-      this.logger.error(`User "${username}" not found.`);
-      throw new NotFoundException(`User "${username}" not found.`);
+      this.logger.warn(
+        `Sign-in failed for user "${username}" due to invalid credentials.`,
+      );
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -232,7 +234,7 @@ export class AuthService {
     user: User,
   ): Promise<boolean> {
     try {
-      const foundUser = await this.usersRepository.getChampionsGuesses(user.id);
+      await this.usersRepository.getChampionsGuesses(user.id);
 
       return true;
     } catch (error) {

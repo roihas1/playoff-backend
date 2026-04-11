@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Logger,
   Param,
@@ -11,7 +12,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { SeriesService } from './series.service';
-import { AuthGuard } from '@nestjs/passport';
 import { GetUser } from '../auth/get-user.decorator';
 import { User } from 'src/auth/user.entity';
 import { Series } from './series.entity';
@@ -234,6 +234,7 @@ export class SeriesController {
   async getAllGuessesForUser(
     @Param('seriesId') seriesId: string,
     @Param('userId') userId: string,
+    @GetUser() user: User,
   ): Promise<{
     bestOf7: BestOf7Guess | null;
     teamWon: TeamWinGuess | null;
@@ -248,6 +249,9 @@ export class SeriesController {
       player2: string;
     }[];
   }> {
+    if (user.id !== userId) {
+      throw new ForbiddenException('You can only access your own guesses');
+    }
     return await this.seriesServie.getAllGuessesForUser(seriesId, userId);
   }
 

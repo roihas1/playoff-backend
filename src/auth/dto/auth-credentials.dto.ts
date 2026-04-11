@@ -1,13 +1,11 @@
 import {
   IsEmail,
-  IsEnum,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { Role } from '../user-role.enum';
 export class AuthCredentialsDto {
   @IsString()
   @MinLength(4)
@@ -27,10 +25,6 @@ export class AuthCredentialsDto {
 
   @IsString()
   lastName: string;
-
-  @IsOptional()
-  @IsEnum(Role)
-  role?: Role;
 
   @IsString()
   @IsEmail({}, { message: 'Invalid email address' })
