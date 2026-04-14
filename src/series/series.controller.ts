@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   Logger,
   Param,
@@ -249,9 +248,9 @@ export class SeriesController {
       player2: string;
     }[];
   }> {
-    if (user.id !== userId) {
-      throw new ForbiddenException('You can only access your own guesses');
-    }
+    this.logger.verbose(
+      `User "${user.username}" attempt to retrieve guesses for user id "${userId}" in series "${seriesId}".`,
+    );
     return await this.seriesServie.getAllGuessesForUser(seriesId, userId);
   }
 

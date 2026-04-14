@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   forwardRef,
+  HttpException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -557,6 +558,9 @@ export class SeriesService {
           })) ?? [],
       };
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       this.logger.error(
         `Failed to fetch minimal series info for ID ${seriesId}: ${error.message}`,
         error.stack,
@@ -628,6 +632,9 @@ export class SeriesService {
         spontaneousGuesses,
       };
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       this.logger.error(
         `User: ${userId} failed to get all guesses for series: ${seriesId}`,
         error.stack,
