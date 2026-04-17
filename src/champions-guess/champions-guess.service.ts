@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -16,6 +17,7 @@ import { Conference } from 'src/series/conference.enum';
 import { UpdateChamionGuessDto } from './dto/update-champ-guess.dto';
 import { UserTournamentPointsService } from 'src/user-tournament-points/user-tournament-points.service';
 import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
+import { TeamService } from 'src/team/team.service';
 
 @Injectable()
 export class ChampionsGuessService {
@@ -29,7 +31,53 @@ export class ChampionsGuessService {
     private mvpGuessRepository: Repository<MVPGuess>,
     private playoffsStageService: PlayoffsStageService,
     private readonly userTournamentPointsService: UserTournamentPointsService,
+    private readonly teamService: TeamService,
   ) {}
+
+  private getErrorMetadata(error: unknown): {
+    message: string;
+    code?: string;
+    detail?: string;
+    stack?: string;
+  } {
+    if (error && typeof error === 'object') {
+      const typedError = error as {
+        message?: string;
+        code?: string;
+        detail?: string;
+        stack?: string;
+      };
+      return {
+        message: typedError.message ?? 'Unknown error',
+        code: typedError.code,
+        detail: typedError.detail,
+        stack: typedError.stack,
+      };
+    }
+
+    return { message: String(error) };
+  }
+
+  private async resolveTeamId(
+    teamId?: string,
+    teamName?: string,
+    fieldLabel: string = 'team',
+  ): Promise<string> {
+    if (teamId) {
+      return teamId;
+    }
+
+    if (!teamName) {
+      throw new BadRequestException(
+        `Missing ${fieldLabel}. Provide ${fieldLabel}Id or ${fieldLabel}.`,
+      );
+    }
+
+    const foundTeam = await this.teamService.findByNameOrAbbreviationOrThrow(
+      teamName,
+    );
+    return foundTeam.id;
+  }
 
   private tournamentIdFromGuessStage(
     stage: { tournament?: { id: string } } | null | undefined,
@@ -163,12 +211,17 @@ export class ChampionsGuessService {
     const { champTeamGuess, conferenceFinalGuess, mvpGuess, stage } =
       createChampGuessDto;
     try {
+      const champTeamId = await this.resolveTeamId(
+        champTeamGuess.teamId,
+        champTeamGuess.team,
+        'champTeam',
+      );
       const playoffsStage = await this.playoffsStageService.createPlayoffsStage(
         { name: stage, tournamentId: createChampGuessDto.tournamentId },
         user,
       );
       const champTeamNewGuess = await this.createChampTeamGuess(
-        champTeamGuess.teamId,
+        champTeamId,
         playoffsStage,
         user,
         champTeamGuess.fantasyPoints,
@@ -176,10 +229,14 @@ export class ChampionsGuessService {
       const createdConferenceFinalGuesses: ConferenceFinalGuess[] =
         await Promise.all(
           conferenceFinalGuess.map(async (guess) => {
+            const [team1Id, team2Id] = await Promise.all([
+              this.resolveTeamId(guess.team1Id, guess.team1, 'team1'),
+              this.resolveTeamId(guess.team2Id, guess.team2, 'team2'),
+            ]);
             return await this.createConferenceFinalGuess(
               user,
-              guess.team1Id,
-              guess.team2Id,
+              team1Id,
+              team2Id,
               guess.conference,
               guess.fantasyPoints ?? 10,
               playoffsStage,
@@ -200,8 +257,18 @@ export class ChampionsGuessService {
         mvpGuess: newMVPGuess,
       };
     } catch (error) {
-      this.logger.error('Error updating champion guesses:', error);
-      throw new Error(
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      const errorData = this.getErrorMetadata(error);
+      this.logger.error(
+        `Error creating champion guesses for user ${user.username}: ${errorData.message}${
+          errorData.code ? ` (code: ${errorData.code})` : ''
+        }${errorData.detail ? ` (detail: ${errorData.detail})` : ''}`,
+        errorData.stack,
+      );
+      throw new InternalServerErrorException(
         'Failed to update champion guesses. Please try again later.',
       );
     }
@@ -216,6 +283,11 @@ export class ChampionsGuessService {
     const { champTeamGuess, mvpGuess, stage, deadline } =
       updateChampionGuessDto;
     try {
+      const champTeamId = await this.resolveTeamId(
+        champTeamGuess.teamId,
+        champTeamGuess.team,
+        'champTeam',
+      );
       const playoffsStage = await this.playoffsStageService.createPlayoffsStage(
         {
           name: stage,
@@ -231,7 +303,7 @@ export class ChampionsGuessService {
         2,
       );
       const champTeamNewGuess = await this.createChampTeamGuess(
-        champTeamGuess.teamId,
+        champTeamId,
         playoffsStage,
         user,
         4,
@@ -241,8 +313,18 @@ export class ChampionsGuessService {
         MVPGuess: newMVPGuess,
       };
     } catch (error) {
-      this.logger.error('Error updating champion guesses:', error);
-      throw new Error(
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      const errorData = this.getErrorMetadata(error);
+      this.logger.error(
+        `Error updating champion guesses for user ${user.username}: ${errorData.message}${
+          errorData.code ? ` (code: ${errorData.code})` : ''
+        }${errorData.detail ? ` (detail: ${errorData.detail})` : ''}`,
+        errorData.stack,
+      );
+      throw new InternalServerErrorException(
         'Failed to update champion guesses. Please try again later.',
       );
     }

@@ -8,6 +8,7 @@ import { MVPGuess } from './entities/mvp-guess.entity';
 import { PlayoffsStageModule } from 'src/playoffs-stage/playoffs-stage.module';
 import { UserTournamentPointsModule } from 'src/user-tournament-points/user-tournament-points.module';
 import { AuthModule } from 'src/auth/auth.module';
+import { TeamModule } from 'src/team/team.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { AuthModule } from 'src/auth/auth.module';
     PlayoffsStageModule,
     AuthModule,
     UserTournamentPointsModule,
+    TeamModule,
   ],
   controllers: [ChampionsGuessController],
   providers: [ChampionsGuessService],

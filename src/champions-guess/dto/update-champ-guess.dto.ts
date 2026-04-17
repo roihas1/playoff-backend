@@ -3,7 +3,8 @@ import { PlayoffsStage } from 'src/playoffs-stage/playoffs-stage.enum';
 
 export class UpdateChamionGuessDto {
   champTeamGuess: {
-    teamId: string;
+    teamId?: string;
+    team?: string;
     fantasyPoints?: number;
   };
   mvpGuess: {

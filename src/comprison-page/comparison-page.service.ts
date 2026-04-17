@@ -28,7 +28,7 @@ export class ComparisonPageService {
       const resolvedTournamentId =
         tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
       const [allBets, userLeagues, allUsers, passedStages] = await Promise.all([
-        this.seriesService.getAllBets(tournamentId),
+        this.seriesService.getAllBets(resolvedTournamentId),
         this.privateLeagueService.getUserLeagues(user, resolvedTournamentId),
         this.authService.getAllUsersWithSelection(resolvedTournamentId),
         this.playoffsStageService.getPassedStages(),
