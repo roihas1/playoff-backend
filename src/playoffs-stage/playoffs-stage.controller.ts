@@ -116,6 +116,8 @@ export class PlayoffsStageController {
   async getUserGuesses(
     @Param('stage') stage: PlayoffsStage,
     @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
   ): Promise<{
     conferenceFinalGuesses: ConferenceFinalGuess[];
     championTeamGuesses: ChampionTeamGuess[];
@@ -125,7 +127,11 @@ export class PlayoffsStageController {
       `User: ${user.username} attempt to get his champions guesses`,
     );
 
-    return await this.playoffsStageService.getUserGuesses(stage, user);
+    return await this.playoffsStageService.getUserGuesses(
+      stage,
+      user,
+      tournamentId,
+    );
   }
   @Get('/getGuesses/:stage')
   async getPriorGuesses(
@@ -142,6 +148,8 @@ export class PlayoffsStageController {
     @Param('stage') stage: PlayoffsStage,
     @Param('userId') userId: string,
     @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
   ): Promise<{
     conferenceFinalGuesses: ConferenceFinalGuess[];
     championTeamGuesses: ChampionTeamGuess[];
@@ -153,7 +161,11 @@ export class PlayoffsStageController {
     if (user.id !== userId) {
       throw new ForbiddenException('You can only access your own guesses');
     }
-    return await this.playoffsStageService.getUserGuessesById(stage, userId);
+    return await this.playoffsStageService.getUserGuessesById(
+      stage,
+      userId,
+      tournamentId,
+    );
   }
 
   @Get('/passedStages')

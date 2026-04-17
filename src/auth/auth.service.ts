@@ -334,6 +334,7 @@ export class AuthService {
         .createQueryBuilder('user')
         .leftJoinAndSelect('user.championTeamGuesses', 'championTeamGuesses')
         .leftJoinAndSelect('championTeamGuesses.stage', 'championStage')
+        .leftJoinAndSelect('championStage.tournament', 'championTournament')
         .leftJoinAndSelect(
           'championTeamGuesses.teamRelation',
           'championTeamRelation',
@@ -341,12 +342,14 @@ export class AuthService {
         .addSelect(['championStage.name'])
         .leftJoinAndSelect('user.mvpGuesses', 'mvpGuesses')
         .leftJoinAndSelect('mvpGuesses.stage', 'mvpStage')
+        .leftJoinAndSelect('mvpStage.tournament', 'mvpTournament')
         .addSelect(['mvpStage.name'])
         .leftJoinAndSelect(
           'user.conferenceFinalGuesses',
           'conferenceFinalGuesses',
         )
         .leftJoinAndSelect('conferenceFinalGuesses.stage', 'conferenceStage')
+        .leftJoinAndSelect('conferenceStage.tournament', 'conferenceTournament')
         .leftJoinAndSelect('conferenceFinalGuesses.team1Relation', 'cfTeam1')
         .leftJoinAndSelect('conferenceFinalGuesses.team2Relation', 'cfTeam2')
         .addSelect(['conferenceStage.name'])

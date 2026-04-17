@@ -318,6 +318,7 @@ export class PlayoffsStageService {
   async getUserGuessesById(
     stage: PlayoffsStage,
     userId: string,
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
   ): Promise<{
     conferenceFinalGuesses: ConferenceFinalGuess[];
     championTeamGuesses: ChampionTeamGuess[];
@@ -335,18 +336,29 @@ export class PlayoffsStageService {
         startDate.setHours(hours, minutes, 0, 0);
         return startDate <= now;
       };
+      const isRequestedTournament = (s: PlayoffStage) =>
+        (s.tournament?.id ?? LEGACY_MIGRATION_TOURNAMENT_ID) === tournamentId;
 
       const conferenceFinalGuesses =
         userWithGuesses.conferenceFinalGuesses.filter(
-          (g) => g.stage.name === stage && hasStageStarted(g.stage),
+          (g) =>
+            g.stage.name === stage &&
+            hasStageStarted(g.stage) &&
+            isRequestedTournament(g.stage),
         );
 
       const championTeamGuesses = userWithGuesses.championTeamGuesses.filter(
-        (g) => g.stage.name === stage && hasStageStarted(g.stage),
+        (g) =>
+          g.stage.name === stage &&
+          hasStageStarted(g.stage) &&
+          isRequestedTournament(g.stage),
       );
 
       const mvpGuesses = userWithGuesses.mvpGuesses.filter(
-        (g) => g.stage.name === stage && hasStageStarted(g.stage),
+        (g) =>
+          g.stage.name === stage &&
+          hasStageStarted(g.stage) &&
+          isRequestedTournament(g.stage),
       );
 
       return {
@@ -365,6 +377,7 @@ export class PlayoffsStageService {
   async getUserGuesses(
     stage: PlayoffsStage,
     user: User,
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
   ): Promise<{
     conferenceFinalGuesses: ConferenceFinalGuess[];
     championTeamGuesses: ChampionTeamGuess[];
@@ -374,16 +387,18 @@ export class PlayoffsStageService {
       const userWithGuesses = await this.authService.getUserChampionsGuesses(
         user.id,
       );
+      const isRequestedTournament = (s: PlayoffStage) =>
+        (s.tournament?.id ?? LEGACY_MIGRATION_TOURNAMENT_ID) === tournamentId;
 
       return {
         conferenceFinalGuesses: userWithGuesses.conferenceFinalGuesses.filter(
-          (g) => g.stage.name === stage,
+          (g) => g.stage.name === stage && isRequestedTournament(g.stage),
         ),
         championTeamGuesses: userWithGuesses.championTeamGuesses.filter(
-          (g) => g.stage.name === stage,
+          (g) => g.stage.name === stage && isRequestedTournament(g.stage),
         ),
         mvpGuesses: userWithGuesses.mvpGuesses.filter(
-          (g) => g.stage.name === stage,
+          (g) => g.stage.name === stage && isRequestedTournament(g.stage),
         ),
       };
     } catch (error) {
