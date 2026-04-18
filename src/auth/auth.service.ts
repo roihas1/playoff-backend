@@ -1,11 +1,16 @@
 import {
+  BadRequestException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { UsersRepository } from './users.repository';
+import { PrivateLeague } from 'src/private-league/private-league.entity';
 
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { LoginDto } from './dto/login.dto';
@@ -32,6 +37,8 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private readonly userInitializationService: UserInitializationService,
+    @InjectRepository(PrivateLeague)
+    private readonly privateLeagueRepo: Repository<PrivateLeague>,
   ) {}
 
   async signUp(authCredentialsDto: AuthCredentialsDto): Promise<User> {
@@ -224,6 +231,89 @@ export class AuthService {
       return response;
     } catch (error) {
       this.logger.error(`Failed to get users with cursor.`, error.stack);
+      throw error;
+    }
+  }
+
+  async getMyStandingsPosition(
+    user: User,
+    tournamentId?: string,
+    leagueId?: string,
+  ): Promise<{
+    tournamentId: string;
+    leagueId: string | null;
+    position: number;
+    fantasyPoints: number;
+    championPoints: number;
+    totalPoints: number;
+  }> {
+    try {
+      let resolvedTournamentId =
+        tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+      let resolvedLeagueId: string | null = null;
+
+      if (leagueId) {
+        const leagueEntity = await this.privateLeagueRepo.findOne({
+          where: { id: leagueId },
+          relations: ['users', 'tournament'],
+        });
+        if (!leagueEntity) {
+          throw new NotFoundException(
+            `League with id: ${leagueId} was not found.`,
+          );
+        }
+        if (user.role !== Role.ADMIN) {
+          const isMember = leagueEntity.users?.some((u) => u.id === user.id);
+          if (!isMember) {
+            throw new ForbiddenException(
+              'You do not have access to this league.',
+            );
+          }
+        }
+        if (
+          tournamentId &&
+          tournamentId !== leagueEntity.tournament.id
+        ) {
+          throw new BadRequestException(
+            'tournamentId does not match this league.',
+          );
+        }
+        resolvedTournamentId =
+          tournamentId ?? leagueEntity.tournament.id;
+        resolvedLeagueId = leagueId;
+      }
+
+      const rank = await this.usersRepository.getUserStandingsRank(
+        user.id,
+        resolvedTournamentId,
+        leagueId,
+      );
+
+      if (!rank) {
+        if (leagueId) {
+          throw new NotFoundException(
+            'Could not resolve your rank for this league (you may not be a member).',
+          );
+        }
+        throw new InternalServerErrorException(
+          'Could not compute standings rank.',
+        );
+      }
+
+      return {
+        tournamentId: resolvedTournamentId,
+        leagueId: resolvedLeagueId,
+        ...rank,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      this.logger.error(`Failed to get my standings position.`, error.stack);
       throw error;
     }
   }

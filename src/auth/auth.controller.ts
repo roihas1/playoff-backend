@@ -171,6 +171,26 @@ export class AuthController {
     );
   }
 
+  @Get('/standings/me')
+  @UseGuards(JwtAuthGuard)
+  async getMyStandingsPosition(
+    @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
+    @Query('leagueId') leagueId?: string,
+  ) {
+    const normalizedLeagueId = leagueId?.trim() || undefined;
+    this.logger.verbose(
+      `User "${user.username}" is requesting standings position (leagueId: ${normalizedLeagueId ?? 'none'})`,
+      'AuthController',
+    );
+    return await this.authService.getMyStandingsPosition(
+      user,
+      tournamentId,
+      normalizedLeagueId,
+    );
+  }
+
   @Get('/user')
   @UseGuards(JwtAuthGuard)
   async getUser(@GetUser() user: User): Promise<User> {

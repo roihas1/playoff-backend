@@ -2044,22 +2044,102 @@ export class SeriesService {
     const percentage = (guessCount / totalGuesses) * 100;
     return percentage;
   }
-  async getSeriesIfStartedByID(seriesId: string): Promise<Series | null> {
-    const now = new Date();
 
+  /** Used only for the guesses-percentage gate: schedule is interpreted as Asia/Jerusalem wall time. */
+  private static readonly PERCENTAGE_SCHEDULE_ZONE = 'Asia/Jerusalem';
+
+  private parseTimeOfDayParts(t: string): {
+    hour: number;
+    minute: number;
+    second: number;
+  } {
+    const parts = t
+      .trim()
+      .split(':')
+      .map((p) => parseInt(p, 10));
+    return {
+      hour: parts[0] ?? 0,
+      minute: parts[1] ?? 0,
+      second: parts[2] ?? 0,
+    };
+  }
+
+  /**
+   * Calendar parts for `date` column — may arrive as `Date` or ISO/string from TypeORM/driver.
+   */
+  private getCalendarYmdFromDateColumn(
+    /** Runtime may be `Date` or ISO string depending on driver/query. */
+    dateOfStart: unknown,
+  ): { year: number; month: number; day: number } | null {
+    if (dateOfStart == null) return null;
+
+    if (typeof dateOfStart === 'string') {
+      const trimmed = dateOfStart.trim();
+      const iso = DateTime.fromISO(trimmed, { zone: 'utc' });
+      if (iso.isValid) {
+        return { year: iso.year, month: iso.month, day: iso.day };
+      }
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+      if (m) {
+        return {
+          year: Number(m[1]),
+          month: Number(m[2]),
+          day: Number(m[3]),
+        };
+      }
+      return null;
+    }
+
+    if (dateOfStart instanceof Date) {
+      return {
+        year: dateOfStart.getUTCFullYear(),
+        month: dateOfStart.getUTCMonth() + 1,
+        day: dateOfStart.getUTCDate(),
+      };
+    }
+
+    return null;
+  }
+
+  /** Interprets `dateOfStart` + `timeOfStart` as local time in Israel (same convention as admin UI). */
+  private getSeriesStartInIsrael(series: Series): DateTime | null {
+    const ymd = this.getCalendarYmdFromDateColumn(series.dateOfStart);
+    if (!ymd) return null;
+
+    const { year: y, month: m, day } = ymd;
+
+    const timeStr = series.timeOfStart?.trim() || '00:00:00';
+    const normalized =
+      timeStr.split(':').length === 2 ? `${timeStr}:00` : timeStr;
+    const { hour, minute, second } = this.parseTimeOfDayParts(normalized);
+
+    const dt = DateTime.fromObject(
+      { year: y, month: m, day, hour, minute, second },
+      { zone: SeriesService.PERCENTAGE_SCHEDULE_ZONE },
+    );
+
+    return dt.isValid ? dt : null;
+  }
+
+  async getSeriesIfStartedByID(seriesId: string): Promise<Series | null> {
     const series = await this.seriesRepository
       .createQueryBuilder('series')
       .leftJoinAndSelect('series.teamWinBetId', 'teamWinBet')
       .where('series.id = :seriesId', { seriesId })
-      .andWhere(
-        `("series"."dateOfStart" + "series"."timeOfStart"::time) <= :now`,
-        {
-          now: now.toISOString(),
-        },
-      )
       .getOne();
 
-    return series ?? null;
+    if (!series) return null;
+
+    const startIsrael = this.getSeriesStartInIsrael(series);
+    if (!startIsrael) {
+      this.logger.warn(
+        `Invalid schedule for percentage gate (seriesId=${seriesId}).`,
+      );
+      return null;
+    }
+
+    if (Date.now() < startIsrael.toMillis()) return null;
+    return series;
   }
 
   async getGuessesPercentage(seriesId: string): Promise<{

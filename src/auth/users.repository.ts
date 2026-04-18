@@ -228,4 +228,81 @@ export class UsersRepository extends Repository<User> {
       championPoints: Number(raw.scopedChampion ?? raw.scopedchampion ?? 0),
     }));
   }
+
+  /**
+   * Rank matches /auth/standings ordering: totalPoints DESC, user.id DESC.
+   * Overall (no leagueId): one row per user — no privateLeagues join.
+   * League: same filter as standings — members of that league only.
+   */
+  async getUserStandingsRank(
+    userId: string,
+    tournamentId: string,
+    leagueId?: string,
+  ): Promise<{
+    position: number;
+    fantasyPoints: number;
+    championPoints: number;
+    totalPoints: number;
+  } | null> {
+    const totalExpr =
+      'COALESCE(utp.fantasyPoints, 0) + COALESCE(utp.championPoints, 0)';
+
+    const myQb = this.createQueryBuilder('user').leftJoin(
+      'user.tournamentPoints',
+      'utp',
+      'utp.tournamentId = :tournamentId',
+      { tournamentId },
+    );
+
+    if (leagueId) {
+      myQb
+        .leftJoin('user.privateLeagues', 'league')
+        .andWhere('league.id = :leagueId', { leagueId });
+    }
+
+    const myRaw = await myQb
+      .addSelect('COALESCE(utp.fantasyPoints, 0)', 'scopedFantasy')
+      .addSelect('COALESCE(utp.championPoints, 0)', 'scopedChampion')
+      .andWhere('user.id = :userId', { userId })
+      .getRawOne();
+
+    if (!myRaw) {
+      return null;
+    }
+
+    const fantasyPoints = Number(
+      myRaw.scopedFantasy ?? myRaw.scopedfantasy ?? 0,
+    );
+    const championPoints = Number(
+      myRaw.scopedChampion ?? myRaw.scopedchampion ?? 0,
+    );
+    const totalPoints = fantasyPoints + championPoints;
+
+    const aheadQb = this.createQueryBuilder('user').leftJoin(
+      'user.tournamentPoints',
+      'utp',
+      'utp.tournamentId = :tournamentId',
+      { tournamentId },
+    );
+
+    if (leagueId) {
+      aheadQb
+        .leftJoin('user.privateLeagues', 'league')
+        .andWhere('league.id = :leagueId', { leagueId });
+    }
+
+    const ahead = await aheadQb
+      .andWhere(
+        `(${totalExpr} > :myTotal OR (${totalExpr} = :myTotal AND user.id > :myId))`,
+        { myTotal: totalPoints, myId: userId },
+      )
+      .getCount();
+
+    return {
+      position: ahead + 1,
+      fantasyPoints,
+      championPoints,
+      totalPoints,
+    };
+  }
 }
