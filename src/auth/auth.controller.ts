@@ -34,6 +34,7 @@ import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity
 import { RolesGuard } from './roles.guard';
 import { Roles } from './roles.decorator';
 import { MergeUserTournamentPointsInterceptor } from 'src/user-tournament-points/merge-user-tournament-points.interceptor';
+import { HomeStandingsPreviewDto } from './dto/home-standings-preview.dto';
 
 @Controller('auth')
 @UseInterceptors(MergeUserTournamentPointsInterceptor)
@@ -189,6 +190,19 @@ export class AuthController {
       tournamentId,
       normalizedLeagueId,
     );
+  }
+
+  @Get('/standings/home-preview')
+  @UseGuards(JwtAuthGuard)
+  async getHomeStandingsPreview(
+    @GetUser() user: User,
+    @Query('tournamentId', ParseUUIDPipe) tournamentId: string,
+  ): Promise<HomeStandingsPreviewDto> {
+    this.logger.verbose(
+      `User "${user.username}" is requesting home standings preview`,
+      'AuthController',
+    );
+    return await this.authService.getHomeStandingsPreview(user, tournamentId);
   }
 
   @Get('/user')

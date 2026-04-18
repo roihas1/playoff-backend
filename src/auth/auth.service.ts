@@ -11,6 +11,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UsersRepository } from './users.repository';
 import { PrivateLeague } from 'src/private-league/private-league.entity';
+import { Tournament } from 'src/tournament/tournament.entity';
+import { HomeStandingsPreviewDto } from './dto/home-standings-preview.dto';
 
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { LoginDto } from './dto/login.dto';
@@ -39,6 +41,8 @@ export class AuthService {
     private readonly userInitializationService: UserInitializationService,
     @InjectRepository(PrivateLeague)
     private readonly privateLeagueRepo: Repository<PrivateLeague>,
+    @InjectRepository(Tournament)
+    private readonly tournamentRepo: Repository<Tournament>,
   ) {}
 
   async signUp(authCredentialsDto: AuthCredentialsDto): Promise<User> {
@@ -314,6 +318,82 @@ export class AuthService {
         throw error;
       }
       this.logger.error(`Failed to get my standings position.`, error.stack);
+      throw error;
+    }
+  }
+
+  async getHomeStandingsPreview(
+    user: User,
+    tournamentId: string,
+  ): Promise<HomeStandingsPreviewDto> {
+    try {
+      const exists = await this.tournamentRepo.exist({
+        where: { id: tournamentId },
+      });
+      if (!exists) {
+        throw new NotFoundException(
+          `Tournament with id: ${tournamentId} was not found.`,
+        );
+      }
+
+      const leagues = (
+        await this.getAllUserLeagues(user, tournamentId)
+      ).filter((l) => l?.id);
+
+      const rankResults = await Promise.all([
+        this.usersRepository.getUserStandingsRank(user.id, tournamentId),
+        ...leagues.map((league) =>
+          this.usersRepository.getUserStandingsRank(
+            user.id,
+            tournamentId,
+            league.id,
+          ),
+        ),
+      ]);
+
+      const globalRank = rankResults[0];
+      const leagueRanks = rankResults.slice(1);
+
+      if (!globalRank) {
+        throw new InternalServerErrorException(
+          'Could not compute standings rank.',
+        );
+      }
+
+      const privateLeagues = leagues.map((league, i) => {
+        const rank = leagueRanks[i];
+        if (!rank) {
+          throw new NotFoundException(
+            'Could not resolve your rank for this league (you may not be a member).',
+          );
+        }
+        return {
+          id: league.id,
+          name: league.name,
+          position: rank.position,
+          totalPoints: rank.totalPoints,
+        };
+      });
+
+      return {
+        global: {
+          position: globalRank.position,
+          totalPoints: globalRank.totalPoints,
+          label: 'Global',
+        },
+        privateLeagues,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to get home standings preview.`,
+        error instanceof Error ? error.stack : undefined,
+      );
       throw error;
     }
   }

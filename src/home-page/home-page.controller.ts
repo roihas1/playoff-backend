@@ -1,4 +1,11 @@
-import { Controller, Get, Logger, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Logger,
+  ParseUUIDPipe,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { User } from 'src/auth/user.entity';
 import { HomePageService } from './home-page.service';
@@ -13,7 +20,8 @@ export class HomePageController {
   @Get('load')
   async loadHomepageData(
     @GetUser() user: User,
-    @Query('tournamentId') tournamentId?: string,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
   ) {
     return this.homePageService.getHomepageData(user, tournamentId);
   }

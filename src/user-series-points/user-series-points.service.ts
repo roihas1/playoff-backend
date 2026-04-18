@@ -10,6 +10,7 @@ import { UserSeriesPoints } from './user-series-points.entity';
 import { SeriesService } from 'src/series/series.service';
 import { AuthService } from 'src/auth/auth.service';
 import { UserTournamentPointsService } from 'src/user-tournament-points/user-tournament-points.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class UserSeriesPointsService {
@@ -205,18 +206,18 @@ export class UserSeriesPointsService {
       this.logger.error(`Cron job failed: ${error.message}`, error.stack);
     }
   }
-  // @Cron(CronExpression.EVERY_DAY_AT_6PM)
-  // @Cron('15 15 * * *') // 15:15 UTC = 18:15 Israel time
-  // async handleDailyPointsUpdate() {
-  //   this.logger.log('Starting daily user-series-points update...');
-  //   try {
-  //     const allUsers = await this.authService.getAllUsers(); // create this function to return users with just id
-  //     for (const user of allUsers) {
-  //       await this.updatePointsForUser(user.id);
-  //     }
-  //     this.logger.log('✅ Daily user-series-points update completed.');
-  //   } catch (error) {
-  //     this.logger.error('❌ Error in daily update', error.stack);
-  //   }
-  // }
+  @Cron(CronExpression.EVERY_DAY_AT_6PM)
+  @Cron('7 15 * * *') // 7:15 UTC = 10:15 Israel time
+  async handleDailyPointsUpdate() {
+    this.logger.log('Starting daily user-series-points update...');
+    try {
+      const allUsers = await this.authService.getAllUsers(); // create this function to return users with just id
+      for (const user of allUsers) {
+        await this.updatePointsForUser(user.id);
+      }
+      this.logger.log('✅ Daily user-series-points update completed.');
+    } catch (error) {
+      this.logger.error('❌ Error in daily update', error.stack);
+    }
+  }
 }

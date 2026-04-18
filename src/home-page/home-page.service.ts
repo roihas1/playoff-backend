@@ -1,8 +1,10 @@
 import {
+  HttpException,
   Injectable,
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
+import { AuthService } from 'src/auth/auth.service';
 import { User } from 'src/auth/user.entity';
 import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 import { PlayoffsStageService } from 'src/playoffs-stage/playoffs-stage.service';
@@ -17,7 +19,7 @@ export class HomePageService {
     private readonly seriesService: SeriesService,
     private readonly userSeriesPointsService: UserSeriesPointsService,
     private readonly playoffsStageService: PlayoffsStageService,
-    // Add any other services you need
+    private readonly authService: AuthService,
   ) {}
 
   async getHomepageData(
@@ -27,13 +29,17 @@ export class HomePageService {
     this.logger.verbose(`Loading homepage data for user: ${user.username}`);
 
     try {
-      const [seriesList, playoffsStages, userPoints] = await Promise.all([
-        this.seriesService.getSeriesForHomePage(tournamentId),
-        this.playoffsStageService.getPlainPlayoffsStages(
-          tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID,
-        ),
-        this.userSeriesPointsService.findByUserId(user.id, tournamentId),
-      ]);
+      const [seriesList, playoffsStages, userPoints, leagueStandingsPreview] =
+        await Promise.all([
+          this.seriesService.getSeriesForHomePage(tournamentId),
+          this.playoffsStageService.getPlainPlayoffsStages(
+            tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID,
+          ),
+          this.userSeriesPointsService.findByUserId(user.id, tournamentId),
+          tournamentId
+            ? this.authService.getHomeStandingsPreview(user, tournamentId)
+            : Promise.resolve(null),
+        ]);
       const userGuessedAll = await this.seriesService.checkIfUserGuessedAll(
         user,
         tournamentId,
@@ -49,8 +55,12 @@ export class HomePageService {
         seriesList,
         playoffsStages,
         userPoints,
+        leagueStandingsPreview,
       };
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       this.logger.error(
         `Failed to load homepage data for user: ${user.username}`,
         error.stack,

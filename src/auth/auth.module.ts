@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersRepository } from './users.repository';
 import { User } from './user.entity';
 import { PrivateLeague } from 'src/private-league/private-league.entity';
+import { Tournament } from 'src/tournament/tournament.entity';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -30,7 +31,7 @@ import { UserTournamentPointsModule } from 'src/user-tournament-points/user-tour
         },
       }),
     }),
-    TypeOrmModule.forFeature([User, PrivateLeague]),
+    TypeOrmModule.forFeature([User, PrivateLeague, Tournament]),
     forwardRef(() => UserInitializationModule),
     UserTournamentPointsModule,
   ],
