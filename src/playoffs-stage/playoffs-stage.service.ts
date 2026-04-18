@@ -444,12 +444,14 @@ export class PlayoffsStageService {
   async getPriorGuesses(
     stage: PlayoffsStage,
     user: User,
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
   ): Promise<PriorGuesses | PriorGuessesByStage> {
     try {
       if (stage === PlayoffsStage.ROUND1) {
         const guesses = await this.getUserGuesses(
           PlayoffsStage.BEFOREPLAOFFS,
           user,
+          tournamentId,
         );
         const newGuess = this.extractCertainProperties(
           guesses.conferenceFinalGuesses,
@@ -468,6 +470,7 @@ export class PlayoffsStageService {
         const beforePlayoffsStageGuesses = await this.getUserGuesses(
           PlayoffsStage.BEFOREPLAOFFS,
           user,
+          tournamentId,
         );
         const beforePlayoffsGuessesNew = this.extractCertainProperties(
           beforePlayoffsStageGuesses.conferenceFinalGuesses,
@@ -477,6 +480,7 @@ export class PlayoffsStageService {
         const round1StageGuesses = await this.getUserGuesses(
           PlayoffsStage.ROUND1,
           user,
+          tournamentId,
         );
         const round1GuessesNew = this.extractCertainProperties(
           round1StageGuesses.conferenceFinalGuesses,
@@ -488,6 +492,7 @@ export class PlayoffsStageService {
           const round2Guesses = await this.getUserGuesses(
             PlayoffsStage.ROUND2,
             user,
+            tournamentId,
           );
           const round2StageGuesses = this.extractCertainProperties(
             round2Guesses.conferenceFinalGuesses,

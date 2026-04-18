@@ -137,11 +137,17 @@ export class PlayoffsStageController {
   async getPriorGuesses(
     @Param('stage') stage: PlayoffsStage,
     @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
   ): Promise<PriorGuesses | PriorGuessesByStage> {
     this.logger.verbose(
       `User: ${user.username} attempt to get his prior champions guesses`,
     );
-    return await this.playoffsStageService.getPriorGuesses(stage, user);
+    return await this.playoffsStageService.getPriorGuesses(
+      stage,
+      user,
+      tournamentId,
+    );
   }
   @Get('/getUserGuesses/:stage/:userId')
   async getUserGuessesById(
