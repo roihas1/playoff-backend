@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   Logger,
   Param,
@@ -164,9 +163,6 @@ export class PlayoffsStageController {
     this.logger.verbose(
       `User: ${user.username} attempt to get ${userId} champions guesses`,
     );
-    if (user.id !== userId) {
-      throw new ForbiddenException('You can only access your own guesses');
-    }
     return await this.playoffsStageService.getUserGuessesById(
       stage,
       userId,
