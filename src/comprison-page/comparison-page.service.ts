@@ -31,7 +31,7 @@ export class ComparisonPageService {
         this.seriesService.getAllBets(resolvedTournamentId),
         this.privateLeagueService.getUserLeagues(user, resolvedTournamentId),
         this.authService.getAllUsersWithSelection(resolvedTournamentId),
-        this.playoffsStageService.getPassedStages(),
+        this.playoffsStageService.getPassedStages(resolvedTournamentId),
       ]);
 
       return {

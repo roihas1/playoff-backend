@@ -5,9 +5,16 @@ import {
 } from '@nestjs/common';
 import { Repository, DataSource } from 'typeorm';
 import { PlayoffStage } from './playoffs-stage.entity';
+import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 
 @Injectable()
 export class PlayoffsStageRepository extends Repository<PlayoffStage> {
+  private static readonly STAGE_ORDER = [
+    'Before playoffs',
+    'Round 1',
+    'Round 2',
+    'Finish',
+  ];
   private logger = new Logger('PlayoffsStageRepository', {
     timestamp: true,
   });
@@ -68,20 +75,28 @@ export class PlayoffsStageRepository extends Repository<PlayoffStage> {
       throw new InternalServerErrorException(`Failed to get all stages`);
     }
   }
-  async getPassedStages(): Promise<string[]> {
+  async getPassedStages(
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
+  ): Promise<string[]> {
     const query = this.createQueryBuilder('playoff-stage');
     const date = new Date();
     const currentDate = date.toISOString().slice(0, 10);
     const currentTime = date.toTimeString().slice(0, 8);
     query.where(
-      'playoff-stage.startDate < :currentDate  OR (playoff-stage.startDate <= :currentDate AND playoff-stage.timeOfStart < :currentTime) ',
+      'playoff-stage.tournamentId = :tournamentId AND (playoff-stage.startDate < :currentDate OR (playoff-stage.startDate <= :currentDate AND playoff-stage.timeOfStart < :currentTime))',
       {
+        tournamentId,
         currentDate,
         currentTime,
       },
     );
     const stages = await query.getMany();
-    const res = stages.map((stage) => stage.name);
-    return res;
+    const uniqueStages = [...new Set(stages.map((stage) => stage.name))];
+
+    return uniqueStages.sort((a, b) => {
+      const firstIndex = PlayoffsStageRepository.STAGE_ORDER.indexOf(a);
+      const secondIndex = PlayoffsStageRepository.STAGE_ORDER.indexOf(b);
+      return firstIndex - secondIndex;
+    });
   }
 }

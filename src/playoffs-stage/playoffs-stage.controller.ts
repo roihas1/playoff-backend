@@ -175,8 +175,12 @@ export class PlayoffsStageController {
   }
 
   @Get('/passedStages')
-  async getPassedStages(@GetUser() user: User): Promise<string[]> {
+  async getPassedStages(
+    @GetUser() user: User,
+    @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
+    tournamentId?: string,
+  ): Promise<string[]> {
     this.logger.verbose(`User: ${user.username} attempt to get passed stages.`);
-    return await this.playoffsStageService.getPassedStages();
+    return await this.playoffsStageService.getPassedStages(tournamentId);
   }
 }

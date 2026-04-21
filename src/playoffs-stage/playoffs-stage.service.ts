@@ -520,9 +520,11 @@ export class PlayoffsStageService {
       );
     }
   }
-  async getPassedStages(): Promise<string[]> {
+  async getPassedStages(
+    tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
+  ): Promise<string[]> {
     try {
-      return await this.playoffsStageRepo.getPassedStages();
+      return await this.playoffsStageRepo.getPassedStages(tournamentId);
     } catch (error) {
       this.logger.error(`Failed to get passed stages. ${error.stack}`);
       throw new InternalServerErrorException(`Failed to get passed stages.`);
