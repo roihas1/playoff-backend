@@ -4,7 +4,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { BestOf7GuessRepository } from './best-of7-guess.repository';
+import {
+  BestOf7GuessBucket,
+  BestOf7GuessRepository,
+} from './best-of7-guess.repository';
 import { CreateBestOf7GuessDto } from './dto/create-best-of7-guess.dto';
 import { BestOf7Guess } from './best-of7-guess.entity';
 import { User } from '../auth/user.entity';
@@ -63,6 +66,12 @@ export class BestOf7GuessService {
       where: { createdBy: { id: userId } },
       select: ['id', 'guess', 'betId'],
     });
+  }
+
+  async getSeriesGuessCountsByValue(
+    seriesId: string,
+  ): Promise<Record<BestOf7GuessBucket, number>> {
+    return this.bestOf7GuessRepository.getSeriesGuessCountsByValue(seriesId);
   }
 
   async getGuessByBet(

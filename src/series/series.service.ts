@@ -39,7 +39,11 @@ import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity
 import { SpontaneousBetService } from 'src/spontaneous-bet/spontaneous-bet.service';
 import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 import { AuthService } from 'src/auth/auth.service';
-import { GetAllSeriesGuessesDto } from './dto/get-series-guesses-stats.dto';
+import {
+  BestOf7CountsDto,
+  BestOf7PercentagesDto,
+  GetAllSeriesGuessesDto,
+} from './dto/get-series-guesses-stats.dto';
 import { SpontaneousGuessService } from 'src/spontaneous-guess/spontaneous-guess.service';
 import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
 import { DateTime } from 'luxon';
@@ -95,6 +99,60 @@ export class SeriesService {
     private spontaneousGuessService: SpontaneousGuessService,
     private userSeriesPointsService: UserSeriesPointsService,
   ) {}
+
+  private getDefaultBestOf7Percentages(): BestOf7PercentagesDto {
+    return { 4: 0, 5: 0, 6: 0, 7: 0 };
+  }
+
+  private getDefaultBestOf7Counts(): BestOf7CountsDto {
+    return { 4: 0, 5: 0, 6: 0, 7: 0, total: 0 };
+  }
+
+  private toOneDecimal(num: number): number {
+    return Number(num.toFixed(1));
+  }
+
+  private async getBestOf7Stats(seriesId: string): Promise<{
+    bestOf7: BestOf7PercentagesDto;
+    bestOf7Counts: BestOf7CountsDto;
+  }> {
+    if (!seriesId) {
+      return {
+        bestOf7: this.getDefaultBestOf7Percentages(),
+        bestOf7Counts: this.getDefaultBestOf7Counts(),
+      };
+    }
+
+    const countsByGuess =
+      await this.bestOf7GuessService.getSeriesGuessCountsByValue(seriesId);
+    const total =
+      countsByGuess[4] + countsByGuess[5] + countsByGuess[6] + countsByGuess[7];
+
+    const bestOf7Counts: BestOf7CountsDto = {
+      ...this.getDefaultBestOf7Counts(),
+      4: countsByGuess[4],
+      5: countsByGuess[5],
+      6: countsByGuess[6],
+      7: countsByGuess[7],
+      total,
+    };
+
+    if (total === 0) {
+      return {
+        bestOf7: this.getDefaultBestOf7Percentages(),
+        bestOf7Counts,
+      };
+    }
+
+    const bestOf7: BestOf7PercentagesDto = {
+      4: this.toOneDecimal((countsByGuess[4] / total) * 100),
+      5: this.toOneDecimal((countsByGuess[5] / total) * 100),
+      6: this.toOneDecimal((countsByGuess[6] / total) * 100),
+      7: this.toOneDecimal((countsByGuess[7] / total) * 100),
+    };
+
+    return { bestOf7, bestOf7Counts };
+  }
 
   async getAllSeries(): Promise<Series[]> {
     return await this.seriesRepository.getAllSeries();
@@ -2142,20 +2200,29 @@ export class SeriesService {
     return series;
   }
 
-  async getGuessesPercentage(seriesId: string): Promise<{
+  async getGuessesPercentage(
+    seriesId: string,
+    bestOf7Stats?: {
+      bestOf7: BestOf7PercentagesDto;
+      bestOf7Counts: BestOf7CountsDto;
+    },
+  ): Promise<{
     teamWin: { 1: number; 2: number };
     playerMatchup: { [key: string]: { 1: number; 2: number } };
     spontaneousMacthups: { [key: string]: { 1: number; 2: number } };
+    bestOf7: BestOf7PercentagesDto;
   }> {
     try {
       const res: {
         teamWin: { 1: number; 2: number };
         playerMatchup: { [key: string]: { 1: number; 2: number } };
         spontaneousMacthups: { [key: string]: { 1: number; 2: number } };
+        bestOf7: BestOf7PercentagesDto;
       } = {
         teamWin: { 1: 0, 2: 0 },
         playerMatchup: {},
         spontaneousMacthups: {},
+        bestOf7: this.getDefaultBestOf7Percentages(),
       };
       const series = await this.getSeriesIfStartedByID(seriesId);
       if (!series) {
@@ -2163,6 +2230,7 @@ export class SeriesService {
           teamWin: { 1: 0, 2: 0 },
           playerMatchup: {},
           spontaneousMacthups: {},
+          bestOf7: this.getDefaultBestOf7Percentages(),
         };
       }
       // const teamWin1Precentage = this.calculatePercentage(
@@ -2197,6 +2265,8 @@ export class SeriesService {
         await this.spontaneousBetService.getSpontaneousBetsPercentagesForSeries(
           series.id,
         );
+      const { bestOf7 } = bestOf7Stats ?? (await this.getBestOf7Stats(series.id));
+      res['bestOf7'] = bestOf7;
       return res;
     } catch (error) {
       this.logger.error(`Failed to get guesses percentage. "${error}".`);
@@ -2261,11 +2331,19 @@ export class SeriesService {
         `Fetching all guess data for user: ${user.username} and series: ${seriesId}`,
       );
 
+      const series = await this.getSeriesIfStartedByID(seriesId);
+      const bestOf7Stats = series
+        ? await this.getBestOf7Stats(series.id)
+        : {
+            bestOf7: this.getDefaultBestOf7Percentages(),
+            bestOf7Counts: this.getDefaultBestOf7Counts(),
+          };
       const [guesses, percentages] = await Promise.all([
         this.getGuessesByUser(seriesId, user),
         // this.getSpontaneousGuesses(seriesId, user),
-        this.getGuessesPercentage(seriesId),
+        this.getGuessesPercentage(seriesId, bestOf7Stats),
       ]);
+      const { bestOf7Counts } = bestOf7Stats;
       this.logger.verbose(
         `Successfully fetched guess data for user: ${user.username} and series: ${seriesId}`,
       );
@@ -2274,6 +2352,7 @@ export class SeriesService {
         guesses,
         spontaneousGuesses,
         percentages,
+        bestOf7Counts,
       };
     } catch (error) {
       this.logger.error(
