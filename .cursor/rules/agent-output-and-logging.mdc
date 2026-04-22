@@ -1,0 +1,15 @@
+---
+description: Avoid spec file creation and require service logging
+alwaysApply: true
+---
+
+# Agent Output And Logging
+
+- Do not create new `*.spec.ts` files unless the user explicitly asks for tests.
+- Prefer implementing and updating production code only when not asked for tests.
+- In service flows, always add structured logs:
+  - `logger.log(...)` at flow start for key request context.
+  - `logger.verbose(...)` on successful completion with result counts/scope info.
+  - `logger.error(...)` inside catch blocks with actionable context and stack.
+- Follow existing project logging style (`new Logger('<ServiceName>', { timestamp: true })`).
+- Do not log secrets, tokens, passwords, or full sensitive payloads.

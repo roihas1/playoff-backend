@@ -7,7 +7,9 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { GetUser } from 'src/auth/get-user.decorator';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { User } from 'src/auth/user.entity';
 import { GetGuessPageStatsDto } from './dto/get-guess-page-stats.dto';
 import { StatsService } from './stats.service';
 
@@ -18,6 +20,7 @@ export class StatsController {
 
   @Get('guess-page')
   getGuessPageStats(
+    @GetUser() user: User,
     @Query('tournamentId', new ParseUUIDPipe()) tournamentId: string,
     @Query('leagueId', new ParseUUIDPipe({ optional: true })) leagueId?: string,
     @Query('stage') stage?: string,
@@ -32,6 +35,7 @@ export class StatsController {
       stage,
       includeSeries: includeSeries ?? true,
       includeChampion: includeChampion ?? true,
+      requestedBy: user.username,
     });
   }
 }

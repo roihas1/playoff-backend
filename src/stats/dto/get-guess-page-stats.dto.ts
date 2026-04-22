@@ -10,7 +10,11 @@ export type GuessPageTop5Bucket = {
 };
 
 export type GuessPageSeriesBetSidePercentages = { 1: number; 2: number };
-export type GuessPageSeriesBetSideCounts = { 1: number; 2: number; total: number };
+export type GuessPageSeriesBetSideCounts = {
+  1: number;
+  2: number;
+  total: number;
+};
 
 export type GuessPageSeriesBestOf7Percentages = {
   4: number;
