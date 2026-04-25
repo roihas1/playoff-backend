@@ -6,10 +6,11 @@ import { PrivateLeagueRepository } from './private-league.repository';
 import { AuthModule } from 'src/auth/auth.module';
 import { UserTournamentPointsModule } from 'src/user-tournament-points/user-tournament-points.module';
 import { Tournament } from 'src/tournament/tournament.entity';
+import { LeagueMessage } from './league-message.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PrivateLeagueRepository, Tournament]),
+    TypeOrmModule.forFeature([PrivateLeagueRepository, Tournament, LeagueMessage]),
     AuthModule,
     UserTournamentPointsModule,
   ],

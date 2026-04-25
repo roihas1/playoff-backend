@@ -14,6 +14,7 @@ import { ChampionTeamGuess } from 'src/champions-guess/entities/champion-team-gu
 import { MVPGuess } from 'src/champions-guess/entities/mvp-guess.entity';
 import { Exclude } from 'class-transformer';
 import { PrivateLeague } from 'src/private-league/private-league.entity';
+import { LeagueMessage } from 'src/private-league/league-message.entity';
 import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
 import { UserSeriesPoints } from 'src/user-series-points/user-series-points.entity';
 import { UserTournamentPoints } from 'src/user-tournament-points/user-tournament-points.entity';
@@ -117,4 +118,7 @@ export class User {
 
   @OneToMany(() => UserTournamentPoints, (utp) => utp.user)
   tournamentPoints: UserTournamentPoints[];
+
+  @OneToMany(() => LeagueMessage, (message) => message.author)
+  leagueMessages: LeagueMessage[];
 }
