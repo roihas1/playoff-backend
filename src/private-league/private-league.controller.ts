@@ -21,6 +21,10 @@ import { CreatePrivateLeagueDto } from './dto/CreatePrivateLeagueDto';
 import { JoinLeagueDto } from './dto/join-league.dto';
 import { RemoveUsersDto } from './dto/remove-users.dto';
 import { MergeUserTournamentPointsInterceptor } from 'src/user-tournament-points/merge-user-tournament-points.interceptor';
+import { LeagueMessageDto } from './dto/league-message.dto';
+import { CreateLeagueMessageDto } from './dto/create-league-message.dto';
+import { GetLeagueMessagesQueryDto } from './dto/get-league-messages-query.dto';
+import { GetLeagueMessagesResponseDto } from './dto/get-league-messages-response.dto';
 
 @Controller('private-league')
 @UseGuards(JwtAuthGuard)
@@ -140,5 +144,33 @@ export class PrivateLeagueController {
       `User: ${user.username} attempting to leave: ${leagueId}`,
     );
     return await this.privateLeagueService.userLeaveLeague(leagueId, user);
+  }
+
+  @Get('/:leagueId/messages')
+  async getLeagueMessages(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @GetUser() user: User,
+    @Query() query: GetLeagueMessagesQueryDto,
+  ): Promise<GetLeagueMessagesResponseDto> {
+    this.logger.verbose(
+      `User: ${user.username} attempting to get messages for league: ${leagueId}`,
+    );
+    return await this.privateLeagueService.getLeagueMessages(leagueId, user, query);
+  }
+
+  @Post('/:leagueId/messages')
+  async createLeagueMessage(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Body() createLeagueMessageDto: CreateLeagueMessageDto,
+    @GetUser() user: User,
+  ): Promise<{ data: LeagueMessageDto }> {
+    this.logger.verbose(
+      `User: ${user.username} attempting to post message to league: ${leagueId}`,
+    );
+    return await this.privateLeagueService.createLeagueMessage(
+      leagueId,
+      user,
+      createLeagueMessageDto,
+    );
   }
 }

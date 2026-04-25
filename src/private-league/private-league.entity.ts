@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto';
 import { User } from 'src/auth/user.entity';
 import { Tournament } from 'src/tournament/tournament.entity';
+import { LeagueMessage } from './league-message.entity';
 import {
   BeforeInsert,
   Column,
@@ -9,6 +10,7 @@ import {
   JoinTable,
   ManyToMany,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
@@ -39,6 +41,11 @@ export class PrivateLeague {
   @ManyToOne(() => Tournament, (t) => t.privateLeagues, { nullable: false })
   @JoinColumn({ name: 'tournamentId' })
   tournament: Tournament;
+
+  @OneToMany(() => LeagueMessage, (message) => message.league, {
+    eager: false,
+  })
+  messages: LeagueMessage[];
 
   @BeforeInsert()
   generateCode() {

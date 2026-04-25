@@ -16,6 +16,7 @@ import { PlayoffStage } from './playoffs-stage/playoffs-stage.entity';
 import { SpontaneousBet } from './spontaneous-bet/spontaneousBet.entity';
 import { SpontaneousGuess } from './spontaneous-guess/spontaneous-guess.entity';
 import { PrivateLeague } from './private-league/private-league.entity';
+import { LeagueMessage } from './private-league/league-message.entity';
 import { UserSeriesPoints } from './user-series-points/user-series-points.entity';
 import { UserMissingBet } from './user-missing-bets/user-missing-bets.entity';
 import { Tournament } from './tournament/tournament.entity';
@@ -25,6 +26,7 @@ import { UserTournamentPointsAndPlayoffStageTournament1743787200000 } from './mi
 import { DropUserLegacyPointColumns1744000000000 } from './migrations/1744000000000-drop-user-legacy-point-columns';
 import { UserSeriesPointsTournament1744100000000 } from './migrations/1744100000000-user-series-points-tournament';
 import { PrivateLeagueTournament1744200000000 } from './migrations/1744200000000-private-league-tournament';
+import { LeagueMessageCursorIndex1744300000000 } from './migrations/1744300000000-league-message-cursor-index';
 
 ConfigModule.forRoot({
   isGlobal: true,
@@ -55,6 +57,7 @@ export const AppDataSource = new DataSource({
     SpontaneousBet,
     SpontaneousGuess,
     PrivateLeague,
+    LeagueMessage,
     UserSeriesPoints,
     UserMissingBet,
     Tournament,
@@ -66,9 +69,10 @@ export const AppDataSource = new DataSource({
     DropUserLegacyPointColumns1744000000000,
     UserSeriesPointsTournament1744100000000,
     PrivateLeagueTournament1744200000000,
+    LeagueMessageCursorIndex1744300000000,
   ],
   migrationsTableName: 'typeorm_migrations',
-  synchronize: true,
+  synchronize: false,
   logging: false,
   ssl: true,
   extra: {

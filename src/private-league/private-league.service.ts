@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -19,15 +21,26 @@ import { RemoveUsersDto } from './dto/remove-users.dto';
 import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 import { Tournament } from 'src/tournament/tournament.entity';
 import { Role } from 'src/auth/user-role.enum';
+import { LeagueMessage } from './league-message.entity';
+import { LeagueMessageDto } from './dto/league-message.dto';
+import { CreateLeagueMessageDto } from './dto/create-league-message.dto';
+import { GetLeagueMessagesQueryDto } from './dto/get-league-messages-query.dto';
+import { GetLeagueMessagesResponseDto } from './dto/get-league-messages-response.dto';
 
 @Injectable()
 export class PrivateLeagueService {
   private logger = new Logger('PrivateLeagueService', { timestamp: true });
+  private static readonly MESSAGE_COOLDOWN_MS = 2_000;
+  private static readonly DEFAULT_MESSAGES_LIMIT = 30;
+  private static readonly MAX_MESSAGES_LIMIT = 50;
+
   constructor(
     private privateLeagueRepo: PrivateLeagueRepository,
     private authService: AuthService,
     @InjectRepository(Tournament)
     private tournamentRepo: Repository<Tournament>,
+    @InjectRepository(LeagueMessage)
+    private leagueMessageRepo: Repository<LeagueMessage>,
   ) {}
 
   private async loadLeagueWithMembers(
@@ -56,6 +69,201 @@ export class PrivateLeagueService {
     if (league.admin?.id !== user.id) {
       throw new ForbiddenException(
         'Only the league admin can perform this action.',
+      );
+    }
+  }
+
+  private toLeagueMessageDto(message: LeagueMessage): LeagueMessageDto {
+    if (!message.createdAt) {
+      throw new InternalServerErrorException(
+        'Message is missing a creation timestamp.',
+      );
+    }
+    const firstName = message.author?.firstName?.trim();
+    const lastName = message.author?.lastName?.trim();
+    const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
+
+    return {
+      id: message.id,
+      content: message.content,
+      createdAt: message.createdAt.toISOString(),
+      authorName: fullName || message.author?.username || 'Unknown user',
+    };
+  }
+
+  private parseCursor(cursor: string): { createdAt: Date; id: string } {
+    const separatorIndex = cursor.indexOf('|');
+    if (separatorIndex <= 0 || separatorIndex === cursor.length - 1) {
+      throw new BadRequestException('Malformed cursor.');
+    }
+
+    const createdAtPart = cursor.slice(0, separatorIndex);
+    const idPart = cursor.slice(separatorIndex + 1);
+    const createdAt = new Date(createdAtPart);
+
+    if (!idPart || Number.isNaN(createdAt.getTime())) {
+      throw new BadRequestException('Malformed cursor.');
+    }
+
+    return { createdAt, id: idPart };
+  }
+
+  private encodeCursor(message: LeagueMessageDto): string {
+    return `${message.createdAt}|${message.id}`;
+  }
+
+  async getLeagueMessages(
+    leagueId: string,
+    user: User,
+    query: GetLeagueMessagesQueryDto,
+  ): Promise<GetLeagueMessagesResponseDto> {
+    try {
+      const league = await this.loadLeagueWithMembers(leagueId);
+      if (!league) {
+        throw new NotFoundException(`League with id: ${leagueId} was not found.`);
+      }
+
+      this.assertMemberOrAppAdmin(user, league);
+
+      const rawLimit = query.limit ?? PrivateLeagueService.DEFAULT_MESSAGES_LIMIT;
+      const limit = Math.min(
+        Math.max(rawLimit, 1),
+        PrivateLeagueService.MAX_MESSAGES_LIMIT,
+      );
+
+      const qb = this.leagueMessageRepo
+        .createQueryBuilder('message')
+        .leftJoinAndSelect('message.author', 'author')
+        .leftJoin('message.league', 'league')
+        .where('league.id = :leagueId', { leagueId });
+
+      if (query.before) {
+        const cursor = this.parseCursor(query.before);
+        qb.andWhere(
+          '(message.createdAt < :cursorCreatedAt OR (message.createdAt = :cursorCreatedAt AND message.id < :cursorId))',
+          {
+            cursorCreatedAt: cursor.createdAt.toISOString(),
+            cursorId: cursor.id,
+          },
+        );
+      } else if (query.after) {
+        const cursor = this.parseCursor(query.after);
+        qb.andWhere(
+          '(message.createdAt > :cursorCreatedAt OR (message.createdAt = :cursorCreatedAt AND message.id > :cursorId))',
+          {
+            cursorCreatedAt: cursor.createdAt.toISOString(),
+            cursorId: cursor.id,
+          },
+        );
+      }
+
+      qb.orderBy('message.createdAt', 'DESC')
+        .addOrderBy('message.id', 'DESC')
+        .take(limit + 1);
+
+      const dbMessages = await qb.getMany();
+      const hasMore = dbMessages.length > limit;
+      const pageMessages = hasMore ? dbMessages.slice(0, limit) : dbMessages;
+
+      const data = pageMessages
+        .map((message) => this.toLeagueMessageDto(message))
+        .reverse();
+      const oldestMessage = data[0];
+
+      return {
+        data,
+        pageInfo: {
+          nextCursor: oldestMessage ? this.encodeCursor(oldestMessage) : null,
+          hasMore,
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to get messages for league:${leagueId}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to get messages for league:${leagueId}`,
+      );
+    }
+  }
+
+  async createLeagueMessage(
+    leagueId: string,
+    user: User,
+    createLeagueMessageDto: CreateLeagueMessageDto,
+  ): Promise<{ data: LeagueMessageDto }> {
+    try {
+      const league = await this.loadLeagueWithMembers(leagueId);
+      if (!league) {
+        throw new NotFoundException(`League with id: ${leagueId} was not found.`);
+      }
+
+      this.assertMemberOrAppAdmin(user, league);
+
+      const latestUserMessage = await this.leagueMessageRepo.findOne({
+        where: {
+          league: { id: leagueId },
+          author: { id: user.id },
+        },
+        order: { createdAt: 'DESC' },
+      });
+
+      if (latestUserMessage) {
+        const elapsedMs =
+          Date.now() - new Date(latestUserMessage.createdAt).getTime();
+        if (elapsedMs < PrivateLeagueService.MESSAGE_COOLDOWN_MS) {
+          this.logger.warn(
+            `Message cooldown hit for user:${user.id} league:${leagueId} elapsedMs:${elapsedMs}`,
+          );
+          throw new HttpException(
+            'Please wait a moment before posting another message.',
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
+      }
+
+      const message = this.leagueMessageRepo.create({
+        content: createLeagueMessageDto.content.trim(),
+        league: { id: leagueId },
+        author: { id: user.id },
+      });
+
+      const savedMessage = await this.leagueMessageRepo.save(message);
+      const populatedMessage = await this.leagueMessageRepo.findOne({
+        where: { id: savedMessage.id },
+        relations: ['author'],
+      });
+
+      if (!populatedMessage) {
+        throw new InternalServerErrorException('Failed to load created message.');
+      }
+
+      return {
+        data: this.toLeagueMessageDto(populatedMessage),
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException ||
+        (error instanceof HttpException &&
+          error.getStatus() === HttpStatus.TOO_MANY_REQUESTS)
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to create message for league:${leagueId}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to create message for league:${leagueId}`,
       );
     }
   }
