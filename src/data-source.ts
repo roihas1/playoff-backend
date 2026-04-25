@@ -72,7 +72,7 @@ export const AppDataSource = new DataSource({
     LeagueMessageCursorIndex1744300000000,
   ],
   migrationsTableName: 'typeorm_migrations',
-  synchronize: false,
+  synchronize: true,
   logging: false,
   ssl: true,
   extra: {
