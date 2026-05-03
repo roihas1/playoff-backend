@@ -23,6 +23,24 @@ export class PlayerMatchupBetService {
     private userSeriesPointsService: UserSeriesPointsService,
   ) {}
 
+  /**
+   * Unsettled matchup bets on `player_matchup_bet` only (any categories; excludes rows in `spontaneous_bet`).
+   */
+  async findUnsettledBasePointsBetsWithGuesses(): Promise<PlayerMatchupBet[]> {
+    return this.playerMatchupBetRepository
+      .createQueryBuilder('bet')
+      .leftJoinAndSelect('bet.guesses', 'g')
+      .leftJoinAndSelect('g.createdBy', 'createdBy')
+      .leftJoin('bet.seriesId', 'series')
+      .leftJoin('series.bestOf7BetId', 'bo7')
+      .andWhere(
+        'NOT EXISTS (SELECT 1 FROM spontaneous_bet s WHERE s.id = bet.id)',
+      )
+      .andWhere('COALESCE(bo7."seriesScore"[1], 0) < 4')
+      .andWhere('COALESCE(bo7."seriesScore"[2], 0) < 4')
+      .getMany();
+  }
+
   async createPlayerMatchupBet(
     createPlayerMatchupBetDto: CreatePlayerMatchupBetDto,
   ): Promise<PlayerMatchupBet> {
