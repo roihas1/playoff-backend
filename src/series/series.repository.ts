@@ -79,6 +79,33 @@ export class SeriesRepository extends Repository<Series> {
     return null;
   }
 
+  async findInProgressSeriesByAbbrPair(
+    abbrA: string,
+    abbrB: string,
+  ): Promise<Series | null> {
+    const list = await this.createQueryBuilder('series')
+      .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
+      .leftJoinAndSelect('series.team1Relation', 'team1')
+      .leftJoinAndSelect('series.team2Relation', 'team2')
+      .where(
+        '(team1.abbreviation = :abbrA AND team2.abbreviation = :abbrB) OR (team1.abbreviation = :abbrB AND team2.abbreviation = :abbrA)',
+        { abbrA, abbrB },
+      )
+      .orderBy('series.dateOfStart', 'DESC')
+      .getMany();
+
+    for (const series of list) {
+      const score = series.bestOf7BetId?.seriesScore;
+      if (score && Array.isArray(score) && score.length >= 2) {
+        const maxWins = Math.max(score[0], score[1]);
+        if (maxWins < 4) return series;
+      } else {
+        return series;
+      }
+    }
+    return null;
+  }
+
   async createSeries(data: CreateSeriesData): Promise<Series> {
     const {
       team1Id,

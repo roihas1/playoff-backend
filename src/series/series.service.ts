@@ -366,6 +366,77 @@ export class SeriesService {
     }
   }
 
+  async getInProgressSeriesByTeamId(teamId: string): Promise<Series | null> {
+    return this.seriesRepository.findInProgressSeriesByTeamId(teamId);
+  }
+
+  async updateSeriesScheduleByTeams(input: {
+    team1Abbr: string;
+    team2Abbr: string;
+    dateOfStart: string;
+    timeOfStart: string;
+  }): Promise<{ updated: boolean; seriesId: string | null }> {
+    const { team1Abbr, team2Abbr, dateOfStart, timeOfStart } = input;
+    const series = await this.seriesRepository.findInProgressSeriesByAbbrPair(
+      team1Abbr,
+      team2Abbr,
+    );
+    if (!series) {
+      this.logger.verbose(
+        `No in-progress series found for pair ${team1Abbr} vs ${team2Abbr}; skipping schedule update.`,
+      );
+      return { updated: false, seriesId: null };
+    }
+
+    const currentDate = this.normalizeDate(series.dateOfStart);
+    const currentTime = this.normalizeTime(series.timeOfStart);
+    const nextDate = dateOfStart;
+    const nextTime = this.normalizeTime(timeOfStart);
+
+    if (currentDate === nextDate && currentTime === nextTime) {
+      return { updated: false, seriesId: series.id };
+    }
+
+    try {
+      await this.seriesRepository.update(series.id, {
+        dateOfStart: new Date(nextDate),
+        timeOfStart: nextTime,
+      });
+      this.logger.verbose(
+        `Updated schedule for series ${series.id} (${team1Abbr} vs ${team2Abbr}) -> ${nextDate} ${nextTime}.`,
+      );
+      return { updated: true, seriesId: series.id };
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to update schedule for series ${series.id}: ${error?.message ?? error}`,
+        error?.stack,
+      );
+      throw error;
+    }
+  }
+
+  private normalizeDate(value: unknown): string {
+    if (value instanceof Date) {
+      return DateTime.fromJSDate(value).toUTC().toISODate() ?? '';
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+      if (match) {
+        return `${match[1]}-${match[2]}-${match[3]}`;
+      }
+    }
+    return '';
+  }
+
+  private normalizeTime(value: string | null | undefined): string {
+    if (!value) return '00:00:00';
+    const trimmed = value.trim();
+    const parts = trimmed.split(':');
+    if (parts.length === 2) return `${trimmed}:00`;
+    return trimmed;
+  }
+
   async updateSeriesFromLastNightWinners(payload: {
     date: string;
     games: { gameId: string; winnerTeamId: string }[];

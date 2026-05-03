@@ -8,4 +8,8 @@ export const configValidationSchema = Joi.object({
   DB_PASSWORD: Joi.string().required(),
   DB_DATABASE: Joi.string().required(),
   JWT_SECRET: Joi.string().required(),
+  BALLDONTLIE_BASE_URL: Joi.string()
+    .uri()
+    .default('https://api.balldontlie.io/v1'),
+  BALLDONTLIE_API_KEY: Joi.string().optional().allow(''),
 });
