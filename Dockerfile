@@ -1,8 +1,16 @@
-FROM node:18
+# Bookworm-based image: actively patched Node LTS + Debian 12 (fewer stale OS CVEs than older node:18 digests).
+FROM node:22-bookworm
 
 # OS deps: Python toolchain, supervisor, git (for cloning StatisticsApi)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl python3 python3-pip python3-venv supervisor git ca-certificates \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        python3 \
+        python3-pip \
+        python3-venv \
+        supervisor \
+        git \
+        ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # --- NestJS service (playoff-backend) ---
@@ -14,25 +22,21 @@ RUN npm install
 
 COPY . .
 
-COPY wait-for-fastapi.sh /app/playoff-backend/wait-for-fastapi.sh
-RUN chmod +x /app/playoff-backend/wait-for-fastapi.sh
+COPY --chmod=755 wait-for-fastapi.sh /app/playoff-backend/wait-for-fastapi.sh
 
 RUN npm rebuild bcrypt --build-from-source \
     && mkdir -p /app/playoff-backend/logs \
     && chmod -R 777 /app/playoff-backend/logs
 
-# --- FastAPI service (StatisticsApi) ---
+# --- FastAPI service (StatisticsApi): clone venv + deps in one layer ---
 ARG STATS_API_REF=main
-RUN git clone --depth 1 --branch ${STATS_API_REF} \
-        https://github.com/roihas1/StatisticsApi.git /app/statistics-api
-
-# Isolated venv to avoid PEP 668 issues on Debian Bookworm
-RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# requirements.txt is missing motor + python-dotenv (used by database.py); add them explicitly
-RUN pip install --no-cache-dir -r /app/statistics-api/app/requirements.txt \
-    && pip install --no-cache-dir motor python-dotenv
+RUN git clone --depth 1 --branch ${STATS_API_REF} \
+        https://github.com/roihas1/StatisticsApi.git /app/statistics-api \
+    && python3 -m venv /opt/venv \
+    && pip install --no-cache-dir -r /app/statistics-api/app/requirements.txt \
+    && pip install --no-cache-dir motor python-dotenv nba-api
 
 # --- Supervisor ---
 COPY supervisord.conf /etc/supervisor/conf.d/services.conf
