@@ -90,13 +90,7 @@ export class CronService {
     const hasDoubleDouble = source.includes(MatchupCategory.DOUBLE_DOUBLE);
     const hasTripleDouble = source.includes(MatchupCategory.TRIPLE_DOUBLE);
     if (hasDoubleDouble || hasTripleDouble) {
-      return [
-        'points',
-        'rebounds',
-        'assists',
-        'steals',
-        'blocks',
-      ];
+      return ['points', 'rebounds', 'assists', 'steals', 'blocks'];
     }
     const normalized = source
       .map((category) => toApiCategory(category))
@@ -172,7 +166,10 @@ export class CronService {
     }, {});
   }
 
-  private toLimitedPreview<T>(items: T[], limit = this.slateLogDetailLimit): {
+  private toLimitedPreview<T>(
+    items: T[],
+    limit = this.slateLogDetailLimit,
+  ): {
     total: number;
     shown: number;
     truncated: boolean;
@@ -187,7 +184,7 @@ export class CronService {
     };
   }
 
-  @Cron('0 3 21 * * *')
+  // @Cron('0 3 21 * * *')
   async handleUpdateGamesAndSeries(): Promise<void> {
     this.logger.log('Starting update games and series cron job.');
     const gameDate = DateTime.now()
@@ -229,14 +226,26 @@ export class CronService {
   /**
    * Slate grading: yesterday in Asia/Jerusalem; POST player names to StatsService, then increment
    * currentStats/playerGames, recompute result, recalc user series points for affected users.
+   * Two daily runs (Israel): early pass + later pass for West coast / late finishes; idempotent via BetStatUpdate.
    */
-  @Cron('0 00 22 * * *')
-  async handleSlateGrading(): Promise<void> {
+  @Cron('0 0 4 * * *', { timeZone: 'Asia/Jerusalem' })
+  async handleSlateGrading04Israel(): Promise<void> {
+    await this.runSlateGrading('04:00 Asia/Jerusalem');
+  }
+
+  @Cron('0 30 8 * * *', { timeZone: 'Asia/Jerusalem' })
+  async handleSlateGrading0830Israel(): Promise<void> {
+    await this.runSlateGrading('08:30 Asia/Jerusalem');
+  }
+
+  private async runSlateGrading(scheduleSlot: string): Promise<void> {
     const normalizePlayerName = (value: string): string =>
       value.trim().toLowerCase();
     const runStartedAtMs = Date.now();
     const runStartedAtIso = new Date(runStartedAtMs).toISOString();
-    this.logger.log(`Slate run started at=${runStartedAtIso}`);
+    this.logger.log(
+      `Slate run started slot=${scheduleSlot} at=${runStartedAtIso}`,
+    );
     try {
       const gameDate = DateTime.now()
         .setZone('Asia/Jerusalem')
@@ -570,7 +579,7 @@ export class CronService {
     } finally {
       const runDurationMs = Date.now() - runStartedAtMs;
       this.logger.log(
-        `Slate run finished startedAt=${runStartedAtIso} durationMs=${runDurationMs}`,
+        `Slate run finished slot=${scheduleSlot} startedAt=${runStartedAtIso} durationMs=${runDurationMs}`,
       );
     }
   }

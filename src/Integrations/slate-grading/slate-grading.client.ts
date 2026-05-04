@@ -25,8 +25,9 @@ export class SlateGradingClient {
 
   getGradePath(): string {
     return (
-      this.configService.get<string>('STATS_SERVICE_SLATE_GRADE_PATH')?.trim() ||
-      '/api/slate/grade'
+      this.configService
+        .get<string>('STATS_SERVICE_SLATE_GRADE_PATH')
+        ?.trim() || '/api/slate/grade'
     );
   }
 
@@ -49,7 +50,9 @@ export class SlateGradingClient {
     const apiKey = this.configService
       .get<string>('STATS_SERVICE_API_KEY', '')
       ?.trim();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
     if (apiKey) {
       headers['X-API-Key'] = apiKey;
     }

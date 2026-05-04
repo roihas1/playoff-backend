@@ -2,7 +2,7 @@ FROM node:18
 
 # OS deps: Python toolchain, supervisor, git (for cloning StatisticsApi)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3 python3-pip python3-venv supervisor git ca-certificates \
+        curl python3 python3-pip python3-venv supervisor git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # --- NestJS service (playoff-backend) ---
@@ -13,6 +13,9 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+
+COPY wait-for-fastapi.sh /app/playoff-backend/wait-for-fastapi.sh
+RUN chmod +x /app/playoff-backend/wait-for-fastapi.sh
 
 RUN npm rebuild bcrypt --build-from-source \
     && mkdir -p /app/playoff-backend/logs \

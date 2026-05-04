@@ -252,8 +252,7 @@ export class AuthService {
     totalPoints: number;
   }> {
     try {
-      let resolvedTournamentId =
-        tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+      let resolvedTournamentId = tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
       let resolvedLeagueId: string | null = null;
 
       if (leagueId) {
@@ -274,16 +273,12 @@ export class AuthService {
             );
           }
         }
-        if (
-          tournamentId &&
-          tournamentId !== leagueEntity.tournament.id
-        ) {
+        if (tournamentId && tournamentId !== leagueEntity.tournament.id) {
           throw new BadRequestException(
             'tournamentId does not match this league.',
           );
         }
-        resolvedTournamentId =
-          tournamentId ?? leagueEntity.tournament.id;
+        resolvedTournamentId = tournamentId ?? leagueEntity.tournament.id;
         resolvedLeagueId = leagueId;
       }
 
@@ -336,9 +331,9 @@ export class AuthService {
         );
       }
 
-      const leagues = (
-        await this.getAllUserLeagues(user, tournamentId)
-      ).filter((l) => l?.id);
+      const leagues = (await this.getAllUserLeagues(user, tournamentId)).filter(
+        (l) => l?.id,
+      );
 
       const rankResults = await Promise.all([
         this.usersRepository.getUserStandingsRank(user.id, tournamentId),
