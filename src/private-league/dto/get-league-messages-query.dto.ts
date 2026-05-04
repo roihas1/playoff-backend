@@ -26,9 +26,7 @@ class ExclusiveBeforeAfterConstraint implements ValidatorConstraintInterface {
 export class GetLeagueMessagesQueryDto {
   @IsOptional()
   @Transform(({ value }) =>
-    value === undefined || value === null || value === ''
-      ? 30
-      : Number(value),
+    value === undefined || value === null || value === '' ? 30 : Number(value),
   )
   @IsInt()
   @Min(1)

@@ -369,9 +369,28 @@ export class SeriesService {
   async updateSeriesFromLastNightWinners(payload: {
     date: string;
     games: { gameId: string; winnerTeamId: string }[];
-  }): Promise<{ updated: number; closed: number }> {
+  }): Promise<{
+    updated: number;
+    closed: number;
+    details: Array<{
+      gameId: string;
+      winnerTeamId: string;
+      outcome: 'no_matching_series' | 'best_of_7_incremented' | 'series_closed';
+      seriesId?: string;
+      teamThatWonThisGame?: 1 | 2;
+      seriesScoreAfter?: [number, number];
+    }>;
+  }> {
     let updated = 0;
     let closed = 0;
+    const details: Array<{
+      gameId: string;
+      winnerTeamId: string;
+      outcome: 'no_matching_series' | 'best_of_7_incremented' | 'series_closed';
+      seriesId?: string;
+      teamThatWonThisGame?: 1 | 2;
+      seriesScoreAfter?: [number, number];
+    }> = [];
     for (const game of payload.games) {
       const series = await this.seriesRepository.findInProgressSeriesByTeamId(
         game.winnerTeamId,
@@ -380,6 +399,11 @@ export class SeriesService {
         this.logger.verbose(
           `No in-progress series found for winnerTeamId ${game.winnerTeamId} (gameId ${game.gameId}), skipping.`,
         );
+        details.push({
+          gameId: game.gameId,
+          winnerTeamId: game.winnerTeamId,
+          outcome: 'no_matching_series',
+        });
         continue;
       }
       const teamWon = series.team1Relation?.id === game.winnerTeamId ? 1 : 2;
@@ -392,12 +416,22 @@ export class SeriesService {
         series.bestOf7BetId.id,
       );
       const score = bet.seriesScore ?? [0, 0];
-      if (score[0] === 4 || score[1] === 4) {
+      const seriesScoreAfter: [number, number] = [score[0], score[1]];
+      const seriesJustEnded = score[0] === 4 || score[1] === 4;
+      details.push({
+        gameId: game.gameId,
+        winnerTeamId: game.winnerTeamId,
+        outcome: seriesJustEnded ? 'series_closed' : 'best_of_7_incremented',
+        seriesId: series.id,
+        teamThatWonThisGame: teamWon as 1 | 2,
+        seriesScoreAfter,
+      });
+      if (seriesJustEnded) {
         await this.optimizedCloseAllBetsInSeries(series.id);
         closed++;
       }
     }
-    return { updated, closed };
+    return { updated, closed, details };
   }
 
   async getSeriesNoGuesses(seriesId: string): Promise<Series> {
@@ -2265,7 +2299,8 @@ export class SeriesService {
         await this.spontaneousBetService.getSpontaneousBetsPercentagesForSeries(
           series.id,
         );
-      const { bestOf7 } = bestOf7Stats ?? (await this.getBestOf7Stats(series.id));
+      const { bestOf7 } =
+        bestOf7Stats ?? (await this.getBestOf7Stats(series.id));
       res['bestOf7'] = bestOf7;
       return res;
     } catch (error) {

@@ -10,7 +10,11 @@ import { LeagueMessage } from './league-message.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PrivateLeagueRepository, Tournament, LeagueMessage]),
+    TypeOrmModule.forFeature([
+      PrivateLeagueRepository,
+      Tournament,
+      LeagueMessage,
+    ]),
     AuthModule,
     UserTournamentPointsModule,
   ],

@@ -120,12 +120,15 @@ export class PrivateLeagueService {
     try {
       const league = await this.loadLeagueWithMembers(leagueId);
       if (!league) {
-        throw new NotFoundException(`League with id: ${leagueId} was not found.`);
+        throw new NotFoundException(
+          `League with id: ${leagueId} was not found.`,
+        );
       }
 
       this.assertMemberOrAppAdmin(user, league);
 
-      const rawLimit = query.limit ?? PrivateLeagueService.DEFAULT_MESSAGES_LIMIT;
+      const rawLimit =
+        query.limit ?? PrivateLeagueService.DEFAULT_MESSAGES_LIMIT;
       const limit = Math.min(
         Math.max(rawLimit, 1),
         PrivateLeagueService.MAX_MESSAGES_LIMIT,
@@ -203,7 +206,9 @@ export class PrivateLeagueService {
     try {
       const league = await this.loadLeagueWithMembers(leagueId);
       if (!league) {
-        throw new NotFoundException(`League with id: ${leagueId} was not found.`);
+        throw new NotFoundException(
+          `League with id: ${leagueId} was not found.`,
+        );
       }
 
       this.assertMemberOrAppAdmin(user, league);
@@ -243,7 +248,9 @@ export class PrivateLeagueService {
       });
 
       if (!populatedMessage) {
-        throw new InternalServerErrorException('Failed to load created message.');
+        throw new InternalServerErrorException(
+          'Failed to load created message.',
+        );
       }
 
       return {

@@ -155,7 +155,11 @@ export class PrivateLeagueController {
     this.logger.verbose(
       `User: ${user.username} attempting to get messages for league: ${leagueId}`,
     );
-    return await this.privateLeagueService.getLeagueMessages(leagueId, user, query);
+    return await this.privateLeagueService.getLeagueMessages(
+      leagueId,
+      user,
+      query,
+    );
   }
 
   @Post('/:leagueId/messages')

@@ -73,9 +73,8 @@ export class ChampionsGuessService {
       );
     }
 
-    const foundTeam = await this.teamService.findByNameOrAbbreviationOrThrow(
-      teamName,
-    );
+    const foundTeam =
+      await this.teamService.findByNameOrAbbreviationOrThrow(teamName);
     return foundTeam.id;
   }
 

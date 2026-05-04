@@ -16,6 +16,21 @@ export class SpontaneousBetService {
   private logger = new Logger('SpontaneousBetService', { timestamp: true });
   constructor(private spontaneousBetRepo: SpontaneousBetRepo) {}
 
+  /**
+   * Unsettled matchup bets in `spontaneous_bet` (any categories), with guesses loaded for user recalculation.
+   */
+  async findUnsettledPointsBetsWithGuesses(): Promise<SpontaneousBet[]> {
+    return this.spontaneousBetRepo
+      .createQueryBuilder('bet')
+      .leftJoinAndSelect('bet.guesses', 'g')
+      .leftJoinAndSelect('g.createdBy', 'createdBy')
+      .leftJoin('bet.seriesId', 'series')
+      .leftJoin('series.bestOf7BetId', 'bo7')
+      .andWhere('COALESCE(bo7."seriesScore"[1], 0) < 4')
+      .andWhere('COALESCE(bo7."seriesScore"[2], 0) < 4')
+      .getMany();
+  }
+
   async createSpontaneousBet(
     createSpontaneousBetDto: CreateSpontaneousBetDto,
   ): Promise<SpontaneousBet> {
