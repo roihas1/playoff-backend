@@ -3,6 +3,7 @@ import { SeriesController } from './series.controller';
 import { SeriesService } from './series.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SeriesRepository } from './series.repository';
+import { SeriesGameUpdate } from './series-game-update.entity';
 import { AuthModule } from 'src/auth/auth.module';
 import { TeamWinGuessModule } from 'src/team-win-guess/team-win-guess.module';
 import { BestOf7GuessModule } from 'src/best-of7-guess/best-of7-guess.module';
@@ -17,7 +18,7 @@ import { TeamModule } from 'src/team/team.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SeriesRepository]),
+    TypeOrmModule.forFeature([SeriesRepository, SeriesGameUpdate]),
     TeamModule,
     forwardRef(() => AuthModule),
     TeamWinGuessModule,

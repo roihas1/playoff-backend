@@ -36,8 +36,8 @@ export class PlayerMatchupBetService {
       .andWhere(
         'NOT EXISTS (SELECT 1 FROM spontaneous_bet s WHERE s.id = bet.id)',
       )
-      .andWhere('COALESCE(bo7."seriesScore"[1], 0) < 4')
-      .andWhere('COALESCE(bo7."seriesScore"[2], 0) < 4')
+      .andWhere('COALESCE(bo7."seriesScore"[1], 0) <= 4')
+      .andWhere('COALESCE(bo7."seriesScore"[2], 0) <= 4')
       .getMany();
   }
 

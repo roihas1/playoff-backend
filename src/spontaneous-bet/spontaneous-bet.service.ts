@@ -26,8 +26,8 @@ export class SpontaneousBetService {
       .leftJoinAndSelect('g.createdBy', 'createdBy')
       .leftJoin('bet.seriesId', 'series')
       .leftJoin('series.bestOf7BetId', 'bo7')
-      .andWhere('COALESCE(bo7."seriesScore"[1], 0) < 4')
-      .andWhere('COALESCE(bo7."seriesScore"[2], 0) < 4')
+      .andWhere('COALESCE(bo7."seriesScore"[1], 0) <= 4')
+      .andWhere('COALESCE(bo7."seriesScore"[2], 0) <= 4')
       .getMany();
   }
 

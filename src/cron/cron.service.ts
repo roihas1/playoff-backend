@@ -184,9 +184,16 @@ export class CronService {
     };
   }
 
-  // @Cron('0 3 21 * * *')
-  async handleUpdateGamesAndSeries(): Promise<void> {
-    this.logger.log('Starting update games and series cron job.');
+  /**
+   * Fetches last-night winners from the Python service and updates series scores.
+   * Invoked at the start of each slate grading run (not as a standalone cron).
+   */
+  async handleUpdateGamesAndSeries(scheduleSlot?: string): Promise<void> {
+    this.logger.log(
+      scheduleSlot
+        ? `Starting update games and series before slate slot=${scheduleSlot}.`
+        : 'Starting update games and series.',
+    );
     const gameDate = DateTime.now()
       .setZone('Asia/Jerusalem')
       .minus({ days: 1 })
@@ -224,18 +231,18 @@ export class CronService {
   }
 
   /**
-   * Slate grading: yesterday in Asia/Jerusalem; POST player names to StatsService, then increment
-   * currentStats/playerGames, recompute result, recalc user series points for affected users.
-   * Two daily runs (Israel): early pass + later pass for West coast / late finishes; idempotent via BetStatUpdate.
+   * Slate grading: runs last-night series update first, then yesterday (Asia/Jerusalem) slate POST,
+   * increments currentStats/playerGames, recomputes bet results, then recalculates all users' series
+   * and tournament fantasy points (idempotent stat rows via BetStatUpdate; idempotent games via SeriesGameUpdate).
    */
-  @Cron('0 0 4 * * *', { timeZone: 'Asia/Jerusalem' })
-  async handleSlateGrading04Israel(): Promise<void> {
-    await this.runSlateGrading('04:00 Asia/Jerusalem');
+  @Cron('0 0 5 * * *', { timeZone: 'Asia/Jerusalem' })
+  async handleSlateGrading05Israel(): Promise<void> {
+    await this.runSlateGrading('05:00 Asia/Jerusalem');
   }
 
-  @Cron('0 30 8 * * *', { timeZone: 'Asia/Jerusalem' })
-  async handleSlateGrading0830Israel(): Promise<void> {
-    await this.runSlateGrading('08:30 Asia/Jerusalem');
+  @Cron('0 0 8 * * *', { timeZone: 'Asia/Jerusalem' })
+  async handleSlateGrading08Israel(): Promise<void> {
+    await this.runSlateGrading('08:00 Asia/Jerusalem');
   }
 
   private async runSlateGrading(scheduleSlot: string): Promise<void> {
@@ -247,12 +254,18 @@ export class CronService {
       `Slate run started slot=${scheduleSlot} at=${runStartedAtIso}`,
     );
     try {
+      await this.handleUpdateGamesAndSeries(scheduleSlot);
+
       const gameDate = DateTime.now()
         .setZone('Asia/Jerusalem')
         .minus({ days: 1 })
         .toISODate();
       if (!gameDate) {
         this.logger.warn('Slate: could not compute yesterday gameDate.');
+        await this.userSeriesPointsService.updateAllUserPointsTotalFSP();
+        this.logger.verbose(
+          `Slate slot=${scheduleSlot}: finished all-user points recalc after missing gameDate.`,
+        );
         return;
       }
 
@@ -270,6 +283,10 @@ export class CronService {
 
       if (allBets.length === 0) {
         this.logger.log(`Slate ${gameDate}: no unsettled matchup bets.`);
+        await this.userSeriesPointsService.updateAllUserPointsTotalFSP();
+        this.logger.verbose(
+          `Slate slot=${scheduleSlot}: finished all-user points recalc (no bets to grade).`,
+        );
         return;
       }
 
@@ -312,12 +329,20 @@ export class CronService {
           `Slate grade HTTP error: ${e instanceof Error ? e.message : e}`,
           e instanceof Error ? e.stack : undefined,
         );
+        await this.userSeriesPointsService.updateAllUserPointsTotalFSP();
+        this.logger.verbose(
+          `Slate slot=${scheduleSlot}: finished all-user points recalc after slate HTTP error.`,
+        );
         return;
       }
 
       if (res.status !== 'success') {
         this.logger.warn(
           `Slate: unexpected status "${res.status}" for gameDate=${gameDate}, skipping updates.`,
+        );
+        await this.userSeriesPointsService.updateAllUserPointsTotalFSP();
+        this.logger.verbose(
+          `Slate slot=${scheduleSlot}: finished all-user points recalc after non-success slate status.`,
         );
         return;
       }
@@ -349,7 +374,6 @@ export class CronService {
         byBetId.set(row.betId, current);
       }
 
-      const userIds = new Set<string>();
       const appliedSummary: Array<{
         betId: string;
         kind: 'base' | 'spontaneous';
@@ -520,12 +544,6 @@ export class CronService {
             ],
             resultAfter: bet.result ?? null,
           });
-          for (const g of bet.guesses ?? []) {
-            const uid = g.createdBy?.id;
-            if (uid) {
-              userIds.add(uid);
-            }
-          }
         } catch (err) {
           this.logger.error(
             `Slate betId=${bet.id} save/result: ${err instanceof Error ? err.message : err}`,
@@ -539,15 +557,10 @@ export class CronService {
         }
       }
 
-      for (const uid of userIds) {
-        try {
-          await this.userSeriesPointsService.updatePointsForUser(uid);
-        } catch (err) {
-          this.logger.error(
-            `Slate user points uid=${uid}: ${err instanceof Error ? err.message : err}`,
-          );
-        }
-      }
+      await this.userSeriesPointsService.updateAllUserPointsTotalFSP();
+      this.logger.verbose(
+        `Slate slot=${scheduleSlot}: finished all-user series and tournament points recalc.`,
+      );
 
       const skipped =
         skippedUnresolvedSummary.length +
@@ -560,7 +573,7 @@ export class CronService {
       );
       const otherReasons = this.summarizeReasons(skippedOtherSummary);
       this.logger.log(
-        `Slate summary gameDate=${gameDate} candidates=${allBets.length} applied=${appliedSummary.length} alreadyApplied=${alreadyAppliedSummary.length} skippedInvalidGameId=${skippedInvalidGameIdSummary.length} skippedUnresolved=${skippedUnresolvedSummary.length} skippedOther=${skippedOtherSummary.length} skipped=${skipped} usersRecalculated=${userIds.size} gamesInResponse=${(res.games ?? []).length} status=${res.status}.`,
+        `Slate summary gameDate=${gameDate} candidates=${allBets.length} applied=${appliedSummary.length} alreadyApplied=${alreadyAppliedSummary.length} skippedInvalidGameId=${skippedInvalidGameIdSummary.length} skippedUnresolved=${skippedUnresolvedSummary.length} skippedOther=${skippedOtherSummary.length} skipped=${skipped} allUsersPointsRecalculated=true gamesInResponse=${(res.games ?? []).length} status=${res.status}.`,
       );
       this.logger.log(
         `Slate reason summary unresolved=${JSON.stringify(unresolvedReasons)} invalidGameId=${JSON.stringify(invalidGameIdReasons)} other=${JSON.stringify(otherReasons)}`,

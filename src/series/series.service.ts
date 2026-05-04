@@ -49,6 +49,8 @@ import { UserSeriesPointsService } from 'src/user-series-points/user-series-poin
 import { DateTime } from 'luxon';
 import { MatchupCategory } from 'src/player-matchup-bet/matchup-category.enum';
 import { TeamService } from 'src/team/team.service';
+import { DataSource } from 'typeorm';
+import { SeriesGameUpdate } from './series-game-update.entity';
 
 export type TournamentInfo = {
   id: string;
@@ -97,7 +99,8 @@ export class SeriesService {
     @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
     private spontaneousGuessService: SpontaneousGuessService,
-    private userSeriesPointsService: UserSeriesPointsService,
+    private readonly userSeriesPointsService: UserSeriesPointsService,
+    private readonly dataSource: DataSource,
   ) {}
 
   private getDefaultBestOf7Percentages(): BestOf7PercentagesDto {
@@ -375,7 +378,11 @@ export class SeriesService {
     details: Array<{
       gameId: string;
       winnerTeamId: string;
-      outcome: 'no_matching_series' | 'best_of_7_incremented' | 'series_closed';
+      outcome:
+        | 'no_matching_series'
+        | 'best_of_7_incremented'
+        | 'series_closed'
+        | 'skipped_already_applied';
       seriesId?: string;
       teamThatWonThisGame?: 1 | 2;
       seriesScoreAfter?: [number, number];
@@ -386,7 +393,11 @@ export class SeriesService {
     const details: Array<{
       gameId: string;
       winnerTeamId: string;
-      outcome: 'no_matching_series' | 'best_of_7_incremented' | 'series_closed';
+      outcome:
+        | 'no_matching_series'
+        | 'best_of_7_incremented'
+        | 'series_closed'
+        | 'skipped_already_applied';
       seriesId?: string;
       teamThatWonThisGame?: 1 | 2;
       seriesScoreAfter?: [number, number];
@@ -407,26 +418,90 @@ export class SeriesService {
         continue;
       }
       const teamWon = series.team1Relation?.id === game.winnerTeamId ? 1 : 2;
-      await this.bestOf7BetService.incrementGameWin(
-        series.bestOf7BetId.id,
-        teamWon as 1 | 2,
-      );
+      const bestOf7BetId = series.bestOf7BetId.id;
+
+      type TxResult =
+        | { status: 'skipped_duplicate' }
+        | {
+            status: 'applied';
+            seriesScoreAfter: [number, number];
+            seriesJustEnded: boolean;
+          };
+
+      const txResult = await this.dataSource.transaction(async (manager) => {
+        const insertRes = await manager
+          .createQueryBuilder()
+          .insert()
+          .into(SeriesGameUpdate)
+          .values({
+            gameId: game.gameId,
+            gameDate: payload.date,
+            winnerTeamId: game.winnerTeamId,
+            seriesId: series.id,
+          })
+          .orIgnore()
+          .returning('id')
+          .execute();
+
+        const rawRows = (insertRes.raw ?? []) as unknown[];
+        const hasIdentifier = (insertRes.identifiers?.length ?? 0) > 0;
+        if (rawRows.length === 0 && !hasIdentifier) {
+          return { status: 'skipped_duplicate' } as TxResult;
+        }
+
+        const betRepo = manager.getRepository(BestOf7Bet);
+        const bet = await betRepo.findOne({
+          where: { id: bestOf7BetId },
+          select: ['id', 'seriesScore'],
+        });
+        if (!bet) {
+          throw new InternalServerErrorException(
+            `BestOf7Bet ${bestOf7BetId} not found for last-night-winners.`,
+          );
+        }
+        if (!bet.seriesScore || bet.seriesScore.length < 2) {
+          bet.seriesScore = [0, 0];
+        }
+        bet.seriesScore[teamWon - 1] += 1;
+        await betRepo.save(bet);
+
+        const score = bet.seriesScore ?? [0, 0];
+        const seriesScoreAfter: [number, number] = [score[0], score[1]];
+        const seriesJustEnded = score[0] === 4 || score[1] === 4;
+
+        return {
+          status: 'applied',
+          seriesScoreAfter,
+          seriesJustEnded,
+        } as TxResult;
+      });
+
+      if (txResult.status === 'skipped_duplicate') {
+        this.logger.verbose(
+          `Last-night-winners gameId=${game.gameId} already applied, skipping duplicate.`,
+        );
+        details.push({
+          gameId: game.gameId,
+          winnerTeamId: game.winnerTeamId,
+          outcome: 'skipped_already_applied',
+          seriesId: series.id,
+        });
+        continue;
+      }
+
       updated++;
-      const bet = await this.bestOf7BetService.getBestOf7BetLight(
-        series.bestOf7BetId.id,
-      );
-      const score = bet.seriesScore ?? [0, 0];
-      const seriesScoreAfter: [number, number] = [score[0], score[1]];
-      const seriesJustEnded = score[0] === 4 || score[1] === 4;
       details.push({
         gameId: game.gameId,
         winnerTeamId: game.winnerTeamId,
-        outcome: seriesJustEnded ? 'series_closed' : 'best_of_7_incremented',
+        outcome: txResult.seriesJustEnded
+          ? 'series_closed'
+          : 'best_of_7_incremented',
         seriesId: series.id,
         teamThatWonThisGame: teamWon as 1 | 2,
-        seriesScoreAfter,
+        seriesScoreAfter: txResult.seriesScoreAfter,
       });
-      if (seriesJustEnded) {
+
+      if (txResult.seriesJustEnded) {
         await this.optimizedCloseAllBetsInSeries(series.id);
         closed++;
       }
@@ -1043,7 +1118,7 @@ export class SeriesService {
 
       await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
 
-      // update points - different approach
+      // update points - different approach (also used by HTTP close endpoint)
       await this.userSeriesPointsService.updateAllUserPointsTotalFSP();
 
       // await Promise.all(
@@ -1153,8 +1228,6 @@ export class SeriesService {
       for (const matchup of series.spontaneousBets) {
         await this.spontaneousBetService.updateResultForSeries(matchup);
       }
-
-      await this.userSeriesPointsService.updateAllUserPointsTotalFSP();
 
       await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
     } catch (error) {

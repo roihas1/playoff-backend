@@ -29,6 +29,8 @@ import { PrivateLeagueTournament1744200000000 } from './migrations/1744200000000
 import { LeagueMessageCursorIndex1744300000000 } from './migrations/1744300000000-league-message-cursor-index';
 import { BetStatUpdate } from './bet-stat-update/bet-stat-update.entity';
 import { BetStatUpdateLedger1744400000000 } from './migrations/1744400000000-bet-stat-update';
+import { SeriesGameUpdate } from './series/series-game-update.entity';
+import { SeriesGameUpdate1744500000000 } from './migrations/1744500000000-series-game-update';
 
 ConfigModule.forRoot({
   isGlobal: true,
@@ -66,6 +68,7 @@ export const AppDataSource = new DataSource({
     Team,
     UserTournamentPoints,
     BetStatUpdate,
+    SeriesGameUpdate,
   ],
   migrations: [
     UserTournamentPointsAndPlayoffStageTournament1743787200000,
@@ -74,6 +77,7 @@ export const AppDataSource = new DataSource({
     PrivateLeagueTournament1744200000000,
     LeagueMessageCursorIndex1744300000000,
     BetStatUpdateLedger1744400000000,
+    SeriesGameUpdate1744500000000,
   ],
   migrationsTableName: 'typeorm_migrations',
   synchronize: true,
