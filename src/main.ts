@@ -10,7 +10,7 @@ import * as compression from 'compression';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const logger = app.get(AppLogger);
-  const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5174';
   app.enableCors({
     origin: allowedOrigin,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -22,7 +22,14 @@ async function bootstrap() {
   });
   app.use(compression());
   app.useLogger(logger);
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
   app.useGlobalInterceptors(new TransformInterceptor());
   app.useGlobalFilters(new UnauthorizedExceptionFilter());
   const port = 3000;

@@ -10,6 +10,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { Roles } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Role } from 'src/auth/user-role.enum';
 import { SpontaneousBetService } from './spontaneous-bet.service';
 import { CreateSpontaneousBetDto } from './dto/create-spontaneous-bet.dto';
 import { SpontaneousBet } from './spontaneousBet.entity';
@@ -26,6 +29,8 @@ export class SpontaneousBetController {
   constructor(private spontaneousBetService: SpontaneousBetService) {}
 
   @Post()
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async createSpontaneousBet(
     @Body() createSpontaneousBetDto: CreateSpontaneousBetDto,
     @GetUser() user: User,
@@ -51,6 +56,8 @@ export class SpontaneousBetController {
     );
   }
   @Patch('/:betId/update')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updateBetFields(
     @Body() updateBetFieldsDto: UpdateBetFieldsDto,
     @Param('betId') betId: string,
@@ -65,6 +72,8 @@ export class SpontaneousBetController {
     );
   }
   @Delete('/:betId/delete')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async deleteBet(
     @Param('betId') betId: string,
     @GetUser() user: User,

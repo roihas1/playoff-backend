@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -11,6 +12,7 @@ import {
 import { CreateBestOf7GuessDto } from './dto/create-best-of7-guess.dto';
 import { BestOf7Guess } from './best-of7-guess.entity';
 import { User } from '../auth/user.entity';
+import { Role } from '../auth/user-role.enum';
 import { BestOf7BetService } from 'src/best-of7-bet/best-of7-bet.service';
 import { BestOf7Bet } from 'src/best-of7-bet/bestOf7.entity';
 
@@ -21,6 +23,17 @@ export class BestOf7GuessService {
     private bestOf7GuessRepository: BestOf7GuessRepository,
     private bestOf7BetService: BestOf7BetService,
   ) {}
+
+  private assertGuessOwnerOrAdmin(guess: BestOf7Guess, user: User): void {
+    if (user.role === Role.ADMIN) {
+      return;
+    }
+    if (guess.createdBy?.id !== user.id) {
+      throw new ForbiddenException(
+        'You do not have permission to access this guess.',
+      );
+    }
+  }
 
   async createBestOf7Guess(
     createBestOf7GuessDto: CreateBestOf7GuessDto,
@@ -58,6 +71,12 @@ export class BestOf7GuessService {
       throw new NotFoundException(`BestOf7Bet with ID ${id} not found.`);
     }
     this.logger.verbose(`BestOf7Guess with ID: ${id} retrieved succesfully.`);
+    return found;
+  }
+
+  async getGuessByIdForUser(id: string, user: User): Promise<BestOf7Guess> {
+    const found = await this.getGuessById(id);
+    this.assertGuessOwnerOrAdmin(found, user);
     return found;
   }
 
@@ -102,8 +121,13 @@ export class BestOf7GuessService {
     return found;
   }
 
-  async updateGuess(id: string, guess: number): Promise<BestOf7Guess> {
+  async updateGuess(
+    id: string,
+    guess: number,
+    user: User,
+  ): Promise<BestOf7Guess> {
     const found = await this.getGuessById(id);
+    this.assertGuessOwnerOrAdmin(found, user);
 
     found.guess = guess;
     return await this.bestOf7GuessRepository.save(found);
@@ -118,8 +142,11 @@ export class BestOf7GuessService {
     return await this.bestOf7GuessRepository.save(found);
   }
 
-  async deleteGuess(id: string): Promise<void> {
+  async deleteGuess(id: string, user?: User): Promise<void> {
     const found = await this.getGuessById(id);
+    if (user) {
+      this.assertGuessOwnerOrAdmin(found, user);
+    }
     try {
       await this.bestOf7GuessRepository.delete(found);
       this.logger.verbose(`BestOf7Guess with ID: ${id} deleted succesfully.`);

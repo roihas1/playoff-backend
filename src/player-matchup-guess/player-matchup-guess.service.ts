@@ -1,7 +1,13 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PlayerMatchupGuessRepository } from './player-matchup-guess.repository';
 import { CreatePlayerMatchupGuessDto } from './dto/create-player-matchup-guess.dto';
 import { User } from 'src/auth/user.entity';
+import { Role } from 'src/auth/user-role.enum';
 import { PlayerMatchupGuess } from './player-matchup-guess.entity';
 import { PlayerMatchupBetService } from 'src/player-matchup-bet/player-matchup-bet.service';
 import { UpdateGuessDto } from './dto/update-guess.dto';
@@ -15,6 +21,17 @@ export class PlayerMatchupGuessService {
     private playerMatchupGuessRepository: PlayerMatchupGuessRepository,
     private playerMatchupBetService: PlayerMatchupBetService,
   ) {}
+
+  private assertGuessOwnerOrAdmin(guess: PlayerMatchupGuess, user: User): void {
+    if (user.role === Role.ADMIN) {
+      return;
+    }
+    if (guess.createdBy?.id !== user.id) {
+      throw new ForbiddenException(
+        'You do not have permission to access this guess.',
+      );
+    }
+  }
 
   async createPlayerMatchupGuess(
     createPlayerMatchGuessDto: CreatePlayerMatchupGuessDto,
@@ -110,6 +127,7 @@ export class PlayerMatchupGuessService {
   async getPlayerMatcupGuessById(id: string): Promise<PlayerMatchupGuess> {
     const found = await this.playerMatchupGuessRepository.findOne({
       where: { id },
+      relations: ['createdBy'],
     });
     if (!found) {
       this.logger.error(`PlayerMatchupGuess with ID ${id} not found.`);
@@ -153,6 +171,7 @@ export class PlayerMatchupGuessService {
         user,
       );
     }
+    this.assertGuessOwnerOrAdmin(bet, user);
     bet.guess = updateGuessDto.guess;
 
     try {

@@ -310,7 +310,36 @@ export class SpontaneousBetService {
               : -1;
       }
 
-      Object.assign(bet, updateBetFieldsDto);
+      if (updateBetFieldsDto.typeOfMatchup !== undefined) {
+        bet.typeOfMatchup = updateBetFieldsDto.typeOfMatchup;
+      }
+      if (updateBetFieldsDto.categories !== undefined) {
+        bet.categories = updateBetFieldsDto.categories;
+      }
+      if (updateBetFieldsDto.fantasyPoints !== undefined) {
+        bet.fantasyPoints = updateBetFieldsDto.fantasyPoints;
+      }
+      if (updateBetFieldsDto.player1 !== undefined) {
+        bet.player1 = updateBetFieldsDto.player1;
+      }
+      if (updateBetFieldsDto.player2 !== undefined) {
+        bet.player2 = updateBetFieldsDto.player2;
+      }
+      if (updateBetFieldsDto.differential !== undefined) {
+        bet.differential = updateBetFieldsDto.differential;
+      }
+      if (updateBetFieldsDto.result !== undefined) {
+        bet.result = updateBetFieldsDto.result;
+      }
+      if (updateBetFieldsDto.gameNumber !== undefined) {
+        bet.gameNumber = updateBetFieldsDto.gameNumber;
+      }
+      if (updateBetFieldsDto.startTime !== undefined) {
+        bet.startTime = new Date(updateBetFieldsDto.startTime);
+      }
+      if (updateBetFieldsDto.currentStats !== undefined) {
+        bet.currentStats = updateBetFieldsDto.currentStats;
+      }
 
       const savedBet = await this.spontaneousBetRepo.save(bet);
       this.logger.verbose(

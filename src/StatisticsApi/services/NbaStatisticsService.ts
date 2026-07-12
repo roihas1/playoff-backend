@@ -1,6 +1,7 @@
 // src/StatisticsApi/services/NbaStatisticsService.ts
 import { Injectable, Logger } from '@nestjs/common'; // הוספת Injectable ו-Logger
-import { RequestInit } from 'node-fetch';
+
+type FetchOptions = NonNullable<Parameters<typeof fetch>[1]>;
 
 @Injectable() // הוספת הדקורטור
 export class NbaStatisticsService {
@@ -14,7 +15,7 @@ export class NbaStatisticsService {
     this.baseUrl = 'http://127.0.0.1:8000'; // כתובת שרת הפייתון
   }
 
-  private async request(endpoint: string, options: RequestInit = {}) {
+  private async request(endpoint: string, options: FetchOptions = {}) {
     const url = `${this.baseUrl}${endpoint}`;
 
     try {

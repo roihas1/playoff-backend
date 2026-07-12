@@ -1,6 +1,9 @@
 # Bookworm-based image: actively patched Node LTS + Debian 12 (fewer stale OS CVEs than older node:18 digests).
 FROM node:22-bookworm
 
+ARG APP_UID=1001
+ARG APP_GID=1001
+
 # OS deps: Python toolchain, supervisor, git (for cloning StatisticsApi)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -11,7 +14,9 @@ RUN apt-get update \
         supervisor \
         git \
         ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid ${APP_GID} appuser \
+    && useradd --uid ${APP_UID} --gid appuser --shell /bin/bash --create-home appuser
 
 # --- NestJS service (playoff-backend) ---
 WORKDIR /app/playoff-backend
@@ -25,8 +30,7 @@ COPY . .
 COPY --chmod=755 wait-for-fastapi.sh /app/playoff-backend/wait-for-fastapi.sh
 
 RUN npm rebuild bcrypt --build-from-source \
-    && mkdir -p /app/playoff-backend/logs \
-    && chmod -R 777 /app/playoff-backend/logs
+    && mkdir -p /app/playoff-backend/logs
 
 # --- FastAPI service (StatisticsApi): clone venv + deps in one layer ---
 ARG STATS_API_REF=main
@@ -38,11 +42,15 @@ RUN git clone --depth 1 --branch ${STATS_API_REF} \
     && pip install --no-cache-dir -r /app/statistics-api/app/requirements.txt \
     && pip install --no-cache-dir motor python-dotenv nba-api
 
-# --- Supervisor ---
-COPY supervisord.conf /etc/supervisor/conf.d/services.conf
+# --- Supervisor (app-writable config path for non-root runtime) ---
+COPY supervisord.conf /app/playoff-backend/supervisord.conf
+
+RUN chown -R appuser:appuser /app/playoff-backend /app/statistics-api /opt/venv
 
 ENV PORT=3000
 
-EXPOSE 3000 8000
+EXPOSE 3000
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/services.conf", "-n"]
+USER appuser
+
+CMD ["/usr/bin/supervisord", "-c", "/app/playoff-backend/supervisord.conf", "-n"]

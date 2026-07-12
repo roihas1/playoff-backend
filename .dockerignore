@@ -1,1 +1,51 @@
 node_modules
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Git and VCS
+.git
+.gitignore
+.gitattributes
+
+# Build output and caches
+dist
+coverage
+.nyc_output
+*.tsbuildinfo
+.cache
+.tmp
+temp
+
+# Logs and runtime data
+logs
+*.log
+
+# IDE and editor metadata
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+
+# Tests (not needed in production image)
+test
+**/*.spec.ts
+**/*.e2e-spec.ts
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# Docker compose (not needed inside image)
+docker-compose*.yml

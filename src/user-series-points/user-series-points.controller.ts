@@ -11,6 +11,9 @@ import {
 } from '@nestjs/common';
 import { UserSeriesPointsService } from './user-series-points.service';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { Roles } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Role } from 'src/auth/user-role.enum';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { User } from 'src/auth/user.entity';
 
@@ -26,6 +29,8 @@ export class UserSeriesPointsController {
   ) {}
 
   @Get()
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async getAllPoints() {
     this.logger.verbose('Attempting to fetch all user-series points...');
     return this.userSeriesPointsService.findAll();
@@ -44,6 +49,8 @@ export class UserSeriesPointsController {
   }
 
   @Get('/series/:seriesId')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async getPointsForSeries(@Param('seriesId') seriesId: string) {
     this.logger.verbose(
       `Attempting to fetch all user points for series: ${seriesId}`,
@@ -81,6 +88,8 @@ export class UserSeriesPointsController {
   }
 
   @Patch('/user/updatePoints/all')
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   async updatePointsForAllUsers(): Promise<void> {
     this.logger.verbose('Attempting to update points for all users...');
     return this.userSeriesPointsService.updateAllUserPoints();

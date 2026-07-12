@@ -1,0 +1,6 @@
+# Optional local dev override — copy to `docker-compose.override.yml` (gitignored).
+# Compose auto-merges override files so Postgres is reachable from host tools only on your machine.
+services:
+  db:
+    ports:
+      - '5432:5432'

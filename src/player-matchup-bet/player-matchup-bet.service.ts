@@ -320,7 +320,27 @@ export class PlayerMatchupBetService {
       updateFieldsDto.currentStats = correctedCurrentStats;
     }
 
-    Object.assign(bet, updateFieldsDto);
+    if (updateFieldsDto.typeOfMatchup !== undefined) {
+      bet.typeOfMatchup = updateFieldsDto.typeOfMatchup;
+    }
+    if (updateFieldsDto.categories !== undefined) {
+      bet.categories = updateFieldsDto.categories;
+    }
+    if (updateFieldsDto.fantasyPoints !== undefined) {
+      bet.fantasyPoints = updateFieldsDto.fantasyPoints;
+    }
+    if (updateFieldsDto.player1 !== undefined) {
+      bet.player1 = updateFieldsDto.player1;
+    }
+    if (updateFieldsDto.player2 !== undefined) {
+      bet.player2 = updateFieldsDto.player2;
+    }
+    if (updateFieldsDto.differential !== undefined) {
+      bet.differential = updateFieldsDto.differential;
+    }
+    if (updateFieldsDto.currentStats !== undefined) {
+      bet.currentStats = updateFieldsDto.currentStats;
+    }
 
     try {
       const savedBet = await this.playerMatchupBetRepository.save(bet);

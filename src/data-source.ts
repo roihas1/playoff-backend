@@ -82,10 +82,10 @@ export const AppDataSource = new DataSource({
   migrationsTableName: 'typeorm_migrations',
   synchronize: true,
   logging: false,
-  ssl: true,
-  extra: {
-    ssl: {
-      rejectUnauthorized: false,
-    },
-  },
+  // ssl: true,
+  // extra: {
+  //   ssl: {
+  //     rejectUnauthorized: false,
+  //   },
+  // },
 });

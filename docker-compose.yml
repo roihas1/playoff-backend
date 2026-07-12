@@ -4,38 +4,26 @@ services:
     image: roihass/playoff-backend:latest
     ports:
       - '3000:3000'
-      - '8000:8000'
     env_file:
       - .env.stage.prod
-    environment:
-      STAGE: 'example-dev'
-      DB_HOST: 'example-localhost'
-      DB_PORT: '5432'
-      DB_USERNAME: 'example-user'
-      DB_PASSWORD: 'example-password'
-      DB_DATABASE: 'exampleDB'
-      JWT_SECRET: 'example-secret'
-      EXPIRE_IN: '3600'
-      GOOGLE_CLIENT_ID: 'random-google-client-id'
-      GOOGLE_SECRET: 'random-google-secret'
-      GOOGLE_CALLBACK_URL: 'http://example.com/auth/google-callback'
-      FRONTEND_URL: '<forntend_url>'
     restart: always
     volumes:
-      - ./logs:/app/logs
+      - ./logs:/app/playoff-backend/logs
     networks:
       - app-network
+    depends_on:
+      - db
 
   db:
     image: postgres:15
     container_name: playoff-db
     restart: always
+    env_file:
+      - .env.stage.prod
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: rHas9697
-      POSTGRES_DB: playoffDB
-    ports:
-      - '5432:5432'
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:

@@ -35,3 +35,7 @@ lerna-debug.log*
 !.vscode/extensions.json
 # Environment files
 .env*
+!.env.example
+.env.*
+# Local docker-compose overrides
+docker-compose.override.yml

@@ -44,7 +44,7 @@ export class BestOf7GuessController {
     this.logger.verbose(
       `User "${user.username}" try to retrieve BestOf7Guess with ID: ${id}.`,
     );
-    return await this.bestOf7GuessService.getGuessById(id);
+    return await this.bestOf7GuessService.getGuessByIdForUser(id, user);
   }
 
   @Patch('/:id/:guess')
@@ -56,7 +56,11 @@ export class BestOf7GuessController {
     this.logger.verbose(
       `User "${user.username}" attempt to update BestOf7Guess with ID: ${id}.`,
     );
-    const newGuess = await this.bestOf7GuessService.updateGuess(id, guess);
+    const newGuess = await this.bestOf7GuessService.updateGuess(
+      id,
+      guess,
+      user,
+    );
     this.logger.verbose(`Guess with ID "${id}" successfully updated.`);
     return newGuess;
   }
@@ -69,6 +73,6 @@ export class BestOf7GuessController {
     this.logger.verbose(
       `User "${user.username}" attempt to delete BestOf7Guess with ID: ${id}.`,
     );
-    return await this.bestOf7GuessService.deleteGuess(id);
+    return await this.bestOf7GuessService.deleteGuess(id, user);
   }
 }
