@@ -4,11 +4,13 @@ import { PlayerMatchupBetService } from './player-matchup-bet.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PlayerMatchupBetRepository } from './player-matchup-bet.repository';
 import { UserSeriesPointsModule } from 'src/user-series-points/user-series-points.module';
+import { UserMissingBetsModule } from 'src/user-missing-bets/user-missing-bets.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([PlayerMatchupBetRepository]),
     forwardRef(() => UserSeriesPointsModule),
+    forwardRef(() => UserMissingBetsModule),
   ],
   controllers: [PlayerMatchupBetController],
   providers: [PlayerMatchupBetService, PlayerMatchupBetRepository],

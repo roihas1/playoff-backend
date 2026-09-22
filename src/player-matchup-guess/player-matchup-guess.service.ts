@@ -1,5 +1,7 @@
 import {
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -13,8 +15,7 @@ import { PlayerMatchupBetService } from 'src/player-matchup-bet/player-matchup-b
 import { UpdateGuessDto } from './dto/update-guess.dto';
 import { PlayerMatchupBet } from 'src/player-matchup-bet/player-matchup-bet.entity';
 import { In } from 'typeorm';
-import { AppCacheService } from 'src/memory-cache/app-cache.service';
-import { invalidateAfterGuessWrite } from 'src/memory-cache/cache-invalidation.util';
+import { UserMissingBetsService } from 'src/user-missing-bets/user-missing-bets.service';
 
 @Injectable()
 export class PlayerMatchupGuessService {
@@ -22,14 +23,15 @@ export class PlayerMatchupGuessService {
   constructor(
     private playerMatchupGuessRepository: PlayerMatchupGuessRepository,
     private playerMatchupBetService: PlayerMatchupBetService,
-    private readonly appCache: AppCacheService,
+    @Inject(forwardRef(() => UserMissingBetsService))
+    private readonly userMissingBetsService: UserMissingBetsService,
   ) {}
 
   private assertGuessOwnerOrAdmin(guess: PlayerMatchupGuess, user: User): void {
     if (user.role === Role.ADMIN) {
       return;
     }
-    if (guess.createdBy?.id !== user.id) {
+    if (guess.createdById !== user.id) {
       throw new ForbiddenException(
         'You do not have permission to access this guess.',
       );
@@ -52,7 +54,7 @@ export class PlayerMatchupGuessService {
     if (found) {
       found.guess = guess;
       const saved = await this.playerMatchupGuessRepository.save(found);
-      await invalidateAfterGuessWrite(this.appCache, user.id);
+      await this.userMissingBetsService.afterGuessWrite(user);
       return saved;
     }
     const playerMatchupBet =
@@ -65,7 +67,7 @@ export class PlayerMatchupGuessService {
         playerMatchupBet,
         user,
       );
-    await invalidateAfterGuessWrite(this.appCache, user.id);
+    await this.userMissingBetsService.afterGuessWrite(user);
     return created;
   }
   async getUserGuessesForSeries(
@@ -123,14 +125,29 @@ export class PlayerMatchupGuessService {
     );
 
     await this.playerMatchupGuessRepository.save(guessesToSave);
-    await invalidateAfterGuessWrite(this.appCache, user.id);
+    await this.userMissingBetsService.afterGuessWrite(user);
   }
 
   async getGuessesByUser(userId: string): Promise<PlayerMatchupGuess[]> {
     return this.playerMatchupGuessRepository.find({
       where: { createdBy: { id: userId } },
-      select: ['id', 'guess', 'betId'],
+      select: ['id', 'guess', 'betId', 'createdById'],
     });
+  }
+
+  async getGuessesByUserAndBetIds(
+    userId: string,
+    betIds: string[],
+  ): Promise<PlayerMatchupGuess[]> {
+    if (betIds.length === 0) {
+      return [];
+    }
+    return this.playerMatchupGuessRepository
+      .createQueryBuilder('guess')
+      .select(['guess.id', 'guess.guess', 'guess.betId', 'guess.createdById'])
+      .where('guess.createdById = :userId', { userId })
+      .andWhere('guess.betId IN (:...betIds)', { betIds })
+      .getMany();
   }
 
   async getPlayerMatcupGuessById(id: string): Promise<PlayerMatchupGuess> {
@@ -186,7 +203,7 @@ export class PlayerMatchupGuessService {
     try {
       const savedBet = await this.playerMatchupGuessRepository.save(bet);
       this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
-      await invalidateAfterGuessWrite(this.appCache, user.id);
+      await this.userMissingBetsService.afterGuessWrite(user);
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
@@ -205,7 +222,7 @@ export class PlayerMatchupGuessService {
       this.logger.verbose(
         `PlayerMatchupGuess for Bet with ID "${playerMatchupBet.id}" successfully updated.`,
       );
-      await invalidateAfterGuessWrite(this.appCache, user.id);
+      await this.userMissingBetsService.afterGuessWrite(user);
       return savedBet;
     } catch (error) {
       this.logger.error(

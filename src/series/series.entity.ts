@@ -61,13 +61,13 @@ export class Series {
   tournament: Tournament | null;
 
   @OneToOne(() => BestOf7Bet, (bestOf7Bet) => bestOf7Bet.series, {
-    eager: true,
+    eager: false,
     cascade: true,
   })
   bestOf7BetId: BestOf7Bet;
 
   @OneToOne(() => TeamWinBet, (teamWinBet) => teamWinBet.seriesId, {
-    eager: true,
+    eager: false,
     cascade: true,
   })
   teamWinBetId: TeamWinBet;
@@ -76,8 +76,8 @@ export class Series {
     () => PlayerMatchupBet,
     (playerMatchupBet) => playerMatchupBet.seriesId,
     {
-      cascade: true, // Automatically saves related PlayerMatchupBet entities
-      eager: true, // Automatically loads related PlayerMatchupBet entities
+      cascade: true,
+      eager: false,
     },
   )
   playerMatchupBets: PlayerMatchupBet[];
@@ -85,8 +85,8 @@ export class Series {
     () => SpontaneousBet,
     (spontaneousBet) => spontaneousBet.seriesId,
     {
-      cascade: true, // Automatically saves related PlayerMatchupBet entities
-      eager: true, // Automatically loads related PlayerMatchupBet entities
+      cascade: true,
+      eager: false,
     },
   )
   spontaneousBets: SpontaneousBet[];

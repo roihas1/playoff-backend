@@ -14,6 +14,7 @@ import {
   PythonTeamsResponse,
 } from './dto/python-team-response.dto';
 import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterTeamSync } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class TeamService {
@@ -141,7 +142,7 @@ export class TeamService {
     }
 
     this.logger.log(`Sync complete: ${created} created, ${updated} updated.`);
-    await this.appCache.clear();
+    await invalidateAfterTeamSync(this.appCache);
     return { created, updated };
   }
 

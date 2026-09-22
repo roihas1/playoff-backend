@@ -58,7 +58,7 @@ export class PlayerMatchupBet {
   @OneToMany(
     () => PlayerMatchupGuess,
     (playerMatchupGuess) => playerMatchupGuess.bet,
-    { eager: true },
+    { eager: false },
   )
   guesses: PlayerMatchupGuess[];
 }

@@ -37,7 +37,6 @@ import { MergeUserTournamentPointsInterceptor } from 'src/user-tournament-points
 import { HomeStandingsPreviewDto } from './dto/home-standings-preview.dto';
 
 @Controller('auth')
-@UseInterceptors(MergeUserTournamentPointsInterceptor)
 export class AuthController {
   private logger = new Logger('AuthController', { timestamp: true });
 
@@ -207,6 +206,7 @@ export class AuthController {
 
   @Get('/user')
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(MergeUserTournamentPointsInterceptor)
   async getUser(@GetUser() user: User): Promise<User> {
     this.logger.verbose(
       `User with username: "${user.username}" is attempting to get his user object`,

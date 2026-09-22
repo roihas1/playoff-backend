@@ -18,6 +18,7 @@ import { BestOf7GuessService } from 'src/best-of7-guess/best-of7-guess.service';
 import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
 import { AppCacheService } from 'src/memory-cache/app-cache.service';
 import { invalidateAfterSeriesMetadataChange } from 'src/memory-cache/cache-invalidation.util';
+import { UserMissingBetsService } from 'src/user-missing-bets/user-missing-bets.service';
 
 @Injectable()
 export class BestOf7BetService {
@@ -31,6 +32,8 @@ export class BestOf7BetService {
     @Inject(forwardRef(() => BestOf7GuessService))
     private bestOf7GuessService: BestOf7GuessService,
     private readonly appCache: AppCacheService,
+    @Inject(forwardRef(() => UserMissingBetsService))
+    private readonly userMissingBetsService: UserMissingBetsService,
   ) {}
 
   async createBestOf7Bet(
@@ -183,7 +186,8 @@ export class BestOf7BetService {
       this.logger.verbose(
         `best of 7 Bet with ID "${id}" successfully deleted.`,
       );
-      await this.appCache.clear();
+      await invalidateAfterSeriesMetadataChange(this.appCache);
+      await this.userMissingBetsService.afterBetWrite();
     } catch (error) {
       this.logger.error(`Failed to delete bet with ID: "${id}".`, error.stack);
       throw error;
@@ -209,7 +213,7 @@ export class BestOf7BetService {
           this.userSeriesPointsService.updatePointsForUser(userId),
         ),
       );
-      await this.appCache.clear();
+      await invalidateAfterSeriesMetadataChange(this.appCache);
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
@@ -285,7 +289,7 @@ export class BestOf7BetService {
       this.logger.verbose(
         `BestOf7Bet with ID "${betId}" incremented series score for team ${teamWon}.`,
       );
-      await this.appCache.clear();
+      await invalidateAfterSeriesMetadataChange(this.appCache);
     } catch (error) {
       this.logger.error(
         `Failed to increment bet series score with ID: "${betId}".`,
@@ -304,7 +308,7 @@ export class BestOf7BetService {
       this.logger.verbose(
         `BestOf7Bet with ID "${id}" successfully updated series score.`,
       );
-      await this.appCache.clear();
+      await invalidateAfterSeriesMetadataChange(this.appCache);
     } catch (error) {
       this.logger.error(
         `Failed to update bet series score with ID: "${id}".`,

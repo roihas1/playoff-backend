@@ -8,7 +8,7 @@ import {
   RelationId,
   Unique,
 } from 'typeorm';
-import { Exclude, Expose } from 'class-transformer';
+import { Exclude } from 'class-transformer';
 
 @Entity()
 @Unique(['createdBy', 'bet'])
@@ -21,17 +21,16 @@ export class BestOf7Guess {
   })
   bet: BestOf7Bet;
 
-  @ManyToOne(() => User, (user) => user.bestOf7Guesses, { eager: true })
+  @ManyToOne(() => User, (user) => user.bestOf7Guesses, { eager: false })
   @Exclude({ toPlainOnly: true })
   createdBy: User;
 
   @Column()
   guess: number;
 
-  @Expose() // Include only the user ID in the JSON output
-  get createdById(): string {
-    return this.createdBy?.id;
-  }
+  @RelationId((guess: BestOf7Guess) => guess.createdBy)
+  @Column({ select: true })
+  createdById: string;
   @RelationId((guess: BestOf7Guess) => guess.bet)
   @Column({ select: true })
   betId: string;

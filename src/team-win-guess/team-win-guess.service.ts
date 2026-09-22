@@ -1,4 +1,6 @@
 import {
+  forwardRef,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -11,8 +13,7 @@ import { User } from 'src/auth/user.entity';
 import { CreateTeamWinGuessDto } from './dto/create-team-win-guess.dto';
 import { UpdateGuessDto } from 'src/player-matchup-guess/dto/update-guess.dto';
 import { TeamWinBet } from 'src/team-win-bet/team-win-bet.entity';
-import { AppCacheService } from 'src/memory-cache/app-cache.service';
-import { invalidateAfterGuessWrite } from 'src/memory-cache/cache-invalidation.util';
+import { UserMissingBetsService } from 'src/user-missing-bets/user-missing-bets.service';
 
 @Injectable()
 export class TeamWinGuessService {
@@ -20,7 +21,8 @@ export class TeamWinGuessService {
   constructor(
     private teamWinGuessRepository: TeamWinGuessRepository,
     private teamWinBetService: TeamWinBetService,
-    private readonly appCache: AppCacheService,
+    @Inject(forwardRef(() => UserMissingBetsService))
+    private readonly userMissingBetsService: UserMissingBetsService,
   ) {}
 
   async createTeamWinGuess(
@@ -39,7 +41,7 @@ export class TeamWinGuessService {
     if (found) {
       found.guess = guess;
       const saved = await this.teamWinGuessRepository.save(found);
-      await invalidateAfterGuessWrite(this.appCache, user.id);
+      await this.userMissingBetsService.afterGuessWrite(user);
       return saved;
     }
     const teamWinBet =
@@ -50,7 +52,7 @@ export class TeamWinGuessService {
       teamWinBet,
       user,
     );
-    await invalidateAfterGuessWrite(this.appCache, user.id);
+    await this.userMissingBetsService.afterGuessWrite(user);
     return created;
   }
   async getTeamWinPercentages(
@@ -86,8 +88,23 @@ export class TeamWinGuessService {
   async getGuessesByUser(userId: string): Promise<TeamWinGuess[]> {
     return this.teamWinGuessRepository.find({
       where: { createdBy: { id: userId } },
-      select: ['id', 'guess', 'betId'],
+      select: ['id', 'guess', 'betId', 'createdById'],
     });
+  }
+
+  async getGuessesByUserAndBetIds(
+    userId: string,
+    betIds: string[],
+  ): Promise<TeamWinGuess[]> {
+    if (betIds.length === 0) {
+      return [];
+    }
+    return this.teamWinGuessRepository
+      .createQueryBuilder('guess')
+      .select(['guess.id', 'guess.guess', 'guess.betId', 'guess.createdById'])
+      .where('guess.createdById = :userId', { userId })
+      .andWhere('guess.betId IN (:...betIds)', { betIds })
+      .getMany();
   }
 
   async getGuessById(
@@ -122,7 +139,7 @@ export class TeamWinGuessService {
     try {
       const savedBet = await this.teamWinGuessRepository.save(bet);
       this.logger.verbose(`TeamWinGuess for bet ID ${teamWinBet.id} updated.`);
-      await invalidateAfterGuessWrite(this.appCache, user.id);
+      await this.userMissingBetsService.afterGuessWrite(user);
       return savedBet;
     } catch (error) {
       this.logger.error(
@@ -139,8 +156,11 @@ export class TeamWinGuessService {
       });
       await this.teamWinGuessRepository.delete(found);
       this.logger.verbose(`TeamWinGuess with ID: ${id} deleted succesfully.`);
-      if (found?.createdBy?.id) {
-        await invalidateAfterGuessWrite(this.appCache, found.createdBy.id);
+      if (found?.createdById) {
+        await this.userMissingBetsService.afterGuessWrite({
+          id: found.createdById,
+          username: found.createdById,
+        });
       }
       return;
     } catch (error) {

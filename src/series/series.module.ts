@@ -15,6 +15,7 @@ import { SpontaneousBetModule } from 'src/spontaneous-bet/spontaneous-bet.module
 import { SpontaneousGuessModule } from 'src/spontaneous-guess/spontaneous-guess.module';
 import { UserSeriesPointsModule } from 'src/user-series-points/user-series-points.module';
 import { TeamModule } from 'src/team/team.module';
+import { UserMissingBetsModule } from 'src/user-missing-bets/user-missing-bets.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { TeamModule } from 'src/team/team.module';
     SpontaneousBetModule,
     SpontaneousGuessModule,
     UserSeriesPointsModule,
+    forwardRef(() => UserMissingBetsModule),
   ],
   controllers: [SeriesController],
   providers: [SeriesService, SeriesRepository],

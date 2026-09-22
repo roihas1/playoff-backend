@@ -25,7 +25,7 @@ export class TeamWinBet {
   result: number;
 
   @OneToMany(() => TeamWinGuess, (teamWinGuess) => teamWinGuess.bet, {
-    eager: true,
+    eager: false,
   })
   guesses: TeamWinGuess[];
 }

@@ -33,7 +33,7 @@ export class PrivateLeague {
   users: User[];
 
   @ManyToOne(() => User, (user) => user.adminLeagues, {
-    eager: true,
+    eager: false,
     nullable: false,
   })
   admin: User;

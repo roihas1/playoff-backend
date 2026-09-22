@@ -15,6 +15,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
 import { AppLogger } from 'src/logging/logger.service';
 import { UserInitializationModule } from 'src/user-initialization/user-initialization.module';
 import { UserTournamentPointsModule } from 'src/user-tournament-points/user-tournament-points.module';
+import { SeriesModule } from 'src/series/series.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { UserTournamentPointsModule } from 'src/user-tournament-points/user-tour
     TypeOrmModule.forFeature([User, PrivateLeague, Tournament]),
     forwardRef(() => UserInitializationModule),
     UserTournamentPointsModule,
+    forwardRef(() => SeriesModule),
   ],
   controllers: [AuthController],
   providers: [

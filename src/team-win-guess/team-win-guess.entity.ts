@@ -1,4 +1,4 @@
-import { Exclude, Expose } from 'class-transformer';
+import { Exclude } from 'class-transformer';
 import { User } from '../auth/user.entity';
 import {
   Column,
@@ -25,15 +25,14 @@ export class TeamWinGuess {
   @Column({ select: true })
   betId: string;
 
-  @ManyToOne(() => User, (user) => user.teamWinGuesses, { eager: true })
+  @ManyToOne(() => User, (user) => user.teamWinGuesses, { eager: false })
   @Exclude({ toPlainOnly: true })
   createdBy: User;
 
   @Column()
   guess: number; // 1/2
 
-  @Expose() // Include only the user ID in the JSON output
-  get createdById(): string {
-    return this.createdBy?.id;
-  }
+  @RelationId((guess: TeamWinGuess) => guess.createdBy)
+  @Column({ select: true })
+  createdById: string;
 }

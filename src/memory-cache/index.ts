@@ -15,8 +15,16 @@ export { MemoryCacheModule } from './memory-cache.module';
 export {
   invalidateAfterAuthProfileChange,
   invalidateAfterChampionGuessWrite,
+  invalidateAfterGlobalPointsRecalc,
   invalidateAfterGuessWrite,
+  invalidateAfterMissingBetsRecalc,
+  invalidateAfterPlayoffStageClose,
   invalidateAfterSeriesMetadataChange,
+  invalidateAfterSeriesResultChange,
+  invalidateAfterSlateGrading,
+  invalidateAfterTeamSync,
+  invalidateAfterUserDeletion,
   invalidateAfterUserPointsChange,
+  invalidateAllUserCaches,
   invalidateLeagueMembershipCaches,
 } from './cache-invalidation.util';

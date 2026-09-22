@@ -11,17 +11,38 @@ import { SeriesService } from 'src/series/series.service';
 import { UserMissingBet } from './user-missing-bets.entity';
 import { AuthService } from 'src/auth/auth.service';
 import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import {
+  invalidateAfterGuessWrite,
+  invalidateAfterMissingBetsRecalc,
+} from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class UserMissingBetsService {
   private logger = new Logger('UserMissingBetsService', { timestamp: true });
   constructor(
     private userMissingBetsRepository: UserMissingBetsRepository,
+    @Inject(forwardRef(() => SeriesService))
     private seriesService: SeriesService,
     @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
     private readonly appCache: AppCacheService,
   ) {}
+
+  async afterGuessWrite(user: Pick<User, 'id' | 'username'>): Promise<void> {
+    this.logger.log(
+      `Maintaining missing bets after guess write for user ${user.username}`,
+    );
+    await invalidateAfterGuessWrite(this.appCache, user.id);
+    await this.updateMissingBetsForUser(user as User);
+    this.logger.verbose(
+      `Missing bets maintained after guess write for user ${user.username}`,
+    );
+  }
+
+  async afterBetWrite(): Promise<void> {
+    this.logger.log('Refreshing missing bets for all users after bet write');
+    await this.updateMissingBetsToAllUsers();
+  }
   async getMissingBetsForUser(user: User): Promise<{
     [seriesId: string]: {
       seriesName: string;
@@ -167,12 +188,15 @@ export class UserMissingBetsService {
   }
   async updateMissingBetsToAllUsers(): Promise<void> {
     try {
-      const users = await this.authService.getAllUsers();
+      const users = await this.authService.getAllUserIds();
       for (const user of users) {
-        await this.updateMissingBetsForUser(user);
+        await this.updateMissingBetsForUser({
+          id: user.id,
+          username: user.id,
+        } as User);
       }
       this.logger.verbose(`Update all users missing bets`);
-      await this.appCache.clear();
+      await invalidateAfterMissingBetsRecalc(this.appCache);
     } catch (error) {
       this.logger.error(
         `Failed to update missing bets to all users`,

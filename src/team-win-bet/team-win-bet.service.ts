@@ -17,6 +17,7 @@ import { TeamWinGuessService } from 'src/team-win-guess/team-win-guess.service';
 import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
 import { AppCacheService } from 'src/memory-cache/app-cache.service';
 import { invalidateAfterSeriesMetadataChange } from 'src/memory-cache/cache-invalidation.util';
+import { UserMissingBetsService } from 'src/user-missing-bets/user-missing-bets.service';
 
 @Injectable()
 export class TeamWinBetService {
@@ -26,6 +27,8 @@ export class TeamWinBetService {
     @Inject(forwardRef(() => TeamWinGuessService))
     private teamWinGuessSerive: TeamWinGuessService,
     private readonly appCache: AppCacheService,
+    @Inject(forwardRef(() => UserMissingBetsService))
+    private readonly userMissingBetsService: UserMissingBetsService,
   ) {}
 
   async createTeamWinBet(
@@ -70,7 +73,10 @@ export class TeamWinBetService {
   }
   async deleteBet(id: string): Promise<void> {
     try {
-      const bet = await this.teamWinBetRepository.findOne({ where: { id } });
+      const bet = await this.teamWinBetRepository.findOne({
+        where: { id },
+        relations: ['guesses'],
+      });
       await Promise.all(
         bet.guesses.map(async (guess) => {
           await this.teamWinGuessSerive.deleteGuess(guess.id);
@@ -78,7 +84,8 @@ export class TeamWinBetService {
       );
       await this.teamWinBetRepository.delete(bet.id);
       this.logger.verbose(`Team win Bet with ID "${id}" successfully deleted.`);
-      await this.appCache.clear();
+      await invalidateAfterSeriesMetadataChange(this.appCache);
+      await this.userMissingBetsService.afterBetWrite();
     } catch (error) {
       this.logger.error(
         `Failed to delete team win bet with ID: "${id}".`,
@@ -152,7 +159,7 @@ export class TeamWinBetService {
       });
 
       this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
-      await this.appCache.clear();
+      await invalidateAfterSeriesMetadataChange(this.appCache);
 
       // Step 1: Collect BestOf7 Points if Series Finished
       // if (isSeriesFinished) {

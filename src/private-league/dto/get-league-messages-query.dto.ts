@@ -3,6 +3,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   Min,
   Validate,
@@ -40,6 +41,10 @@ export class GetLeagueMessagesQueryDto {
   @IsOptional()
   @IsString()
   after?: string;
+
+  @IsOptional()
+  @IsUUID()
+  tournamentId?: string;
 
   @Validate(ExclusiveBeforeAfterConstraint)
   private readonly exclusiveCursorValidation = true;

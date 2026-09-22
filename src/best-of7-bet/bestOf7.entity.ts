@@ -21,7 +21,7 @@ export class BestOf7Bet {
   @Column({ default: 4 })
   fantasyPoints: number;
   @OneToMany(() => BestOf7Guess, (bestOf7Guess) => bestOf7Guess.bet, {
-    eager: true,
+    eager: false,
   })
   guesses: BestOf7Guess[];
 

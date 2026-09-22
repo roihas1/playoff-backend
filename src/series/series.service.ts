@@ -53,9 +53,10 @@ import { DataSource } from 'typeorm';
 import { SeriesGameUpdate } from './series-game-update.entity';
 import { AppCacheService } from 'src/memory-cache/app-cache.service';
 import {
-  invalidateAfterGuessWrite,
   invalidateAfterSeriesMetadataChange,
+  invalidateAfterSeriesResultChange,
 } from 'src/memory-cache/cache-invalidation.util';
+import { UserMissingBetsService } from 'src/user-missing-bets/user-missing-bets.service';
 
 export type TournamentInfo = {
   id: string;
@@ -107,6 +108,8 @@ export class SeriesService {
     private readonly userSeriesPointsService: UserSeriesPointsService,
     private readonly dataSource: DataSource,
     private readonly appCache: AppCacheService,
+    @Inject(forwardRef(() => UserMissingBetsService))
+    private readonly userMissingBetsService: UserMissingBetsService,
   ) {}
 
   private getDefaultBestOf7Percentages(): BestOf7PercentagesDto {
@@ -376,6 +379,7 @@ export class SeriesService {
         relations: ['team1Relation', 'team2Relation', 'tournament'],
       });
       await invalidateAfterSeriesMetadataChange(this.appCache);
+      await this.userMissingBetsService.afterBetWrite();
       return created;
     } catch (error) {
       if (error instanceof BadRequestException) {
@@ -524,7 +528,7 @@ export class SeriesService {
       }
     }
     if (updated > 0 || closed > 0) {
-      await this.appCache.clear();
+      await invalidateAfterSeriesResultChange(this.appCache);
     }
     return { updated, closed, details };
   }
@@ -540,6 +544,7 @@ export class SeriesService {
           .leftJoinAndSelect('series.team2Relation', 'team2Relation')
           .leftJoinAndSelect('series.playerMatchupBets', 'playerMatchupBet')
           .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
+          .leftJoinAndSelect('series.teamWinBetId', 'teamWinBet')
           .leftJoinAndSelect('series.spontaneousBets', 'spontaneousBet')
           .where('series.id = :seriesId', { seriesId })
           .getOne();
@@ -562,7 +567,15 @@ export class SeriesService {
   async getSeriesByID(id: string): Promise<Series> {
     const foundSeries = await this.seriesRepository.findOne({
       where: { id },
-      relations: ['team1Relation', 'team2Relation', 'tournament'],
+      relations: [
+        'team1Relation',
+        'team2Relation',
+        'tournament',
+        'bestOf7BetId',
+        'teamWinBetId',
+        'playerMatchupBets',
+        'spontaneousBets',
+      ],
     });
 
     if (!foundSeries) {
@@ -602,7 +615,7 @@ export class SeriesService {
       await this.teamWinBetService.deleteBet(series.teamWinBetId.id);
       await this.seriesRepository.delete(id);
       this.logger.verbose(`Series with ID: ${id} deleted succesfully.`);
-      await this.appCache.clear();
+      await invalidateAfterSeriesResultChange(this.appCache);
       return;
     } catch (error) {
       this.logger.error(`Series with ID: ${id} did not delete.${error.stack}`);
@@ -680,7 +693,6 @@ export class SeriesService {
           user,
         );
       }
-      await invalidateAfterGuessWrite(this.appCache, user.id);
     } catch (error) {
       this.logger.error(
         `Series with ID: ${seriesId} did not update the guesses. ${error.stack}`,
@@ -789,37 +801,58 @@ export class SeriesService {
     const key = this.appCache.buildUserKey(userId, cacheScope, { seriesId });
     return this.appCache.wrap(key, async () => {
       try {
-        const userWithGuesses = await this.getUserGuesses(userId);
-
         const series = await this.getSeriesMinimalById(seriesId);
+        const matchupBetIds = series.playerMatchupBets.map((bet) => bet.id);
+        const spontaneousBetIds = series.spontaneousBets.map((bet) => bet.id);
+        const [
+          bestOf7Guesses,
+          teamWinGuesses,
+          playerMatchupGuesses,
+          spontaneousGuessesForUser,
+        ] = await Promise.all([
+          series.bestOf7BetId
+            ? this.bestOf7GuessService.getGuessesByUserAndBetIds(userId, [
+                series.bestOf7BetId,
+              ])
+            : Promise.resolve([]),
+          series.teamWinBetId
+            ? this.teamWinGuessService.getGuessesByUserAndBetIds(userId, [
+                series.teamWinBetId,
+              ])
+            : Promise.resolve([]),
+          this.playerMatchupGuessService.getGuessesByUserAndBetIds(
+            userId,
+            matchupBetIds,
+          ),
+          this.spontaneousGuessService.getGuessesByUserAndBetIds(
+            userId,
+            spontaneousBetIds,
+          ),
+        ]);
 
-        const bestOf7 =
-          userWithGuesses.bestOf7Guesses.find(
-            (g) => g.betId === series.bestOf7BetId,
-          ) || null;
+        const bestOf7 = bestOf7Guesses[0] ?? null;
+        const teamWon = teamWinGuesses[0] ?? null;
 
-        const teamWon =
-          userWithGuesses.teamWinGuesses.find(
-            (g) => g.betId === series.teamWinBetId,
-          ) || null;
+        const matchupGuessesByBetId = new Map(
+          playerMatchupGuesses.map((guess) => [guess.betId, guess]),
+        );
+        const spontaneousGuessesByBetId = new Map(
+          spontaneousGuessesForUser.map((guess) => [guess.betId, guess]),
+        );
 
         const playerMatchups = series.playerMatchupBets.map((bet) => {
-          const guesses = userWithGuesses.playerMatchupGuesses.filter(
-            (g) => g.betId === bet.id,
-          );
+          const guess = matchupGuessesByBetId.get(bet.id);
           return {
-            guesses,
+            guesses: guess ? [guess] : [],
             player1: bet.player1,
             player2: bet.player2,
           };
         });
 
         const spontaneousGuesses = series.spontaneousBets.map((bet) => {
-          const guesses = userWithGuesses.spontaneousGuesses.filter(
-            (g) => g.betId === bet.id,
-          );
+          const guess = spontaneousGuessesByBetId.get(bet.id);
           return {
-            guesses,
+            guesses: guess ? [guess] : [],
             player1: bet.player1,
             player2: bet.player2,
           };
@@ -925,38 +958,42 @@ export class SeriesService {
     });
     return this.appCache.wrap(key, async () => {
       try {
-        const [userWithGuesses, series] = await Promise.all([
-          this.getUserGuesses(user.id),
-          this.getSeriesWithBetsOnly(seriesId),
+        const series = await this.getSeriesWithBetsOnly(seriesId);
+        const matchupBetIds = (series.playerMatchupBets ?? []).map(
+          (bet) => bet.id,
+        );
+        const spontaneousBetIds = (series.spontaneousBets ?? []).map(
+          (bet) => bet.id,
+        );
+        const [
+          teamWinGuesses,
+          bestOf7Guesses,
+          playerMatchupGuess,
+          spontanouesGuess,
+        ] = await Promise.all([
+          series.teamWinBetId?.id
+            ? this.teamWinGuessService.getGuessesByUserAndBetIds(user.id, [
+                series.teamWinBetId.id,
+              ])
+            : Promise.resolve([]),
+          series.bestOf7BetId?.id
+            ? this.bestOf7GuessService.getGuessesByUserAndBetIds(user.id, [
+                series.bestOf7BetId.id,
+              ])
+            : Promise.resolve([]),
+          this.playerMatchupGuessService.getGuessesByUserAndBetIds(
+            user.id,
+            matchupBetIds,
+          ),
+          this.spontaneousGuessService.getGuessesByUserAndBetIds(
+            user.id,
+            spontaneousBetIds,
+          ),
         ]);
 
-        const teamWinGuess = userWithGuesses.teamWinGuesses.find(
-          (g) => g.betId === series.teamWinBetId.id,
-        );
-
-        const bestOf7Guess = userWithGuesses.bestOf7Guesses.find(
-          (g) => g.betId === series.bestOf7BetId.id,
-        );
-
-        const playerMatchupBetIds = new Set(
-          series.playerMatchupBets.map((bet) => bet.id),
-        );
-
-        const playerMatchupGuess = userWithGuesses.playerMatchupGuesses.filter(
-          (g) => playerMatchupBetIds.has(g.betId),
-        );
-
-        const spontaneousBetIds = new Set(
-          series.spontaneousBets.map((bet) => bet.id),
-        );
-
-        const spontanouesGuess = userWithGuesses.spontaneousGuesses.filter(
-          (g) => spontaneousBetIds.has(g.betId),
-        );
-
         return {
-          teamWinGuess,
-          bestOf7Guess,
+          teamWinGuess: teamWinGuesses[0],
+          bestOf7Guess: bestOf7Guesses[0],
           playerMatchupGuess,
           spontanouesGuess,
         };
@@ -998,17 +1035,18 @@ export class SeriesService {
         );
       }
       if (updateGuessesDto.playermatchupGuess) {
-        series.playerMatchupBets.forEach(async (bet, idx) => {
-          await this.playerMatchupGuessService.updateGuessByBet(
-            bet,
-            {
-              guess: updateGuessesDto.playermatchupGuess[idx],
-            },
-            user,
-          );
-        });
+        await Promise.all(
+          series.playerMatchupBets.map((bet, idx) =>
+            this.playerMatchupGuessService.updateGuessByBet(
+              bet,
+              {
+                guess: updateGuessesDto.playermatchupGuess[idx],
+              },
+              user,
+            ),
+          ),
+        );
       }
-      await invalidateAfterGuessWrite(this.appCache, user.id);
     } catch (error) {
       this.logger.error(
         `User: ${user.username} faild to update  his guesses to series: ${seriesId}`,
@@ -1033,7 +1071,7 @@ export class SeriesService {
         { result: updateResultTeamGamesDto.wonTeam },
         series.teamWinBetId.id,
       );
-      await this.appCache.clear();
+      await invalidateAfterSeriesResultChange(this.appCache);
     } catch (error) {
       this.logger.error(
         `User: ${user.username} faild to update results to series: ${seriesId}`,
@@ -1054,7 +1092,7 @@ export class SeriesService {
         series.bestOf7BetId.id,
         updateGame,
       );
-      await this.appCache.clear();
+      await invalidateAfterSeriesMetadataChange(this.appCache);
     } catch (error) {
       this.logger.error(
         `User: ${user.username} faild to update results to series: ${seriesId}`,
@@ -1272,7 +1310,7 @@ export class SeriesService {
       }
 
       await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
-      await this.appCache.clear();
+      await invalidateAfterSeriesResultChange(this.appCache);
     } catch (error) {
       this.logger.error(
         `User: ${user.username} failed to close all bets results to series: ${seriesId}`,
@@ -2731,20 +2769,11 @@ export class SeriesService {
     );
     return this.appCache.wrap(key, async () => {
       try {
-        const series = await this.getSpontaneousBetIdsBySeries(seriesId);
-        const userGuess = await this.authService.getUserSpontanouesGuess(user);
-        const spontenouesGuesses = userGuess.filter((g) => {
-          return series.includes(g.betId);
-        });
-        // const spontaneousBets = await Promise.all(
-        //   series.spontaneousBets.map(async (bet) => {
-        //     return await this.spontaneousBetService.getBetById(bet.id);
-        //   }),
-        // );
-        // const guesses = spontaneousBets.map((bet) =>
-        //   bet.guesses.filter((guess) => guess.createdBy.id === user.id),
-        // );
-        return spontenouesGuesses;
+        const betIds = await this.getSpontaneousBetIdsBySeries(seriesId);
+        return this.spontaneousGuessService.getGuessesByUserAndBetIds(
+          user.id,
+          betIds.filter(Boolean),
+        );
       } catch (error) {
         this.logger.error(`Failed to get spontaneous guesses  "${error}".`);
         throw new InternalServerErrorException(

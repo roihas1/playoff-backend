@@ -15,6 +15,7 @@ import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-gues
 import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
 import { AppCacheService } from 'src/memory-cache/app-cache.service';
 import { invalidateAfterSeriesMetadataChange } from 'src/memory-cache/cache-invalidation.util';
+import { UserMissingBetsService } from 'src/user-missing-bets/user-missing-bets.service';
 
 @Injectable()
 export class PlayerMatchupBetService {
@@ -24,6 +25,8 @@ export class PlayerMatchupBetService {
     @Inject(forwardRef(() => UserSeriesPointsService))
     private userSeriesPointsService: UserSeriesPointsService,
     private readonly appCache: AppCacheService,
+    @Inject(forwardRef(() => UserMissingBetsService))
+    private readonly userMissingBetsService: UserMissingBetsService,
   ) {}
 
   /**
@@ -52,6 +55,7 @@ export class PlayerMatchupBetService {
       createPlayerMatchupBetDto,
     );
     await invalidateAfterSeriesMetadataChange(this.appCache);
+    await this.userMissingBetsService.afterBetWrite();
     return bet;
   }
   async getBySeriesIds(seriesIds: string[]): Promise<PlayerMatchupBet[]> {
@@ -128,7 +132,7 @@ export class PlayerMatchupBetService {
           this.userSeriesPointsService.updatePointsForUser(userId),
         ),
       );
-      await this.appCache.clear();
+      await invalidateAfterSeriesMetadataChange(this.appCache);
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
@@ -269,7 +273,7 @@ export class PlayerMatchupBetService {
     try {
       const savedBet = await this.playerMatchupBetRepository.save(matchup);
       this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);
-      await this.appCache.clear();
+      await invalidateAfterSeriesMetadataChange(this.appCache);
       return savedBet;
     } catch (error) {
       this.logger.error(
@@ -386,7 +390,8 @@ export class PlayerMatchupBetService {
       this.logger.verbose(
         `Successfully deleted bet with ID: "${id}" by user: ${user.username}`,
       );
-      await this.appCache.clear();
+      await invalidateAfterSeriesMetadataChange(this.appCache);
+      await this.userMissingBetsService.afterBetWrite();
     } catch (error) {
       // Log the error stack if something goes wrong
       this.logger.error(`Failed to delete bet with ID: "${id}".`, error.stack);

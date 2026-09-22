@@ -12,7 +12,10 @@ import { AuthService } from 'src/auth/auth.service';
 import { UserTournamentPointsService } from 'src/user-tournament-points/user-tournament-points.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AppCacheService } from 'src/memory-cache/app-cache.service';
-import { invalidateAfterUserPointsChange } from 'src/memory-cache/cache-invalidation.util';
+import {
+  invalidateAfterGlobalPointsRecalc,
+  invalidateAfterUserPointsChange,
+} from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class UserSeriesPointsService {
@@ -100,7 +103,9 @@ export class UserSeriesPointsService {
 
   async findAll(): Promise<UserSeriesPoints[]> {
     try {
-      return await this.userSeriesPointsRepository.find();
+      return await this.userSeriesPointsRepository.find({
+        relations: ['user', 'series'],
+      });
     } catch (error) {
       this.logger.error('Failed to fetch all user-series points', error.stack);
       throw new InternalServerErrorException(
@@ -153,6 +158,7 @@ export class UserSeriesPointsService {
     try {
       return await this.userSeriesPointsRepository.find({
         where: { series: { id: seriesId } },
+        relations: ['user', 'series'],
       });
     } catch (error) {
       this.logger.error(
@@ -181,6 +187,7 @@ export class UserSeriesPointsService {
             user: { id: userId },
             series: { id: seriesId },
           },
+          relations: ['user', 'series'],
         });
       } catch (error) {
         this.logger.error(
@@ -205,7 +212,7 @@ export class UserSeriesPointsService {
       this.logger.log(
         'Finished updating series and per-tournament fantasy totals for all users.',
       );
-      await this.appCache.clear();
+      await invalidateAfterGlobalPointsRecalc(this.appCache);
     } catch (error) {
       this.logger.error(`Cron job failed: ${error.message}`, error.stack);
     }
@@ -219,7 +226,7 @@ export class UserSeriesPointsService {
         await this.updatePointsForUser(user.id);
       }
       this.logger.log('Finished updating series points for all users.');
-      await this.appCache.clear();
+      await invalidateAfterGlobalPointsRecalc(this.appCache);
     } catch (error) {
       this.logger.error(`Cron job failed: ${error.message}`, error.stack);
     }
@@ -234,7 +241,7 @@ export class UserSeriesPointsService {
         await this.updatePointsForUser(user.id);
       }
       this.logger.log('✅ Daily user-series-points update completed.');
-      await this.appCache.clear();
+      await invalidateAfterGlobalPointsRecalc(this.appCache);
     } catch (error) {
       this.logger.error('❌ Error in daily update', error.stack);
     }

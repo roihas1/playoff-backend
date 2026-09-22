@@ -24,6 +24,7 @@ export class SeriesRepository extends Repository<Series> {
       .leftJoinAndSelect('series.team2Relation', 'team2Relation')
       .leftJoinAndSelect('series.playerMatchupBets', 'playerMatchupBet')
       .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
+      .leftJoinAndSelect('series.teamWinBetId', 'teamWinBet')
       .leftJoinAndSelect('series.spontaneousBets', 'spontaneousBet');
     if (round) {
       query.andWhere('series.round = :round', { round });

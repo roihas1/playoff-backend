@@ -1,4 +1,6 @@
 import {
+  forwardRef,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -12,6 +14,7 @@ import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity
 import { In } from 'typeorm';
 import { AppCacheService } from 'src/memory-cache/app-cache.service';
 import { invalidateAfterSeriesMetadataChange } from 'src/memory-cache/cache-invalidation.util';
+import { UserMissingBetsService } from 'src/user-missing-bets/user-missing-bets.service';
 
 @Injectable()
 export class SpontaneousBetService {
@@ -19,6 +22,8 @@ export class SpontaneousBetService {
   constructor(
     private spontaneousBetRepo: SpontaneousBetRepo,
     private readonly appCache: AppCacheService,
+    @Inject(forwardRef(() => UserMissingBetsService))
+    private readonly userMissingBetsService: UserMissingBetsService,
   ) {}
 
   /**
@@ -45,6 +50,7 @@ export class SpontaneousBetService {
       );
       this.logger.verbose(`Spontaneous bet created.`);
       await invalidateAfterSeriesMetadataChange(this.appCache);
+      await this.userMissingBetsService.afterBetWrite();
       return bet;
     } catch (error) {
       this.logger.error(`Failed to create new spontaneous Bet ${error.stack}`);
@@ -248,7 +254,7 @@ export class SpontaneousBetService {
     try {
       const savedBet = await this.spontaneousBetRepo.save(matchup);
       this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);
-      await this.appCache.clear();
+      await invalidateAfterSeriesMetadataChange(this.appCache);
       return savedBet;
     } catch (error) {
       this.logger.error(
@@ -375,7 +381,8 @@ export class SpontaneousBetService {
       }
       await this.spontaneousBetRepo.delete(id);
       this.logger.verbose(`Successfully deleted bet with ID: "${id}"`);
-      await this.appCache.clear();
+      await invalidateAfterSeriesMetadataChange(this.appCache);
+      await this.userMissingBetsService.afterBetWrite();
       return;
     } catch (error) {
       this.logger.error(`Failed to delete spontaneous bet. ${error.stack}`);

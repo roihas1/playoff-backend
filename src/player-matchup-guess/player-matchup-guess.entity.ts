@@ -1,4 +1,4 @@
-import { Exclude, Expose } from 'class-transformer';
+import { Exclude } from 'class-transformer';
 import { User } from 'src/auth/user.entity';
 import { PlayerMatchupBet } from 'src/player-matchup-bet/player-matchup-bet.entity';
 import {
@@ -26,15 +26,14 @@ export class PlayerMatchupGuess {
   @Column({ select: true, nullable: true })
   betId: string;
 
-  @ManyToOne(() => User, (user) => user.playerMatchupGuesses, { eager: true })
+  @ManyToOne(() => User, (user) => user.playerMatchupGuesses, { eager: false })
   @Exclude({ toPlainOnly: true })
   createdBy: User;
 
   @Column()
   guess: number; // 1/2
 
-  @Expose() // Include only the user ID in the JSON output
-  get createdById(): string {
-    return this.createdBy?.id;
-  }
+  @RelationId((guess: PlayerMatchupGuess) => guess.createdBy)
+  @Column({ select: true })
+  createdById: string;
 }

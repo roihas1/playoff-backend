@@ -21,7 +21,7 @@ export class SpontaneousBet extends PlayerMatchupBet {
     () => SpontaneousGuess,
     (spontaneousGuess) => spontaneousGuess.bet,
     {
-      eager: true,
+      eager: false,
       cascade: true, // Ensures guesses are automatically inserted
     },
   )

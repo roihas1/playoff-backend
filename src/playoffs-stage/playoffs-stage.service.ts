@@ -21,6 +21,7 @@ import { AuthService } from 'src/auth/auth.service';
 import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 import { UserTournamentPointsService } from 'src/user-tournament-points/user-tournament-points.service';
 import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterPlayoffStageClose } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class PlayoffsStageService {
@@ -241,7 +242,7 @@ export class PlayoffsStageService {
       );
 
       this.logger.verbose('Champion guesses closed and points awarded');
-      await this.appCache.clear();
+      await invalidateAfterPlayoffStageClose(this.appCache);
     } catch (error) {
       this.logger.error('Failed to close champion guesses', error.stack);
       throw error;

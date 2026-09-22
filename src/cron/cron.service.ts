@@ -17,6 +17,7 @@ import { BetStatUpdate } from 'src/bet-stat-update/bet-stat-update.entity';
 import { MatchupCategory } from 'src/player-matchup-bet/matchup-category.enum';
 import { PlayerMatchupType } from 'src/player-matchup-bet/player-matchup-type.enum';
 import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterSlateGrading } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class CronService {
@@ -230,9 +231,6 @@ export class CronService {
     this.logger.log(
       `Last-night-winners detail: ${JSON.stringify(result.details)}`,
     );
-    if (result.updated > 0 || result.closed > 0) {
-      await this.appCache.clear();
-    }
   }
 
   /**
@@ -566,7 +564,7 @@ export class CronService {
       this.logger.verbose(
         `Slate slot=${scheduleSlot}: finished all-user series and tournament points recalc.`,
       );
-      await this.appCache.clear();
+      await invalidateAfterSlateGrading(this.appCache);
 
       const skipped =
         skippedUnresolvedSummary.length +

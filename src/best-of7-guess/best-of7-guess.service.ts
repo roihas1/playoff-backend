@@ -1,5 +1,7 @@
 import {
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -15,8 +17,7 @@ import { User } from '../auth/user.entity';
 import { Role } from '../auth/user-role.enum';
 import { BestOf7BetService } from 'src/best-of7-bet/best-of7-bet.service';
 import { BestOf7Bet } from 'src/best-of7-bet/bestOf7.entity';
-import { AppCacheService } from 'src/memory-cache/app-cache.service';
-import { invalidateAfterGuessWrite } from 'src/memory-cache/cache-invalidation.util';
+import { UserMissingBetsService } from 'src/user-missing-bets/user-missing-bets.service';
 
 @Injectable()
 export class BestOf7GuessService {
@@ -24,14 +25,15 @@ export class BestOf7GuessService {
   constructor(
     private bestOf7GuessRepository: BestOf7GuessRepository,
     private bestOf7BetService: BestOf7BetService,
-    private readonly appCache: AppCacheService,
+    @Inject(forwardRef(() => UserMissingBetsService))
+    private readonly userMissingBetsService: UserMissingBetsService,
   ) {}
 
   private assertGuessOwnerOrAdmin(guess: BestOf7Guess, user: User): void {
     if (user.role === Role.ADMIN) {
       return;
     }
-    if (guess.createdBy?.id !== user.id) {
+    if (guess.createdById !== user.id) {
       throw new ForbiddenException(
         'You do not have permission to access this guess.',
       );
@@ -54,7 +56,7 @@ export class BestOf7GuessService {
     if (found) {
       found.guess = guess;
       const saved = await this.bestOf7GuessRepository.save(found);
-      await invalidateAfterGuessWrite(this.appCache, user.id);
+      await this.userMissingBetsService.afterGuessWrite(user);
       return saved;
     }
     const bestOf7Bet =
@@ -64,7 +66,7 @@ export class BestOf7GuessService {
       bestOf7Bet,
       user,
     );
-    await invalidateAfterGuessWrite(this.appCache, user.id);
+    await this.userMissingBetsService.afterGuessWrite(user);
     return created;
   }
 
@@ -90,8 +92,23 @@ export class BestOf7GuessService {
   async getGuessesByUser(userId: string): Promise<BestOf7Guess[]> {
     return this.bestOf7GuessRepository.find({
       where: { createdBy: { id: userId } },
-      select: ['id', 'guess', 'betId'],
+      select: ['id', 'guess', 'betId', 'createdById'],
     });
+  }
+
+  async getGuessesByUserAndBetIds(
+    userId: string,
+    betIds: string[],
+  ): Promise<BestOf7Guess[]> {
+    if (betIds.length === 0) {
+      return [];
+    }
+    return this.bestOf7GuessRepository
+      .createQueryBuilder('guess')
+      .select(['guess.id', 'guess.guess', 'guess.betId', 'guess.createdById'])
+      .where('guess.createdById = :userId', { userId })
+      .andWhere('guess.betId IN (:...betIds)', { betIds })
+      .getMany();
   }
 
   async getSeriesGuessCountsByValue(
@@ -138,7 +155,7 @@ export class BestOf7GuessService {
 
     found.guess = guess;
     const saved = await this.bestOf7GuessRepository.save(found);
-    await invalidateAfterGuessWrite(this.appCache, user.id);
+    await this.userMissingBetsService.afterGuessWrite(user);
     return saved;
   }
   async updateGuessByBet(
@@ -149,7 +166,7 @@ export class BestOf7GuessService {
     const found = await this.getGuessByBet(bestOf7Bet, user);
     found.guess = guess;
     const saved = await this.bestOf7GuessRepository.save(found);
-    await invalidateAfterGuessWrite(this.appCache, user.id);
+    await this.userMissingBetsService.afterGuessWrite(user);
     return saved;
   }
 
@@ -161,9 +178,12 @@ export class BestOf7GuessService {
     try {
       await this.bestOf7GuessRepository.delete(found);
       this.logger.verbose(`BestOf7Guess with ID: ${id} deleted succesfully.`);
-      const actorId = user?.id ?? found.createdBy?.id;
+      const actorId = user?.id ?? found.createdById;
       if (actorId) {
-        await invalidateAfterGuessWrite(this.appCache, actorId);
+        await this.userMissingBetsService.afterGuessWrite({
+          id: actorId,
+          username: actorId,
+        });
       }
       return;
     } catch (error) {

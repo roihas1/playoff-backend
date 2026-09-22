@@ -10,7 +10,6 @@ import {
   Post,
   Query,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { PrivateLeagueService } from './private-league.service';
@@ -20,7 +19,6 @@ import { User } from 'src/auth/user.entity';
 import { CreatePrivateLeagueDto } from './dto/CreatePrivateLeagueDto';
 import { JoinLeagueDto } from './dto/join-league.dto';
 import { RemoveUsersDto } from './dto/remove-users.dto';
-import { MergeUserTournamentPointsInterceptor } from 'src/user-tournament-points/merge-user-tournament-points.interceptor';
 import { LeagueMessageDto } from './dto/league-message.dto';
 import { CreateLeagueMessageDto } from './dto/create-league-message.dto';
 import { GetLeagueMessagesQueryDto } from './dto/get-league-messages-query.dto';
@@ -28,7 +26,6 @@ import { GetLeagueMessagesResponseDto } from './dto/get-league-messages-response
 
 @Controller('private-league')
 @UseGuards(JwtAuthGuard)
-@UseInterceptors(MergeUserTournamentPointsInterceptor)
 export class PrivateLeagueController {
   private logger = new Logger('PrivateLeagueController', {
     timestamp: true,

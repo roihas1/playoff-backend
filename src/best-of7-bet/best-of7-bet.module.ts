@@ -6,6 +6,7 @@ import { BestOf7BetRepository } from './bestOf7.repository';
 import { SeriesModule } from 'src/series/series.module';
 import { BestOf7GuessModule } from 'src/best-of7-guess/best-of7-guess.module';
 import { UserSeriesPointsModule } from 'src/user-series-points/user-series-points.module';
+import { UserMissingBetsModule } from 'src/user-missing-bets/user-missing-bets.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { UserSeriesPointsModule } from 'src/user-series-points/user-series-point
     forwardRef(() => UserSeriesPointsModule),
     forwardRef(() => SeriesModule),
     forwardRef(() => BestOf7GuessModule),
+    forwardRef(() => UserMissingBetsModule),
   ],
   controllers: [BestOf7BetController],
   providers: [BestOf7BetService, BestOf7BetRepository],

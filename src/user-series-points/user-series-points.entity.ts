@@ -17,11 +17,11 @@ export class UserSeriesPoints {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => User, (user) => user.seriesPoints, { eager: true })
+  @ManyToOne(() => User, (user) => user.seriesPoints, { eager: false })
   user: User;
 
   @ManyToOne(() => Series, (series) => series.userPoints, {
-    eager: true,
+    eager: false,
     onDelete: 'CASCADE',
   })
   series: Series;

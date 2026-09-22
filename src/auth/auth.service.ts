@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -31,7 +33,11 @@ import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
 import { UserInitializationService } from 'src/user-initialization/user-initialization.service';
 import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 import { AppCacheService } from 'src/memory-cache/app-cache.service';
-import { invalidateAfterAuthProfileChange } from 'src/memory-cache/cache-invalidation.util';
+import {
+  invalidateAfterAuthProfileChange,
+  invalidateAfterUserDeletion,
+} from 'src/memory-cache/cache-invalidation.util';
+import { SeriesService } from 'src/series/series.service';
 
 @Injectable()
 export class AuthService {
@@ -46,6 +52,8 @@ export class AuthService {
     private readonly privateLeagueRepo: Repository<PrivateLeague>,
     @InjectRepository(Tournament)
     private readonly tournamentRepo: Repository<Tournament>,
+    @Inject(forwardRef(() => SeriesService))
+    private readonly seriesService: SeriesService,
   ) {}
 
   async signUp(authCredentialsDto: AuthCredentialsDto): Promise<User> {
@@ -80,15 +88,18 @@ export class AuthService {
       }
       user.isActive = true;
       await this.usersRepository.save(user);
-      const username = user.username;
-      const payload: JwtPayload = { username };
       const expiresIn = this.configService.get<number>('EXPIRE_IN') || 3600;
-      const accessToken = this.jwtService.sign(payload);
+      const accessToken = this.signAccessToken(user);
 
       this.logger.verbose(
-        `User "${username}" signed in successfully and access token generated.`,
+        `User "${user.username}" signed in successfully and access token generated.`,
       );
-      return { accessToken, expiresIn, userRole: user.role, username };
+      return {
+        accessToken,
+        expiresIn,
+        userRole: user.role,
+        username: user.username,
+      };
     } catch (error) {}
   }
   async signIn(authCredentialsDto: LoginDto): Promise<{
@@ -119,14 +130,23 @@ export class AuthService {
     user.isActive = true;
     await this.usersRepository.save(user);
 
-    const payload: JwtPayload = { username };
     const expiresIn = this.configService.get<number>('EXPIRE_IN') || 3600;
-    const accessToken = this.jwtService.sign(payload);
-    console.log(expiresIn);
+    const accessToken = this.signAccessToken(user);
     this.logger.verbose(
       `User "${username}" signed in successfully and access token generated.`,
     );
     return { accessToken, expiresIn, userRole: user.role, username };
+  }
+
+  private signAccessToken(user: User): string {
+    const payload: JwtPayload = {
+      sub: user.id,
+      username: user.username,
+      role: user.role,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    };
+    return this.jwtService.sign(payload);
   }
   async logout(user: User): Promise<void> {
     const found = await this.usersRepository.findOne({
@@ -167,7 +187,7 @@ export class AuthService {
     try {
       await this.usersRepository.delete(found.id);
       this.logger.verbose(`User with ID "${user.id}" successfully deleted.`);
-      await this.appCache.clear();
+      await invalidateAfterUserDeletion(this.appCache, found.id);
     } catch (error) {
       this.logger.error(
         `Failed to delete user with ID: "${user.id}".`,
@@ -551,25 +571,15 @@ export class AuthService {
     );
     return this.appCache.wrap(key, async () => {
       try {
-        const foundUser = await this.getUserGuesses(user);
-
-        const bestOf7Guess = foundUser.bestOf7Guesses.filter(
-          (g) => g.bet.series.id === seriesId,
-        )[0];
-        const teamWinGuess = foundUser.teamWinGuesses.filter(
-          (g) => g.bet.seriesId === seriesId,
-        )[0];
-        const playerMatchupGuesses = foundUser.playerMatchupGuesses.filter(
-          (g) => g.bet.seriesId === seriesId,
-        );
-        const spontaneousGuesses = foundUser.spontaneousGuesses.filter(
-          (g) => g.bet.seriesId === seriesId,
+        const guesses = await this.seriesService.getGuessesByUser(
+          seriesId,
+          user,
         );
         return {
-          bestOf7Guess,
-          teamWinGuess,
-          playerMatchupGuesses,
-          spontaneousGuesses,
+          bestOf7Guess: guesses.bestOf7Guess,
+          teamWinGuess: guesses.teamWinGuess,
+          playerMatchupGuesses: guesses.playerMatchupGuess,
+          spontaneousGuesses: guesses.spontanouesGuess,
         };
       } catch (error) {
         this.logger.error(

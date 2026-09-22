@@ -1,4 +1,6 @@
 import {
+  forwardRef,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -9,8 +11,7 @@ import { CreateSpontaneousGuessDto } from './dto/create-spontaneous-guess.dto';
 import { User } from 'src/auth/user.entity';
 import { SpontaneousBetService } from 'src/spontaneous-bet/spontaneous-bet.service';
 import { UpdateSpontaneousGuessesDto } from './dto/update-spontaneous-guess.dto';
-import { AppCacheService } from 'src/memory-cache/app-cache.service';
-import { invalidateAfterGuessWrite } from 'src/memory-cache/cache-invalidation.util';
+import { UserMissingBetsService } from 'src/user-missing-bets/user-missing-bets.service';
 
 @Injectable()
 export class SpontaneousGuessService {
@@ -18,7 +19,8 @@ export class SpontaneousGuessService {
   constructor(
     private spontaneousGuessRepo: SpontaneousGuessRepo,
     private spontaneousBetService: SpontaneousBetService,
-    private readonly appCache: AppCacheService,
+    @Inject(forwardRef(() => UserMissingBetsService))
+    private readonly userMissingBetsService: UserMissingBetsService,
   ) {}
 
   async createSpontaneousGuess(
@@ -37,7 +39,7 @@ export class SpontaneousGuessService {
       if (found) {
         found.guess = guess;
         const saved = await this.spontaneousGuessRepo.save(found);
-        await invalidateAfterGuessWrite(this.appCache, user.id);
+        await this.userMissingBetsService.afterGuessWrite(user);
         return saved;
       }
       const spontaneousBet =
@@ -49,7 +51,7 @@ export class SpontaneousGuessService {
         spontaneousBet,
         user,
       );
-      await invalidateAfterGuessWrite(this.appCache, user.id);
+      await this.userMissingBetsService.afterGuessWrite(user);
       return created;
     } catch (error) {
       this.logger.error(
@@ -64,8 +66,23 @@ export class SpontaneousGuessService {
   async getGuessesByUser(userId: string): Promise<SpontaneousGuess[]> {
     return this.spontaneousGuessRepo.find({
       where: { createdBy: { id: userId } },
-      select: ['id', 'guess', 'betId'],
+      select: ['id', 'guess', 'betId', 'createdById'],
     });
+  }
+
+  async getGuessesByUserAndBetIds(
+    userId: string,
+    betIds: string[],
+  ): Promise<SpontaneousGuess[]> {
+    if (betIds.length === 0) {
+      return [];
+    }
+    return this.spontaneousGuessRepo
+      .createQueryBuilder('guess')
+      .select(['guess.id', 'guess.guess', 'guess.betId', 'guess.createdById'])
+      .where('guess.createdById = :userId', { userId })
+      .andWhere('guess.betId IN (:...betIds)', { betIds })
+      .getMany();
   }
   async getUserGuessesForSeries(
     seriesId: string,
@@ -110,7 +127,7 @@ export class SpontaneousGuessService {
           }),
         ),
       );
-      await invalidateAfterGuessWrite(this.appCache, user.id);
+      await this.userMissingBetsService.afterGuessWrite(user);
     } catch (error) {
       this.logger.error(
         `Failed to create or update new spontaneous guesses ${error.stack}`,
