@@ -7,8 +7,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ComparisonPageService } from './comparison-page.service';
-import { GetUser } from 'src/auth/get-user.decorator';
-import { User } from 'src/auth/user.entity';
+import { AuthUserPayload, GetUser } from 'src/auth/get-user.decorator';
 import { GetComparisonDataDto } from './dto/get-comparison-data.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { MergeUserTournamentPointsInterceptor } from 'src/user-tournament-points/merge-user-tournament-points.interceptor';
@@ -21,7 +20,7 @@ export class ComparisonPageController {
 
   @Get('load')
   async getComparisonData(
-    @GetUser() user: User,
+    @GetUser() user: AuthUserPayload,
     @Query('tournamentId', new ParseUUIDPipe({ optional: true }))
     tournamentId?: string,
   ): Promise<GetComparisonDataDto> {

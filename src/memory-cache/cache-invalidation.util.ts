@@ -54,6 +54,8 @@ export async function invalidateLeagueMembershipCaches(
 export async function invalidateAfterSeriesMetadataChange(
   cache: AppCacheService,
 ): Promise<void> {
-  await cache.delByPrefix('p:v1:series:');
+  // Scopes are `series/list`, `series/bets`, etc. — not `series:`.
+  await cache.delByPrefix('p:v1:series/');
+  await cache.delByPrefix('p:v1:comparison-page/series-catalog:');
   await cache.delByPrefix('p:v1:stats/guess-page:');
 }

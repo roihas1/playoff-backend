@@ -324,6 +324,40 @@ export class SeriesController {
     );
     return await this.seriesServie.getAllBets(tournamentId);
   }
+  @Get('/:seriesId/bets')
+  async getBetsForSeries(
+    @Param('seriesId') seriesId: string,
+    @GetUser() user: User,
+    @Query('tournamentId') tournamentId?: string,
+  ): Promise<{
+    team1Id: string;
+    team2Id: string;
+    team1: string;
+    team2: string;
+    team1Name: string;
+    team2Name: string;
+    team1Abbreviation: string;
+    team2Abbreviation: string;
+    conference: Conference;
+    round: Round;
+    startDate: Date;
+    timeOfStart: string;
+    tournament: {
+      id: string;
+      sportType: string;
+      year: number;
+      name: string;
+    } | null;
+    bestOf7Bet: BestOf7Bet;
+    teamWinBet: TeamWinBet;
+    playerMatchupBets: PlayerMatchupBet[];
+    spontaneousBets: SpontaneousBet[];
+  }> {
+    this.logger.verbose(
+      `User "${user.username}" is attempting to get bets for series id: ${seriesId}`,
+    );
+    return await this.seriesServie.getBetsForSeries(seriesId, tournamentId);
+  }
   @Patch('/:seriesId/updateTime')
   @Roles(Role.ADMIN)
   @UseGuards(RolesGuard)

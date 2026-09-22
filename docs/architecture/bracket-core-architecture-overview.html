@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bracket-Core Architecture: Current vs New</title>
+<style>
+  :root {
+    --bg-page: #141414;
+    --bg-elevated: #181818;
+    --text-primary: #E4E4E4EB;
+    --text-secondary: #E4E4E48D;
+    --text-tertiary: #E4E4E45E;
+    --text-quaternary: #E4E4E442;
+    --stroke-primary: #E4E4E433;
+    --stroke-secondary: #E4E4E41F;
+    --stroke-tertiary: #E4E4E414;
+    --fill-secondary: #E4E4E41E;
+    --fill-tertiary: #E4E4E411;
+    --fill-quaternary: #E4E4E40A;
+    --accent: #599CE7;
+    --on-accent: #191c22;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg-page);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 40px 24px 96px;
+  }
+  .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-size: 24px; line-height: 30px; font-weight: 590; margin: 0; }
+  h2 { font-size: 18px; line-height: 24px; font-weight: 590; margin: 20px 0 0; }
+  p.text { font-size: 14px; line-height: 20px; margin: 0; }
+  .text-secondary { color: var(--text-secondary); }
+  .text-tertiary { color: var(--text-tertiary); font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 10px; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--stroke-secondary); font-size: 12px; }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--stroke-tertiary); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--fill-quaternary); }
+  .diagram-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .node { position: absolute; border-radius: 6px; padding: 6px 9px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+  .node .label { font-size: 11.5px; font-weight: 600; }
+  .node .sub { font-size: 10px; line-height: 1.25; }
+  .node-root { background: var(--accent); color: var(--on-accent); }
+  .node-root .sub { color: var(--on-accent); opacity: 0.85; }
+  .node-stage { background: var(--fill-secondary); border: 1px solid var(--stroke-secondary); color: var(--text-primary); }
+  .node-stage .sub { color: var(--text-secondary); }
+  .node-config { background: var(--fill-tertiary); border: 1px solid var(--stroke-secondary); color: var(--text-primary); }
+  .node-config .sub { color: var(--text-secondary); }
+  .node-fixture { background: var(--bg-elevated); border: 1px solid var(--stroke-primary); color: var(--text-primary); }
+  .node-fixture .sub { color: var(--text-secondary); }
+  .node-bet { background: var(--fill-quaternary); border: 1px solid var(--stroke-tertiary); color: var(--text-secondary); }
+  .node-bet .sub { color: var(--text-tertiary); }
+  .node-adhoc { background: transparent; border: 1px dashed var(--stroke-secondary); color: var(--text-tertiary); }
+  .node-adhoc .sub { color: var(--text-quaternary); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div style="display:flex;flex-direction:column;gap:6px;">
+    <h1>Bracket-Core Architecture: Current vs New</h1>
+    <p class="text text-secondary">The knockout fixture stays the same. What changes is what owns it and how its rules are set.</p>
+  </div>
+
+  <h2>Current</h2>
+  <div class="diagram-wrap">
+    <div style="position:relative;width:888px;height:334px;">
+      <svg width="888" height="334" style="position:absolute;top:0;left:0;">
+        <defs>
+          <marker id="arrow-current" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#E4E4E433" />
+          </marker>
+        </defs>
+        <line x1="444" y1="86"  x2="336" y2="134" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-current)" />
+        <line x1="444" y1="86"  x2="552" y2="134" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-current)" />
+        <line x1="336" y1="200" x2="120" y2="248" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-current)" />
+        <line x1="552" y1="200" x2="336" y2="248" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-current)" />
+        <line x1="552" y1="200" x2="552" y2="248" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-current)" />
+        <line x1="552" y1="200" x2="768" y2="248" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-current)" />
+      </svg>
+
+      <div class="node node-root" style="left:344px;top:20px;width:200px;height:66px;">
+        <div class="label">Tournament</div><div class="sub">sportType, year, name</div>
+      </div>
+      <div class="node node-stage" style="left:236px;top:134px;width:200px;height:66px;">
+        <div class="label">PlayoffStage</div><div class="sub">4 fixed stages, hosts guesses only</div>
+      </div>
+      <div class="node node-fixture" style="left:452px;top:134px;width:200px;height:66px;">
+        <div class="label">Series</div><div class="sub">2 teams, fixed Round + Conference enums</div>
+      </div>
+      <div class="node node-config" style="left:20px;top:248px;width:200px;height:66px;">
+        <div class="label">Champion / MVP / ConferenceFinal</div><div class="sub">3 fixed region slots, hardcoded per stage</div>
+      </div>
+      <div class="node node-bet" style="left:236px;top:248px;width:200px;height:66px;">
+        <div class="label">BestOf7Bet</div><div class="sub">fixed Bo7, finish @ 4 wins</div>
+      </div>
+      <div class="node node-bet" style="left:452px;top:248px;width:200px;height:66px;">
+        <div class="label">TeamWinBet</div><div class="sub">1 | 2 only</div>
+      </div>
+      <div class="node node-adhoc" style="left:668px;top:248px;width:200px;height:66px;">
+        <div class="label">PlayerMatchup / Spontaneous</div><div class="sub">ad hoc</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>New</h2>
+  <div class="diagram-wrap">
+    <div style="position:relative;width:672px;height:562px;">
+      <svg width="672" height="562" style="position:absolute;top:0;left:0;">
+        <defs>
+          <marker id="arrow-new" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#E4E4E433" />
+          </marker>
+        </defs>
+        <line x1="336" y1="86"  x2="228" y2="134" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-new)" />
+        <line x1="336" y1="86"  x2="444" y2="134" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-new)" />
+        <line x1="228" y1="200" x2="120" y2="248" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-new)" />
+        <line x1="228" y1="200" x2="336" y2="248" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-new)" />
+        <line x1="444" y1="200" x2="552" y2="248" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-new)" />
+        <line x1="120" y1="314" x2="336" y2="362" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-new)" />
+        <line x1="552" y1="314" x2="336" y2="362" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-new)" />
+        <line x1="336" y1="428" x2="120" y2="476" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-new)" />
+        <line x1="336" y1="428" x2="336" y2="476" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-new)" />
+        <line x1="336" y1="428" x2="552" y2="476" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arrow-new)" />
+      </svg>
+
+      <div class="node node-root" style="left:236px;top:20px;width:200px;height:66px;">
+        <div class="label">Tournament</div><div class="sub">+ formatProfile</div>
+      </div>
+      <div class="node node-stage" style="left:128px;top:134px;width:200px;height:66px;">
+        <div class="label">TournamentStage</div><div class="sub">type: KNOCKOUT, ordered, any count</div>
+      </div>
+      <div class="node node-stage" style="left:344px;top:134px;width:200px;height:66px;">
+        <div class="label">TournamentStage</div><div class="sub">type: GROUP, ordered, any count</div>
+      </div>
+      <div class="node node-config" style="left:20px;top:248px;width:200px;height:66px;">
+        <div class="label">TournamentRound</div><div class="sub">label, bestOf, points</div>
+      </div>
+      <div class="node node-config" style="left:236px;top:248px;width:200px;height:66px;">
+        <div class="label">StagePredictionConfig</div><div class="sub">Champion/MVP/Region slots</div>
+      </div>
+      <div class="node node-config" style="left:452px;top:248px;width:200px;height:66px;">
+        <div class="label">Group</div><div class="sub">N teams + standings</div>
+      </div>
+      <div class="node node-fixture" style="left:236px;top:362px;width:200px;height:66px;">
+        <div class="label">Series (Fixture)</div><div class="sub">2 teams — unchanged core</div>
+      </div>
+      <div class="node node-bet" style="left:20px;top:476px;width:200px;height:66px;">
+        <div class="label">TeamWinBet</div><div class="sub">1 | 2, optional draw</div>
+      </div>
+      <div class="node node-bet" style="left:236px;top:476px;width:200px;height:66px;">
+        <div class="label">SeriesLengthBet</div><div class="sub">only if bestOf &gt; 1</div>
+      </div>
+      <div class="node node-adhoc" style="left:452px;top:476px;width:200px;height:66px;">
+        <div class="label">PlayerMatchup / Spontaneous</div><div class="sub">unchanged</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Entities: current vs new</h2>
+  <table>
+    <thead><tr><th>Entity</th><th>Current</th><th>New</th></tr></thead>
+    <tbody>
+      <tr><td>Stage container</td><td>PlayoffStage — 4 fixed values, only hosts champion/MVP guesses, not linked to Series</td><td>TournamentStage — type KNOCKOUT | GROUP, ordered list, any count, owns the actual fixtures</td></tr>
+      <tr><td>Round / format</td><td>Round — fixed 4-value NBA enum, same Bo7 for every round</td><td>TournamentRound — label + bestOf per round; Bo1/Bo3/Bo5/Bo7, independent per round</td></tr>
+      <tr><td>Fixture</td><td>Series — 2 teams, tied to Round + Conference enums</td><td>Series — same 2-team entity, now references a Round or a Group instead of fixed enums</td></tr>
+      <tr><td>Series-length bet</td><td>BestOf7Bet — fixed name, finish hardcoded at 4 wins</td><td>SeriesLengthBet — winsRequired derived from bestOf, only created when bestOf &gt; 1</td></tr>
+      <tr><td>Winner bet</td><td>TeamWinBet — 1 | 2 only</td><td>TeamWinBet — 1 | 2, optional draw when a stage allows it; also used per game inside a group</td></tr>
+      <tr><td>Grouping</td><td>Conference — East/West/Finals, required enum on Team and Series</td><td>Group + GroupMembership — real entity for round-robin teams; Conference becomes an optional label</td></tr>
+      <tr><td>Standings</td><td>None</td><td>GroupStanding — computed points/W/D/L per team, drives advancement</td></tr>
+      <tr><td>Champion / MVP guessing</td><td>ConferenceFinalGuess / ChampionTeamGuess / MVPGuess — 3 fixed region slots, hardcoded per stage name</td><td>StagePredictionConfig — admin-defined list of slots (0..N); same guess entities, generic count</td></tr>
+      <tr><td>Ad hoc bets</td><td>PlayerMatchupBet / SpontaneousBet</td><td>Unchanged</td></tr>
+    </tbody>
+  </table>
+
+  <p class="text text-tertiary">Series stays a 2-team fixture in both models — only its parent (Round or Group) and its bet rules change.</p>
+
+</div>
+</body>
+</html>

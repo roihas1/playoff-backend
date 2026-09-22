@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bracket-Core Tournament Rules Engine</title>
+<style>
+  :root {
+    --bg-page: #141414;
+    --bg-elevated: #181818;
+    --text-primary: #E4E4E4EB;
+    --text-secondary: #E4E4E48D;
+    --text-tertiary: #E4E4E45E;
+    --text-quaternary: #E4E4E442;
+    --stroke-primary: #E4E4E433;
+    --stroke-secondary: #E4E4E41F;
+    --stroke-tertiary: #E4E4E414;
+    --fill-secondary: #E4E4E41E;
+    --fill-tertiary: #E4E4E411;
+    --fill-quaternary: #E4E4E40A;
+    --accent: #599CE7;
+    --on-accent: #191c22;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg-page);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 40px 24px 96px;
+  }
+  .container { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+  h1 { font-size: 24px; line-height: 30px; font-weight: 590; margin: 0; }
+  h2 { font-size: 18px; line-height: 24px; font-weight: 590; margin: 28px 0 0; }
+  p.text { font-size: 14px; line-height: 20px; margin: 0; }
+  .text-secondary { color: var(--text-secondary); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .pill {
+    display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 9999px;
+    font-size: 12px; border: 1px solid var(--stroke-secondary); color: var(--text-secondary);
+  }
+  .pill.tone-danger.active { background: #B8004933; color: #ffb4b4; border-color: transparent; }
+  .pill.tone-success { color: #8fd9b0; }
+  .pill.tone-info.active { background: #599CE733; color: #a9d0f7; border-color: transparent; }
+  .grid { display: grid; gap: 12px; }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .stat { border: 1px solid var(--stroke-secondary); border-radius: 8px; padding: 14px; }
+  .stat .value { font-size: 22px; font-weight: 600; }
+  .stat .label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+  .stat.tone-success .value { color: #7fd9a6; }
+  .stat.tone-danger .value { color: #f3a3a3; }
+  .stat.tone-info .value { color: #8fc4f7; }
+  .callout { border: 1px solid var(--stroke-secondary); border-radius: 8px; padding: 14px 16px; background: var(--fill-quaternary); }
+  .callout .title { font-weight: 600; margin-bottom: 6px; font-size: 13px; }
+  .callout p.text { color: var(--text-secondary); }
+  .callout.tone-info { border-color: #599CE74D; }
+  .callout.tone-info .title { color: #8fc4f7; }
+  .callout.tone-success { border-color: #1F8A654D; }
+  .callout.tone-success .title { color: #7fd9a6; }
+  .callout.tone-warning { border-color: #E8C0304D; }
+  .callout.tone-warning .title { color: #e8c878; }
+  .card { border: 1px solid var(--stroke-secondary); border-radius: 8px; overflow: hidden; }
+  .card-header { padding: 10px 16px; font-weight: 600; font-size: 13px; border-bottom: 1px solid var(--stroke-secondary); background: var(--fill-quaternary); }
+  .card-body { padding: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 10px; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--stroke-secondary); font-size: 12px; }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--stroke-tertiary); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--fill-quaternary); }
+  .todo-list { display: flex; flex-direction: column; }
+  .todo { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; font-size: 13px; }
+  .todo .box { width: 14px; height: 14px; margin-top: 2px; border: 1px solid var(--stroke-primary); border-radius: 3px; flex-shrink: 0; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
+  .swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+  .diagram-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .node { position: absolute; border-radius: 6px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+  .node .label { font-size: 12px; font-weight: 600; }
+  .node .sub { font-size: 10.5px; line-height: 1.3; }
+  .node-root { background: var(--accent); color: var(--on-accent); }
+  .node-root .sub { color: var(--on-accent); opacity: 0.85; }
+  .node-stage { background: var(--fill-secondary); border: 1px solid var(--stroke-secondary); color: var(--text-primary); }
+  .node-stage .sub { color: var(--text-secondary); }
+  .node-config { background: var(--fill-tertiary); border: 1px solid var(--stroke-secondary); color: var(--text-primary); }
+  .node-config .sub { color: var(--text-secondary); }
+  .node-fixture { background: var(--bg-elevated); border: 1px solid var(--stroke-primary); color: var(--text-primary); }
+  .node-fixture .sub { color: var(--text-secondary); }
+  .node-bet { background: var(--fill-quaternary); border: 1px solid var(--stroke-tertiary); color: var(--text-secondary); }
+  .node-bet .sub { color: var(--text-tertiary); }
+  .node-adhoc { background: transparent; border: 1px dashed var(--stroke-secondary); color: var(--text-tertiary); }
+  .node-adhoc .sub { color: var(--text-quaternary); }
+  @media (max-width: 720px) {
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div style="display:flex;flex-direction:column;gap:8px;">
+    <h1>Bracket-Core Tournament Rules Engine</h1>
+    <p class="text text-secondary">
+      Scoped plan: keep the knockout bracket as the core feature, make series length and grouping
+      into admin-configured rule sets instead of code, and add group stages — checked against six
+      real competitions (Israeli Super League, EuroLeague, NBA, FIBA World Cup, FIFA World Cup,
+      EuroBasket) so future sports can be added as data, not new code.
+    </p>
+    <div class="row">
+      <span class="pill tone-danger active">5 phases open</span>
+      <span class="pill tone-success">Bracket stays the core</span>
+      <span class="pill tone-info active">2 stage types cover 6 real formats</span>
+      <span class="pill">Rules set in admin, not code</span>
+    </div>
+  </div>
+
+  <div class="grid grid-4">
+    <div class="stat tone-info"><div class="value">2</div><div class="label">Stage types needed</div></div>
+    <div class="stat tone-success"><div class="value">6</div><div class="label">Target tournament formats</div></div>
+    <div class="stat tone-danger"><div class="value">Bo7 only</div><div class="label">Series length today</div></div>
+    <div class="stat tone-danger"><div class="value">0</div><div class="label">Group-stage support today</div></div>
+  </div>
+
+  <div class="callout tone-info">
+    <div class="title">Verdict: right direction, narrower scope</div>
+    <p class="text">
+      The original canvas's core idea (parameterize series length, unify stages, add groups) is
+      correct. It should be scoped down: you don't need Swiss systems or a plugin-style stage
+      engine — just two stage types, KNOCKOUT and GROUP, each with an admin-editable rule set
+      (bestOf per round; group size/points/draws/advance-count). That combination, plus treating
+      stages as an ordered repeatable list, covers all six competitions below — including
+      EuroLeague's mixed Play-In/Final-Four format and the FIBA World Cup's double group stage.
+    </p>
+  </div>
+
+  <h2>Architecture diagram</h2>
+  <div class="card">
+    <div class="card-header">Tournament → Stage → fixtures/config → bets</div>
+    <div class="card-body">
+      <div class="diagram-wrap">
+        <div style="position:relative;width:934px;height:608px;">
+          <svg width="934" height="608" style="position:absolute;top:0;left:0;">
+            <defs>
+              <marker id="arch-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#E4E4E433" />
+              </marker>
+            </defs>
+            <line x1="467" y1="92"  x2="353" y2="144" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+            <line x1="467" y1="92"  x2="581" y2="144" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+            <line x1="353" y1="216" x2="239" y2="268" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+            <line x1="353" y1="216" x2="467" y2="268" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+            <line x1="581" y1="216" x2="695" y2="268" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+            <line x1="239" y1="340" x2="239" y2="392" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+            <line x1="695" y1="340" x2="467" y2="392" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+            <line x1="695" y1="340" x2="695" y2="392" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+            <line x1="239" y1="464" x2="125" y2="516" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+            <line x1="239" y1="464" x2="353" y2="516" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+            <line x1="695" y1="464" x2="581" y2="516" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+            <line x1="239" y1="464" x2="809" y2="516" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+            <line x1="695" y1="464" x2="809" y2="516" stroke="#E4E4E433" stroke-width="1.5" marker-end="url(#arch-arrow)" />
+          </svg>
+
+          <div class="node node-root" style="left:362px;top:20px;width:210px;height:72px;">
+            <div class="label">Tournament</div><div class="sub">formatProfile, year, name</div>
+          </div>
+          <div class="node node-stage" style="left:248px;top:144px;width:210px;height:72px;">
+            <div class="label">TournamentStage</div><div class="sub">type: KNOCKOUT · ordered, any count</div>
+          </div>
+          <div class="node node-stage" style="left:476px;top:144px;width:210px;height:72px;">
+            <div class="label">TournamentStage</div><div class="sub">type: GROUP · ordered, any count</div>
+          </div>
+          <div class="node node-config" style="left:134px;top:268px;width:210px;height:72px;">
+            <div class="label">TournamentRound</div><div class="sub">label, bestOf, points</div>
+          </div>
+          <div class="node node-config" style="left:362px;top:268px;width:210px;height:72px;">
+            <div class="label">StagePredictionConfig</div><div class="sub">Champion / MVP / Region slots</div>
+          </div>
+          <div class="node node-config" style="left:590px;top:268px;width:210px;height:72px;">
+            <div class="label">Group</div><div class="sub">N teams, round-robin</div>
+          </div>
+          <div class="node node-fixture" style="left:134px;top:392px;width:210px;height:72px;">
+            <div class="label">Series (Fixture)</div><div class="sub">2 teams — unchanged core</div>
+          </div>
+          <div class="node node-config" style="left:362px;top:392px;width:210px;height:72px;">
+            <div class="label">GroupStanding</div><div class="sub">pts, W/D/L, advanceCount</div>
+          </div>
+          <div class="node node-fixture" style="left:590px;top:392px;width:210px;height:72px;">
+            <div class="label">Series (Fixture)</div><div class="sub">2 teams, bestOf = 1</div>
+          </div>
+          <div class="node node-bet" style="left:20px;top:516px;width:210px;height:72px;">
+            <div class="label">TeamWinBet</div><div class="sub">1 | 2</div>
+          </div>
+          <div class="node node-bet" style="left:248px;top:516px;width:210px;height:72px;">
+            <div class="label">SeriesLengthBet</div><div class="sub">only if bestOf &gt; 1</div>
+          </div>
+          <div class="node node-bet" style="left:476px;top:516px;width:210px;height:72px;">
+            <div class="label">TeamWinBet (per game)</div><div class="sub">id, seriesId, result: 1|2|0(draw), fantasyPoints, guesses[]</div>
+          </div>
+          <div class="node node-adhoc" style="left:704px;top:516px;width:210px;height:72px;">
+            <div class="label">PlayerMatchup / Spontaneous</div><div class="sub">ad hoc, admin-added, unchanged</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px;gap:16px;">
+        <div class="legend-item"><span class="swatch" style="background:var(--accent);"></span>Tournament (root)</div>
+        <div class="legend-item"><span class="swatch" style="background:var(--fill-secondary);border:1px solid var(--stroke-secondary);"></span>TournamentStage (Knockout / Group)</div>
+        <div class="legend-item"><span class="swatch" style="background:var(--fill-tertiary);border:1px solid var(--stroke-secondary);"></span>Rule config (Round / Group / Standing / Predictions)</div>
+        <div class="legend-item"><span class="swatch" style="background:var(--bg-elevated);border:1px solid var(--stroke-primary);"></span>Series — the unchanged 2-team fixture</div>
+        <div class="legend-item"><span class="swatch" style="background:var(--fill-quaternary);border:1px solid var(--stroke-tertiary);"></span>Bets — points already row-level, defaults now from config</div>
+        <div class="legend-item"><span class="swatch" style="border:1px dashed var(--stroke-secondary);"></span>Ad hoc bets — unchanged, admin-added per series</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>New: per-game winner bet in the Group stage — core fields</h2>
+  <p class="text text-secondary">
+    Reuses the existing TeamWinBet entity, attached to every fixture inside a group instead of
+    only to knockout series — no new bet table needed, just enabled by the group's bet template
+    with draw support switched on.
+  </p>
+  <table>
+    <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>id</td><td>uuid</td><td>Primary key — same shape as today's TeamWinBet</td></tr>
+      <tr><td>seriesId</td><td>FK → Series</td><td>The specific group game/fixture this bet belongs to</td></tr>
+      <tr><td>result</td><td>1 | 2 | 0 (draw)</td><td>0 only valid when the group's GroupStageConfig.allowDraws is true</td></tr>
+      <tr><td>fantasyPoints</td><td>number</td><td>Default comes from GroupStageConfig, not a hardcoded constant</td></tr>
+      <tr><td>guesses</td><td>TeamWinGuess[]</td><td>One per user; guess validation allows 0 only if allowDraws is set</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Progress checklist</h2>
+  <div class="card"><div class="card-body todo-list">
+    <div class="todo"><span class="box"></span>P0 — Add TournamentRound{order,label,bestOf}; replace Round enum on Series</div>
+    <div class="todo"><span class="box"></span>P0 — Derive isSeriesFinished/winsRequired from bestOf; replace === 4 / includes(4) checks</div>
+    <div class="todo"><span class="box"></span>P1 — Add Group, GroupMembership, GroupStanding, GroupStageConfig</div>
+    <div class="todo"><span class="box"></span>P1 — Optional draw outcome on TeamWinBet, gated by allowDraws</div>
+    <div class="todo"><span class="box"></span>P1 — Make Team.conference/Series.conference an optional display label, not a required enum</div>
+    <div class="todo"><span class="box"></span>P1 — TournamentStage owns knockout rounds / groups; champion guessing becomes optional add-on</div>
+    <div class="todo"><span class="box"></span>P1 — StagePredictionConfig per stage (champion/MVP/region-final as data, not hardcoded stage-name switches)</div>
+    <div class="todo"><span class="box"></span>P1 — Remove seed1 @Max(8); derive valid seed range from the round's team count</div>
+    <div class="todo"><span class="box"></span>P2 — Admin UI: add stage, configure rounds (label/bestOf) or group rules</div>
+    <div class="todo"><span class="box"></span>P2 — Admin UI: assign teams to round-1 matchups or groups</div>
+    <div class="todo"><span class="box"></span>P3 (stretch) — Auto-generate knockout bracket from final group standings</div>
+  </div></div>
+
+  <h2>Target tournament formats</h2>
+  <table>
+    <thead><tr><th>Competition</th><th>Regular season / group stage</th><th>Knockout stage</th><th>Series or single game</th><th>Champion decided by</th></tr></thead>
+    <tbody>
+      <tr><td>Israeli Basketball Super League</td><td>League — home &amp; away regular season</td><td>Quarterfinals → Semifinals → Finals</td><td>QF: Best-of-3 · SF: Best-of-5 · Final: Best-of-5</td><td>Playoff winner</td></tr>
+      <tr><td>EuroLeague</td><td>Single league table — 20 teams, home &amp; away, no groups</td><td>Play-In → Quarterfinals → Final Four</td><td>Play-In: single game · QF: Best-of-5 · Final Four: single-game semis &amp; final</td><td>Final Four winner</td></tr>
+      <tr><td>NBA</td><td>Regular season — 82 games</td><td>1st Round → Conf. Semifinals → Conf. Finals → NBA Finals</td><td>Best-of-7 every round</td><td>NBA Finals winner</td></tr>
+      <tr><td>FIBA Basketball World Cup</td><td>1st Group Stage (8 groups of 4) → 2nd Group Stage (4 groups of 4)</td><td>Quarterfinals → Semifinals → Final</td><td>Single elimination (single game)</td><td>Final winner</td></tr>
+      <tr><td>FIFA World Cup (Soccer)</td><td>12 groups of 4 — 48 teams</td><td>Round of 32 → Round of 16 → Quarterfinals → Semifinals → Final</td><td>Single elimination (single match)</td><td>Final winner</td></tr>
+      <tr><td>FIBA EuroBasket</td><td>Group Stage — 4 groups of 6</td><td>Round of 16 → Quarterfinals → Semifinals → Final</td><td>Single elimination (single game)</td><td>Final winner</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout tone-warning">
+    <div class="title">This app is postseason-only for league-style competitions</div>
+    <p class="text">
+      The "regular season / group stage" column above describes the real-world competition for
+      context. For Israeli League, EuroLeague, and NBA, this app never creates a stage for that
+      part — it only models the knockout bracket. A GROUP stage is only created for competitions
+      that have a real simultaneous group phase feeding a bracket (World Cup, EuroBasket, FIBA
+      World Cup's double group stage).
+    </p>
+  </div>
+
+  <h2>Example stage/round setup per tournament</h2>
+  <table>
+    <thead><tr><th>Tournament</th><th>Stages created</th><th>Round / group rules</th></tr></thead>
+    <tbody>
+      <tr><td>Israeli Super League</td><td>Stage 1: KNOCKOUT only (regular season is not modeled — this app is postseason-only for leagues)</td><td>Rounds: Quarterfinal bestOf 3 → Semifinal bestOf 5 → Final bestOf 5</td></tr>
+      <tr><td>EuroLeague</td><td>Stage 1: KNOCKOUT only (regular season is not modeled — this app is postseason-only for leagues)</td><td>Rounds: Play-In bestOf 1 → Quarterfinal bestOf 5 → Semifinal (Final Four) bestOf 1 → Final bestOf 1 — 4 different round shapes in one stage</td></tr>
+      <tr><td>NBA</td><td>Stage 1: KNOCKOUT only (regular season not modeled by this app today)</td><td>Rounds: 1st Round → Conf. Semis → Conf. Finals → NBA Finals, all bestOf 7</td></tr>
+      <tr><td>FIBA Basketball World Cup</td><td>Stage 1: GROUP (8 groups of 4) → Stage 2: GROUP (4 groups of 4, reshuffled from Stage 1 qualifiers) → Stage 3: KNOCKOUT</td><td>Both group stages: win=2/loss=0, allowDraws=false. Knockout: 3 rounds (QF→SF→Final), all bestOf 1</td></tr>
+      <tr><td>FIFA World Cup</td><td>Stage 1: GROUP (12 groups of 4) → Stage 2: KNOCKOUT</td><td>Group: win=3/draw=1/loss=0, allowDraws=true, advanceCount=2. Knockout: 5 rounds (Ro32→Ro16→QF→SF→Final), all bestOf 1</td></tr>
+      <tr><td>FIBA EuroBasket</td><td>Stage 1: GROUP (4 groups of 6) → Stage 2: KNOCKOUT</td><td>Group: win=2/loss=0, allowDraws=false, advanceCount=2. Knockout: 4 rounds (Ro16→QF→SF→Final), all bestOf 1</td></tr>
+    </tbody>
+  </table>
+
+  <h2>What these real formats prove about the model</h2>
+  <table>
+    <thead><tr><th>Generalization</th><th>Proven by</th><th>Why it holds without new code</th></tr></thead>
+    <tbody>
+      <tr><td>GROUP is for tournaments, not league seasons</td><td>Israeli league's regular season, EuroLeague's 20-team table, NBA's 82 games</td><td>This app stays postseason-only for league-style competitions — no stage is created for the regular season; GROUP is reserved for real simultaneous group phases (World Cup, EuroBasket, FIBA WC)</td></tr>
+      <tr><td>Stages are an ordered, repeatable list</td><td>FIBA World Cup: GROUP → GROUP → KNOCKOUT (two sequential group stages before the bracket)</td><td>TournamentStage is just an ordered list of KNOCKOUT/GROUP rows — nothing assumes exactly one of each or a fixed alternation</td></tr>
+      <tr><td>One Knockout stage can mix round shapes freely</td><td>EuroLeague: Play-In (Bo1) → Quarterfinal (Bo5) → Final Four semis &amp; final (Bo1) — 3 different shapes, 1 stage</td><td>Each TournamentRound carries its own bestOf; a stage is just a sequence of rounds, not a single fixed format</td></tr>
+      <tr><td>Bracket depth scales for free</td><td>NBA/Israeli/EuroLeague need 3–4 rounds; FIFA needs 5 (Round of 32 down to Final)</td><td>Adding a round is one more TournamentRound row, not a schema or code change — remove the current seed1 @Max(8) cap</td></tr>
+      <tr><td>Champion resolves generically</td><td>NBA Finals winner vs. EuroLeague's Final Four winner vs. FIFA's Final winner — three different "last stages"</td><td>Champion prediction checks against "the winner of the last round of the last KNOCKOUT stage", not a named stage like "NBA Finals"</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout tone-success">
+    <div class="title">Still just 2 stage types, now proven against 6 real competitions</div>
+    <p class="text">
+      None of these six formats — including EuroLeague's Play-In/Final-Four mix and the FIBA World
+      Cup's double group stage — need a third stage type. They need: (1) an ordered list of
+      KNOCKOUT/GROUP stages with no fixed count, (2) per-round bestOf inside a knockout stage, and
+      (3) a bracket depth/seed range that scales with team count instead of being capped at 8.
+    </p>
+  </div>
+
+  <h2>What stays vs what changes</h2>
+  <table>
+    <thead><tr><th>Concept</th><th>Today</th><th>Target</th></tr></thead>
+    <tbody>
+      <tr><td>Atomic fixture</td><td>Series = exactly 2 teams</td><td>Unchanged — this stays the core bracket building block for every format</td></tr>
+      <tr><td>Bracket progression engine</td><td>Winner of a series advances (implicit via round)</td><td>Unchanged concept, now driven by TournamentRound.order instead of Round enum</td></tr>
+      <tr><td>Series length</td><td>Hardcoded Bo7 (finish at 4 wins)</td><td>bestOf on TournamentRound; winsRequired derived; Bo1/Bo3/Bo5/Bo7 all supported</td></tr>
+      <tr><td>Which bets get created</td><td>createSeries always makes a BestOf7Bet + TeamWinBet, fantasyPoints hardcoded 4 / 6</td><td>Round/group config declares which bet types apply and their default points (bet template)</td></tr>
+      <tr><td>Points per bet instance</td><td>Already a column on each bet row; scoring already sums it generically</td><td>Unchanged — this part needs no redesign, only the creation-time defaults move to config</td></tr>
+      <tr><td>Team grouping</td><td>Team.conference required enum (East/West/Finals)</td><td>Optional bracketRegion label for display; real grouping via Group/GroupMembership when needed</td></tr>
+      <tr><td>Match outcome</td><td>TeamWinBet only 1 | 2</td><td>Add optional draw outcome, gated by GroupStageConfig.allowDraws (soccer groups only)</td></tr>
+      <tr><td>Stage purpose</td><td>PlayoffStage only hosts champion/MVP guesses</td><td>TournamentStage owns the fixtures (knockout rounds or group); champion/MVP guessing becomes an optional add-on, not the stage's job</td></tr>
+      <tr><td>Champion/MVP/region prediction slots</td><td>Hardcoded per PlayoffsStage.name: 'Before playoffs' needs 5 slots (champion+MVP+3 fixed conferences), every later stage needs exactly 2 (champion+MVP)</td><td>StagePredictionConfig per stage: an admin-defined list of {type, label, editable, fantasyPoints} slots — 0..N region slots, swappable prediction types (e.g. Top Scorer instead of MVP)</td></tr>
+      <tr><td>Guess matching</td><td>Matched by stage.name string equality</td><td>Matched by stage id — works for any stage name/count, not just the 4 fixed enum values</td></tr>
+      <tr><td>New tournament setup</td><td>Requires enum edits + code deploy per tournament</td><td>Admin picks stage type(s), sets rounds/bestOf or group config — no deploy</td></tr>
+      <tr><td>Bracket size / seeding</td><td>seed1 capped @Max(8) — assumes an 8-team NBA-style bracket</td><td>Seed range derives from the round's team count; FIFA's Round of 32 works the same way as an 8-team bracket</td></tr>
+      <tr><td>Number &amp; order of stages</td><td>Implicitly one bracket per tournament (Series + Round only)</td><td>TournamentStage is an ordered, repeatable list — FIBA World Cup runs GROUP → GROUP → KNOCKOUT with no special case</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Which bets exist per round/stage, and at what point value</h2>
+  <table>
+    <thead><tr><th>Context</th><th>Applies to</th><th>TeamWin bet</th><th>SeriesLength bet</th></tr></thead>
+    <tbody>
+      <tr><td>Knockout round, bestOf &gt; 1</td><td>Euroleague, Israeli league</td><td>TeamWin — enabled</td><td>SeriesLength — enabled, both point values from the round's config (e.g. Final worth more than Quarterfinal)</td></tr>
+      <tr><td>Knockout round, bestOf = 1</td><td>World Cup knockout rounds</td><td>TeamWin — enabled</td><td>SeriesLength — not created (nothing to guess for a single match)</td></tr>
+      <tr><td>Group stage match</td><td>World Cup groups</td><td>TeamWin — enabled, draw outcome added when allowDraws is set</td><td>SeriesLength — not created (groups are always single matches)</td></tr>
+      <tr><td>Any stage</td><td>All four tournaments</td><td>PlayerMatchupBet / SpontaneousBet — unchanged: admin-added per series, independently priced</td><td>Not templated — already optional and already row-level pricing</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout tone-success">
+    <div class="title">Already generic: points aggregation</div>
+    <p class="text">
+      Fantasy points are already a column on every bet row, and scoring already sums whatever
+      exists (teamWin.fantasyPoints + bestOf7.fantasyPoints + each matchup.fantasyPoints) with no
+      hardcoded weighting. The only hardcoded part is the creation-time defaults (4 and 6) and the
+      fact that every series always gets both bet types — both move into the round/group config
+      above, nothing in the scoring/aggregation code needs to change.
+    </p>
+  </div>
+
+  <h2>Champion / MVP / region prediction slots per stage</h2>
+  <table>
+    <thead><tr><th>Tournament</th><th>First-stage slots</th><th>Later-stage slots</th></tr></thead>
+    <tbody>
+      <tr><td>Euroleague / Israeli league playoffs</td><td>Champion (1)</td><td>MVP (1) — no conference split, single bracket, so 0 region-final slots</td></tr>
+      <tr><td>World Cup basketball / soccer</td><td>Champion (1)</td><td>Top Scorer / Golden Boot (1) instead of MVP — 0 region-final slots, groups replace that role</td></tr>
+      <tr><td>NBA-style bracket (existing data, kept working)</td><td>Champion (1)</td><td>MVP (1) + Region Final × 3 (East, West, Finals) — matches today's behavior exactly, just as config rows instead of hardcoded logic</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout tone-info">
+    <div class="title">Same pattern as series bets</div>
+    <p class="text">
+      checkGuess and closeGuesses currently switch on stageName === 'Before playoffs' and read a
+      fixed easternConferenceFinal / westernConferenceFinal / finals DTO shape. Replacing that
+      with a per-stage list of prediction slots means Euroleague can have zero region-final
+      slots, a World Cup can swap MVP for Top Scorer, and the existing NBA behavior (5 slots,
+      then 2) is reproduced as data, not a special case in code.
+    </p>
+  </div>
+
+  <h2>New/changed config model</h2>
+  <table>
+    <thead><tr><th>Entity</th><th>Key fields</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>TournamentStage</td><td>type: KNOCKOUT | GROUP, order, name</td><td>Replaces the fixed 4-value PlayoffsStage enum; a tournament can have 1 or many stages in order</td></tr>
+      <tr><td>TournamentRound (knockout)</td><td>stage, order, label, bestOf, fantasyPoints?</td><td>Replaces the hardcoded Round enum; bestOf (and optionally guess value) set per round so a final can differ from earlier rounds</td></tr>
+      <tr><td>Group (group stage)</td><td>stage, name</td><td>New entity; holds N teams for round-robin play</td></tr>
+      <tr><td>GroupMembership</td><td>group, team, seed?</td><td>New; replaces implicit conference-based grouping</td></tr>
+      <tr><td>GroupStanding</td><td>group, team, played/won/drawn/lost, points</td><td>New; computed from fixtures, drives advancement</td></tr>
+      <tr><td>GroupStageConfig</td><td>pointsForWin, pointsForDraw, pointsForLoss, allowDraws, advanceCount</td><td>New; per-group-stage scoring &amp; advancement rule set entered by admin</td></tr>
+      <tr><td>Series (unchanged shape)</td><td>team1, team2, dateOfStart… now refs TournamentRound or Group instead of Round/Conference enums</td><td>Stays the core atomic 2-team fixture — this is the part we do NOT redesign</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Migration phases</h2>
+  <table>
+    <thead><tr><th>Phase</th><th>Status</th><th>Focus</th><th>Work</th><th>Exit condition</th></tr></thead>
+    <tbody>
+      <tr><td>1 · Round &amp; series length</td><td>Open</td><td>Bo3/Bo5/Bo7 per round</td><td>Replace Round enum with TournamentRound{order,label,bestOf}; derive isSeriesFinished from bestOf.</td><td>Israeli league can run Bo3 quarters, Bo5 semis and final, while EuroLeague mixes Bo1 and Bo5 rounds in the same stage, with no code change.</td></tr>
+      <tr><td>2 · Group stage entities</td><td>Open</td><td>World Cup format</td><td>Add Group, GroupMembership, GroupStanding, GroupStageConfig; fixtures stay 2-team Series under a group.</td><td>Admin can create 8 groups of 4 teams with round-robin fixtures and live standings.</td></tr>
+      <tr><td>3 · Draw support</td><td>Open</td><td>Soccer group draws</td><td>Extend TeamWinBet/result to an optional draw outcome, active only when allowDraws is set.</td><td>Soccer group matches can end in a draw and award group points correctly; basketball unaffected.</td></tr>
+      <tr><td>4 · Admin rule-set UI</td><td>Open</td><td>Configure without code</td><td>Admin screens: add stage (type), configure rounds (label/bestOf) or group config (size/points/advance).</td><td>A new tournament (any of the target formats) is fully set up from the admin page.</td></tr>
+      <tr><td>5 · Group → knockout handoff (stretch)</td><td>Open</td><td>Auto-seed next stage</td><td>Optional: generate the knockout bracket automatically from final group standings instead of manual entry.</td><td>Not required for v1 — admin can create round-of-16 series manually from standings.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="card-header">Admin configuration flow (target)</div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+        <p class="text"><strong>1. Create tournament:</strong> Name, year, sportType — unchanged from today</p>
+        <p class="text"><strong>2. Add stage(s) in order:</strong> Pick KNOCKOUT or GROUP per stage (e.g. World Cup = Group then Knockout; Euroleague = Knockout only)</p>
+        <p class="text"><strong>3a. Configure a KNOCKOUT stage:</strong> Add rounds in order, each with a label and bestOf (e.g. Quarterfinal/Bo5, Semifinal/Bo5, Final/Bo7)</p>
+        <p class="text"><strong>3b. Configure a GROUP stage:</strong> Set group size, number of groups, points for win/draw/loss, allow-draws toggle, advance-count per group</p>
+        <p class="text"><strong>4. Assign teams:</strong> Assign teams to round-1 knockout matchups or to groups — reuses existing series-creation flow</p>
+        <p class="text"><strong>5. Run the stage:</strong> Group: fixtures update standings automatically. Knockout: series close as today, admin advances winners into the next round</p>
+        <p class="text"><strong>6. Hand off to the next stage:</strong> Same manual step regardless of the combination — top group finishers into another Group stage (FIBA World Cup) or into a Knockout stage (FIFA), auto-seeding is the only stretch item</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Explicitly out of scope</div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
+        <p class="text text-secondary">A generic N-stage-type plugin engine (Swiss, ladder, round-robin league, etc.) — only KNOCKOUT and GROUP are modeled</p>
+        <p class="text text-secondary">Automatic support for every sport's scoring quirks (extra time, penalty shootouts as separate entities) — a knockout match is still one Series with a final winner</p>
+        <p class="text text-secondary">Fully automated bracket seeding from group results in v1 — kept manual first, automated as a later stretch phase</p>
+      </div>
+    </div>
+  </div>
+
+  <h2>Risk vs value</h2>
+  <table>
+    <thead><tr><th>Change</th><th>Risk</th><th>Value</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>TournamentRound replacing Round enum</td><td>Low–medium</td><td>High</td><td>Unlocks per-round bestOf immediately; Israeli league + Euroleague need only this</td></tr>
+      <tr><td>Group + standings entities</td><td>Medium</td><td>High</td><td>New tables only, does not touch existing knockout Series behavior</td></tr>
+      <tr><td>Draw outcome</td><td>Low</td><td>Medium</td><td>Narrow, additive change gated by a config flag; basketball tournaments never see it</td></tr>
+      <tr><td>Admin config UI</td><td>Medium</td><td>High</td><td>This is what actually removes the 'change code per tournament' problem</td></tr>
+      <tr><td>Auto bracket seeding from groups</td><td>Medium–high</td><td>Medium</td><td>Nice-to-have; manual advancement is an acceptable v1 workflow</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout tone-warning">
+    <div class="title">Design rule to hold the line on</div>
+    <p class="text">
+      Series stays exactly 2 teams for every format. Group stages are many Series fixtures plus a
+      standings projection, not a wider entity. Knockout rounds carry their own bestOf, so a final
+      can be longer than earlier rounds. Everything else — draws, group size, points rules, bracket
+      size — is data an admin sets per tournament, not a code branch.
+    </p>
+  </div>
+
+</div>
+</body>
+</html>

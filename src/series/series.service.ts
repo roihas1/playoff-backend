@@ -2090,6 +2090,231 @@ export class SeriesService {
       );
     }
   }
+  /** Same started-series check used by `getSeriesMinimalById`, reused for the series catalog. */
+  private hasSeriesStarted(dateOfStart: unknown, timeOfStart: string): boolean {
+    const ymd = this.getCalendarYmdFromDateColumn(dateOfStart);
+    if (!ymd || !timeOfStart?.trim()) {
+      return false;
+    }
+    const { hour, minute, second } = this.parseTimeOfDayParts(timeOfStart);
+    const nowJerusalem = DateTime.now().setZone('Asia/Jerusalem');
+    const startDateTime = DateTime.fromObject(
+      {
+        year: ymd.year,
+        month: ymd.month,
+        day: ymd.day,
+        hour,
+        minute,
+        second,
+      },
+      { zone: 'Asia/Jerusalem' },
+    );
+    if (!startDateTime.isValid) {
+      return false;
+    }
+    return nowJerusalem >= startDateTime;
+  }
+
+  /** Lightweight, started-only series list for populating dropdowns (e.g. comparison page). */
+  async getSeriesCatalog(tournamentId?: string): Promise<
+    {
+      id: string;
+      team1: string;
+      team2: string;
+      round: Round;
+      startDate: Date;
+      timeOfStart: string;
+    }[]
+  > {
+    const key = this.appCache.buildPublicKey('series/catalog', {
+      tournamentId,
+    });
+    return this.appCache.wrap(key, async () => {
+      this.logger.log(
+        `Fetching series catalog for tournamentId=${tournamentId ?? 'all'}.`,
+      );
+      try {
+        const query = this.seriesRepository
+          .createQueryBuilder('series')
+          .leftJoinAndSelect('series.team1Relation', 'team1Relation')
+          .leftJoinAndSelect('series.team2Relation', 'team2Relation')
+          .select([
+            'series.id',
+            'series.round',
+            'series.dateOfStart',
+            'series.timeOfStart',
+            'team1Relation.name',
+            'team2Relation.name',
+          ]);
+
+        if (tournamentId) {
+          query.andWhere('series.tournamentId = :tournamentId', {
+            tournamentId,
+          });
+        }
+
+        const rows = await query.getMany();
+        const catalog = rows
+          .filter((s) => this.hasSeriesStarted(s.dateOfStart, s.timeOfStart))
+          .map((s) => ({
+            id: s.id,
+            team1: s.team1Relation?.name ?? '',
+            team2: s.team2Relation?.name ?? '',
+            round: s.round,
+            startDate: s.dateOfStart,
+            timeOfStart: s.timeOfStart,
+          }));
+        this.logger.verbose(
+          `Fetched series catalog for tournamentId=${tournamentId ?? 'all'}: ${catalog.length} started series (of ${rows.length} total).`,
+        );
+        return catalog;
+      } catch (error) {
+        this.logger.error(
+          `Failed to get series catalog tournamentId=${tournamentId ?? 'all'}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+        throw new InternalServerErrorException('Failed to get series catalog');
+      }
+    });
+  }
+
+  /** Full bet graph for a single series (schedule + bestOf7/teamWin bets + matchup/spontaneous bets). */
+  async getBetsForSeries(
+    seriesId: string,
+    tournamentId?: string,
+  ): Promise<{
+    team1Id: string;
+    team2Id: string;
+    team1: string;
+    team2: string;
+    team1Name: string;
+    team2Name: string;
+    team1Abbreviation: string;
+    team2Abbreviation: string;
+    conference: Conference;
+    round: Round;
+    startDate: Date;
+    timeOfStart: string;
+    tournament: TournamentInfo;
+    bestOf7Bet: BestOf7Bet;
+    teamWinBet: TeamWinBet;
+    playerMatchupBets: PlayerMatchupBet[];
+    spontaneousBets: SpontaneousBet[];
+  }> {
+    const key = this.appCache.buildPublicKey('series/bets', {
+      seriesId,
+      tournamentId,
+    });
+    return this.appCache.wrap(key, async () => {
+      this.logger.log(`Fetching bets for series: ${seriesId}.`);
+      try {
+        const series = await this.seriesRepository
+          .createQueryBuilder('series')
+          .leftJoinAndSelect('series.tournament', 'tournament')
+          .leftJoinAndSelect('series.team1Relation', 'team1Relation')
+          .leftJoinAndSelect('series.team2Relation', 'team2Relation')
+          .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
+          .leftJoinAndSelect('series.teamWinBetId', 'teamWinBet')
+          .select([
+            'series.id',
+            'series.conference',
+            'series.round',
+            'series.dateOfStart',
+            'series.timeOfStart',
+            'team1Relation.id',
+            'team1Relation.name',
+            'team1Relation.abbreviation',
+            'team2Relation.id',
+            'team2Relation.name',
+            'team2Relation.abbreviation',
+            'tournament.id',
+            'tournament.sportType',
+            'tournament.year',
+            'tournament.name',
+            'bestOf7Bet.id',
+            'bestOf7Bet.result',
+            'bestOf7Bet.fantasyPoints',
+            'bestOf7Bet.seriesScore',
+            'teamWinBet.id',
+            'teamWinBet.result',
+            'teamWinBet.fantasyPoints',
+          ])
+          .where('series.id = :seriesId', { seriesId })
+          .getOne();
+
+        if (!series) {
+          throw new NotFoundException(`Series with ID "${seriesId}" not found`);
+        }
+
+        if (tournamentId && series.tournament?.id !== tournamentId) {
+          throw new BadRequestException(
+            'tournamentId does not match this series.',
+          );
+        }
+
+        const [allMatchups, allSpontaneous] = await Promise.all([
+          this.playerMatcupBetService.getBySeriesIds([seriesId]),
+          this.spontaneousBetService.getBySeriesIds([seriesId]),
+        ]);
+
+        const playerMatchupBets = allMatchups.map((bet) => {
+          const categoriesArray =
+            typeof bet.categories === 'string'
+              ? this.parsePostgresArray(bet.categories)
+              : Array.isArray(bet.categories)
+                ? bet.categories
+                : [];
+          return { ...bet, categories: categoriesArray };
+        });
+
+        const spontaneousBets = allSpontaneous.map((bet) => {
+          const categoriesArray =
+            typeof bet.categories === 'string'
+              ? this.parsePostgresArray(bet.categories)
+              : Array.isArray(bet.categories)
+                ? bet.categories
+                : [];
+          return { ...bet, categories: categoriesArray };
+        });
+
+        this.logger.verbose(
+          `Fetched bets for series "${seriesId}": matchups=${playerMatchupBets.length}, spontaneous=${spontaneousBets.length}.`,
+        );
+
+        return {
+          team1Id: series.team1Relation?.id ?? '',
+          team2Id: series.team2Relation?.id ?? '',
+          team1: series.team1Relation?.name ?? '',
+          team2: series.team2Relation?.name ?? '',
+          team1Name: series.team1Relation?.name ?? '',
+          team2Name: series.team2Relation?.name ?? '',
+          team1Abbreviation: series.team1Relation?.abbreviation ?? '',
+          team2Abbreviation: series.team2Relation?.abbreviation ?? '',
+          conference: series.conference,
+          round: series.round,
+          startDate: series.dateOfStart,
+          timeOfStart: series.timeOfStart,
+          tournament: toTournamentInfo(series.tournament),
+          bestOf7Bet: { ...series.bestOf7BetId },
+          teamWinBet: { ...series.teamWinBetId },
+          playerMatchupBets,
+          spontaneousBets,
+        };
+      } catch (error) {
+        if (error instanceof HttpException) {
+          throw error;
+        }
+        this.logger.error(
+          `Failed to get bets for series ${seriesId}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+        throw new InternalServerErrorException(
+          `Failed to get bets for series ${seriesId}`,
+        );
+      }
+    });
+  }
+
   /**
    * Series + teams + tournament + best-of-7 + team-win only (no matchup/spontaneous collections).
    * Matchup and spontaneous bets are loaded separately to avoid a Cartesian product in SQL.
