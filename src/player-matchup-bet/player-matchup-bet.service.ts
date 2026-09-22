@@ -13,6 +13,8 @@ import { UpdateFieldsDto } from './dto/update-fields.dto';
 import { User } from 'src/auth/user.entity';
 import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-guess.entity';
 import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterSeriesMetadataChange } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class PlayerMatchupBetService {
@@ -21,6 +23,7 @@ export class PlayerMatchupBetService {
     private playerMatchupBetRepository: PlayerMatchupBetRepository,
     @Inject(forwardRef(() => UserSeriesPointsService))
     private userSeriesPointsService: UserSeriesPointsService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   /**
@@ -45,9 +48,11 @@ export class PlayerMatchupBetService {
     createPlayerMatchupBetDto: CreatePlayerMatchupBetDto,
   ): Promise<PlayerMatchupBet> {
     this.logger.verbose(`Trying to create PlayerMatchupBet.`);
-    return await this.playerMatchupBetRepository.createPlayerMatchupBet(
+    const bet = await this.playerMatchupBetRepository.createPlayerMatchupBet(
       createPlayerMatchupBetDto,
     );
+    await invalidateAfterSeriesMetadataChange(this.appCache);
+    return bet;
   }
   async getBySeriesIds(seriesIds: string[]): Promise<PlayerMatchupBet[]> {
     if (seriesIds.length === 0) {
@@ -123,6 +128,7 @@ export class PlayerMatchupBetService {
           this.userSeriesPointsService.updatePointsForUser(userId),
         ),
       );
+      await this.appCache.clear();
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
@@ -263,6 +269,7 @@ export class PlayerMatchupBetService {
     try {
       const savedBet = await this.playerMatchupBetRepository.save(matchup);
       this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);
+      await this.appCache.clear();
       return savedBet;
     } catch (error) {
       this.logger.error(
@@ -348,6 +355,7 @@ export class PlayerMatchupBetService {
       this.logger.verbose(
         `PlayerMatchupBet with ID "${id}" successfully updated the fields.`,
       );
+      await invalidateAfterSeriesMetadataChange(this.appCache);
       return savedBet;
     } catch (error) {
       this.logger.error(
@@ -378,6 +386,7 @@ export class PlayerMatchupBetService {
       this.logger.verbose(
         `Successfully deleted bet with ID: "${id}" by user: ${user.username}`,
       );
+      await this.appCache.clear();
     } catch (error) {
       // Log the error stack if something goes wrong
       this.logger.error(`Failed to delete bet with ID: "${id}".`, error.stack);

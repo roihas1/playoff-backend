@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CacheModule } from '@nestjs/cache-manager';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -44,12 +45,18 @@ import { TeamModule } from './team/team.module';
 import { CronModule } from './cron/cron.module';
 import { UserTournamentPointsModule } from './user-tournament-points/user-tournament-points.module';
 import { StatsModule } from './stats/stats.module';
+import { CACHE_TTL_MS, MemoryCacheModule } from './memory-cache';
 
 import { NbaController } from 'src/StatisticsApi/controllers/NbaController';
 import { NbaStatisticsService } from 'src/StatisticsApi/services/NbaStatisticsService';
 
 @Module({
   imports: [
+    CacheModule.register({
+      isGlobal: true,
+      ttl: CACHE_TTL_MS,
+    }),
+    MemoryCacheModule,
     ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,

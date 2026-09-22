@@ -20,6 +20,7 @@ import { PriorGuesses, PriorGuessesByStage } from './playoffs-stage.controller';
 import { AuthService } from 'src/auth/auth.service';
 import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 import { UserTournamentPointsService } from 'src/user-tournament-points/user-tournament-points.service';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
 
 @Injectable()
 export class PlayoffsStageService {
@@ -30,6 +31,7 @@ export class PlayoffsStageService {
     private championGuessService: ChampionsGuessService,
     private authService: AuthService,
     private readonly userTournamentPointsService: UserTournamentPointsService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   async createPlayoffsStage(
@@ -49,12 +51,14 @@ export class PlayoffsStageService {
       },
     });
     if (!found) {
-      return await this.playoffsStageRepo.createPlayoffsStage(
+      const created = await this.playoffsStageRepo.createPlayoffsStage(
         createPlayoffsStageDto.name,
         createPlayoffsStageDto.startDate,
         createPlayoffsStageDto.timeOfStart,
         tournamentId,
       );
+      await this.appCache.delByPrefix('p:v1:playoffs-stage:');
+      return created;
     }
     if (createPlayoffsStageDto.startDate) {
       found.startDate = new Date(createPlayoffsStageDto.startDate);
@@ -65,65 +69,88 @@ export class PlayoffsStageService {
       await this.playoffsStageRepo.save(found);
     }
 
+    await this.appCache.delByPrefix('p:v1:playoffs-stage:');
     return found;
   }
   async getPlainPlayoffsStages(
     tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
   ): Promise<PlayoffStage[]> {
-    try {
-      const found = await this.playoffsStageRepo
-        .createQueryBuilder('playoff-stage')
-        .leftJoinAndSelect('playoff-stage.tournament', 'tournament')
-        .where('playoff-stage.tournamentId = :tournamentId', { tournamentId })
-        .getMany();
-      this.logger.log(`Fetched ${found.length} playoff stages.`);
-      return found;
-    } catch (error) {
-      this.logger.error('Failed to fetch playoff stages', error.stack);
-      throw new Error('Could not retrieve playoff stages');
-    }
+    const key = this.appCache.buildPublicKey('playoffs-stage/plain', {
+      tournamentId,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const found = await this.playoffsStageRepo
+          .createQueryBuilder('playoff-stage')
+          .leftJoinAndSelect('playoff-stage.tournament', 'tournament')
+          .where('playoff-stage.tournamentId = :tournamentId', { tournamentId })
+          .getMany();
+        this.logger.log(`Fetched ${found.length} playoff stages.`);
+        return found;
+      } catch (error) {
+        this.logger.error('Failed to fetch playoff stages', error.stack);
+        throw new Error('Could not retrieve playoff stages');
+      }
+    });
   }
   async getAllPlayoffsStages(): Promise<PlayoffStage[]> {
-    const stagesName = ['Before playoffs', 'Round 1', 'Round 2'];
-    const found = await this.playoffsStageRepo.getAllPlayoffsStages();
-    const stages = found.sort((a, b) => {
-      return stagesName.indexOf(a.name) - stagesName.indexOf(b.name);
-    });
+    const key = this.appCache.buildPublicKey('playoffs-stage/all', {});
+    return this.appCache.wrap(key, async () => {
+      const stagesName = ['Before playoffs', 'Round 1', 'Round 2'];
+      const found = await this.playoffsStageRepo.getAllPlayoffsStages();
+      const stages = found.sort((a, b) => {
+        return stagesName.indexOf(a.name) - stagesName.indexOf(b.name);
+      });
 
-    return stages;
+      return stages;
+    });
   }
   async checkGuess(
     stageName: string,
     user: User,
     tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
   ): Promise<boolean> {
-    try {
-      const [hasChampion, hasConference, hasMVP] = await Promise.all([
-        this.championGuessService.hasChampionTeamGuess(
-          stageName,
-          user.id,
-          tournamentId,
-        ),
-        this.championGuessService.hasConferenceFinalGuess(
-          stageName,
-          user.id,
-          tournamentId,
-        ),
-        this.championGuessService.hasMVPGuess(stageName, user.id, tournamentId),
-      ]);
+    const key = this.appCache.buildUserKey(
+      user.id,
+      'playoffs-stage/check-guess',
+      {
+        stage: stageName,
+        tournamentId,
+      },
+    );
+    return this.appCache.wrap(key, async () => {
+      try {
+        const [hasChampion, hasConference, hasMVP] = await Promise.all([
+          this.championGuessService.hasChampionTeamGuess(
+            stageName,
+            user.id,
+            tournamentId,
+          ),
+          this.championGuessService.hasConferenceFinalGuess(
+            stageName,
+            user.id,
+            tournamentId,
+          ),
+          this.championGuessService.hasMVPGuess(
+            stageName,
+            user.id,
+            tournamentId,
+          ),
+        ]);
 
-      if (stageName === 'Before playoffs') {
-        return hasChampion && hasConference && hasMVP;
+        if (stageName === 'Before playoffs') {
+          return hasChampion && hasConference && hasMVP;
+        }
+
+        return hasChampion && hasMVP;
+      } catch (error) {
+        this.logger.error(
+          `Failed to check guesses for user ${user.id}: ${error.message}`,
+          error.stack,
+        );
+        return false;
       }
-
-      return hasChampion && hasMVP;
-    } catch (error) {
-      this.logger.error(
-        `Failed to check guesses for user ${user.id}: ${error.message}`,
-        error.stack,
-      );
-      return false;
-    }
+    });
   }
 
   async closeGuesses(closeGuessesDto: CloseGuessesDto): Promise<void> {
@@ -214,6 +241,7 @@ export class PlayoffsStageService {
       );
 
       this.logger.verbose('Champion guesses closed and points awarded');
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error('Failed to close champion guesses', error.stack);
       throw error;
@@ -324,54 +352,63 @@ export class PlayoffsStageService {
     championTeamGuesses: ChampionTeamGuess[];
     mvpGuesses: MVPGuess[];
   }> {
-    try {
-      const userWithGuesses =
-        await this.authService.getUserChampionsGuesses(userId);
-      const now = new Date();
+    const key = this.appCache.buildUserKey(
+      userId,
+      'playoffs-stage/user-guesses-by-id',
+      { stage, tournamentId },
+    );
+    return this.appCache.wrap(key, async () => {
+      try {
+        const userWithGuesses =
+          await this.authService.getUserChampionsGuesses(userId);
+        const now = new Date();
 
-      const hasStageStarted = (s: PlayoffStage) => {
-        if (!s.startDate || !s.timeOfStart) return false;
-        const [hours, minutes] = s.timeOfStart.split(':').map(Number);
-        const startDate = new Date(s.startDate);
-        startDate.setHours(hours, minutes, 0, 0);
-        return startDate <= now;
-      };
-      const isRequestedTournament = (s: PlayoffStage) =>
-        (s.tournament?.id ?? LEGACY_MIGRATION_TOURNAMENT_ID) === tournamentId;
+        const hasStageStarted = (s: PlayoffStage) => {
+          if (!s.startDate || !s.timeOfStart) return false;
+          const [hours, minutes] = s.timeOfStart.split(':').map(Number);
+          const startDate = new Date(s.startDate);
+          startDate.setHours(hours, minutes, 0, 0);
+          return startDate <= now;
+        };
+        const isRequestedTournament = (s: PlayoffStage) =>
+          (s.tournament?.id ?? LEGACY_MIGRATION_TOURNAMENT_ID) === tournamentId;
 
-      const conferenceFinalGuesses =
-        userWithGuesses.conferenceFinalGuesses.filter(
+        const conferenceFinalGuesses =
+          userWithGuesses.conferenceFinalGuesses.filter(
+            (g) =>
+              g.stage.name === stage &&
+              hasStageStarted(g.stage) &&
+              isRequestedTournament(g.stage),
+          );
+
+        const championTeamGuesses = userWithGuesses.championTeamGuesses.filter(
           (g) =>
             g.stage.name === stage &&
             hasStageStarted(g.stage) &&
             isRequestedTournament(g.stage),
         );
 
-      const championTeamGuesses = userWithGuesses.championTeamGuesses.filter(
-        (g) =>
-          g.stage.name === stage &&
-          hasStageStarted(g.stage) &&
-          isRequestedTournament(g.stage),
-      );
+        const mvpGuesses = userWithGuesses.mvpGuesses.filter(
+          (g) =>
+            g.stage.name === stage &&
+            hasStageStarted(g.stage) &&
+            isRequestedTournament(g.stage),
+        );
 
-      const mvpGuesses = userWithGuesses.mvpGuesses.filter(
-        (g) =>
-          g.stage.name === stage &&
-          hasStageStarted(g.stage) &&
-          isRequestedTournament(g.stage),
-      );
-
-      return {
-        conferenceFinalGuesses,
-        championTeamGuesses,
-        mvpGuesses,
-      };
-    } catch (error) {
-      this.logger.error(`User: ${userId} failed to get his guesses. ${error}`);
-      throw new InternalServerErrorException(
-        `User: ${userId} failed to get his guesses.`,
-      );
-    }
+        return {
+          conferenceFinalGuesses,
+          championTeamGuesses,
+          mvpGuesses,
+        };
+      } catch (error) {
+        this.logger.error(
+          `User: ${userId} failed to get his guesses. ${error}`,
+        );
+        throw new InternalServerErrorException(
+          `User: ${userId} failed to get his guesses.`,
+        );
+      }
+    });
   }
 
   async getUserGuesses(
@@ -383,32 +420,39 @@ export class PlayoffsStageService {
     championTeamGuesses: ChampionTeamGuess[];
     mvpGuesses: MVPGuess[];
   }> {
-    try {
-      const userWithGuesses = await this.authService.getUserChampionsGuesses(
-        user.id,
-      );
-      const isRequestedTournament = (s: PlayoffStage) =>
-        (s.tournament?.id ?? LEGACY_MIGRATION_TOURNAMENT_ID) === tournamentId;
+    const key = this.appCache.buildUserKey(
+      user.id,
+      'playoffs-stage/user-guesses',
+      { stage, tournamentId },
+    );
+    return this.appCache.wrap(key, async () => {
+      try {
+        const userWithGuesses = await this.authService.getUserChampionsGuesses(
+          user.id,
+        );
+        const isRequestedTournament = (s: PlayoffStage) =>
+          (s.tournament?.id ?? LEGACY_MIGRATION_TOURNAMENT_ID) === tournamentId;
 
-      return {
-        conferenceFinalGuesses: userWithGuesses.conferenceFinalGuesses.filter(
-          (g) => g.stage.name === stage && isRequestedTournament(g.stage),
-        ),
-        championTeamGuesses: userWithGuesses.championTeamGuesses.filter(
-          (g) => g.stage.name === stage && isRequestedTournament(g.stage),
-        ),
-        mvpGuesses: userWithGuesses.mvpGuesses.filter(
-          (g) => g.stage.name === stage && isRequestedTournament(g.stage),
-        ),
-      };
-    } catch (error) {
-      this.logger.error(
-        `User: ${user.username} failed to get his guesses. ${error}`,
-      );
-      throw new InternalServerErrorException(
-        `User: ${user.username} failed to get his guesses.`,
-      );
-    }
+        return {
+          conferenceFinalGuesses: userWithGuesses.conferenceFinalGuesses.filter(
+            (g) => g.stage.name === stage && isRequestedTournament(g.stage),
+          ),
+          championTeamGuesses: userWithGuesses.championTeamGuesses.filter(
+            (g) => g.stage.name === stage && isRequestedTournament(g.stage),
+          ),
+          mvpGuesses: userWithGuesses.mvpGuesses.filter(
+            (g) => g.stage.name === stage && isRequestedTournament(g.stage),
+          ),
+        };
+      } catch (error) {
+        this.logger.error(
+          `User: ${user.username} failed to get his guesses. ${error}`,
+        );
+        throw new InternalServerErrorException(
+          `User: ${user.username} failed to get his guesses.`,
+        );
+      }
+    });
   }
   private extractCertainProperties(
     conferenceFinalGuesses: ConferenceFinalGuess[],
@@ -446,88 +490,100 @@ export class PlayoffsStageService {
     user: User,
     tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
   ): Promise<PriorGuesses | PriorGuessesByStage> {
-    try {
-      if (stage === PlayoffsStage.ROUND1) {
-        const guesses = await this.getUserGuesses(
-          PlayoffsStage.BEFOREPLAOFFS,
-          user,
-          tournamentId,
-        );
-        const newGuess = this.extractCertainProperties(
-          guesses.conferenceFinalGuesses,
-          guesses.championTeamGuesses,
-          guesses.mvpGuesses,
-        );
-        return {
-          conferenceFinalGuesses: newGuess.conferenceFinalGuesses,
-          championTeamGuesses: newGuess.championTeamGuesses,
-          mvpGuesses: newGuess.mvpGuesses,
-        };
-      } else if (
-        stage === PlayoffsStage.ROUND2 ||
-        stage === PlayoffsStage.FINISH
-      ) {
-        const beforePlayoffsStageGuesses = await this.getUserGuesses(
-          PlayoffsStage.BEFOREPLAOFFS,
-          user,
-          tournamentId,
-        );
-        const beforePlayoffsGuessesNew = this.extractCertainProperties(
-          beforePlayoffsStageGuesses.conferenceFinalGuesses,
-          beforePlayoffsStageGuesses.championTeamGuesses,
-          beforePlayoffsStageGuesses.mvpGuesses,
-        );
-        const round1StageGuesses = await this.getUserGuesses(
-          PlayoffsStage.ROUND1,
-          user,
-          tournamentId,
-        );
-        const round1GuessesNew = this.extractCertainProperties(
-          round1StageGuesses.conferenceFinalGuesses,
-          round1StageGuesses.championTeamGuesses,
-          round1StageGuesses.mvpGuesses,
-        );
-
-        if (stage === PlayoffsStage.FINISH) {
-          const round2Guesses = await this.getUserGuesses(
-            PlayoffsStage.ROUND2,
+    const key = this.appCache.buildUserKey(
+      user.id,
+      'playoffs-stage/prior-guesses',
+      { stage, tournamentId },
+    );
+    return this.appCache.wrap(key, async () => {
+      try {
+        if (stage === PlayoffsStage.ROUND1) {
+          const guesses = await this.getUserGuesses(
+            PlayoffsStage.BEFOREPLAOFFS,
             user,
             tournamentId,
           );
-          const round2StageGuesses = this.extractCertainProperties(
-            round2Guesses.conferenceFinalGuesses,
-            round2Guesses.championTeamGuesses,
-            round2Guesses.mvpGuesses,
+          const newGuess = this.extractCertainProperties(
+            guesses.conferenceFinalGuesses,
+            guesses.championTeamGuesses,
+            guesses.mvpGuesses,
           );
+          return {
+            conferenceFinalGuesses: newGuess.conferenceFinalGuesses,
+            championTeamGuesses: newGuess.championTeamGuesses,
+            mvpGuesses: newGuess.mvpGuesses,
+          };
+        } else if (
+          stage === PlayoffsStage.ROUND2 ||
+          stage === PlayoffsStage.FINISH
+        ) {
+          const beforePlayoffsStageGuesses = await this.getUserGuesses(
+            PlayoffsStage.BEFOREPLAOFFS,
+            user,
+            tournamentId,
+          );
+          const beforePlayoffsGuessesNew = this.extractCertainProperties(
+            beforePlayoffsStageGuesses.conferenceFinalGuesses,
+            beforePlayoffsStageGuesses.championTeamGuesses,
+            beforePlayoffsStageGuesses.mvpGuesses,
+          );
+          const round1StageGuesses = await this.getUserGuesses(
+            PlayoffsStage.ROUND1,
+            user,
+            tournamentId,
+          );
+          const round1GuessesNew = this.extractCertainProperties(
+            round1StageGuesses.conferenceFinalGuesses,
+            round1StageGuesses.championTeamGuesses,
+            round1StageGuesses.mvpGuesses,
+          );
+
+          if (stage === PlayoffsStage.FINISH) {
+            const round2Guesses = await this.getUserGuesses(
+              PlayoffsStage.ROUND2,
+              user,
+              tournamentId,
+            );
+            const round2StageGuesses = this.extractCertainProperties(
+              round2Guesses.conferenceFinalGuesses,
+              round2Guesses.championTeamGuesses,
+              round2Guesses.mvpGuesses,
+            );
+            return {
+              beforePlayoffs: beforePlayoffsGuessesNew,
+              round1: round1GuessesNew,
+              round2: round2StageGuesses,
+            };
+          }
+
           return {
             beforePlayoffs: beforePlayoffsGuessesNew,
             round1: round1GuessesNew,
-            round2: round2StageGuesses,
           };
         }
-
-        return {
-          beforePlayoffs: beforePlayoffsGuessesNew,
-          round1: round1GuessesNew,
-        };
+      } catch (error) {
+        this.logger.error(
+          `User: ${user.username} failed to get his prior guesses. ${error.stack}`,
+        );
+        throw new InternalServerErrorException(
+          `User: ${user.username} failed to get his prior guesses.`,
+        );
       }
-    } catch (error) {
-      this.logger.error(
-        `User: ${user.username} failed to get his prior guesses. ${error.stack}`,
-      );
-      throw new InternalServerErrorException(
-        `User: ${user.username} failed to get his prior guesses.`,
-      );
-    }
+    });
   }
   async getPassedStages(
     tournamentId: string = LEGACY_MIGRATION_TOURNAMENT_ID,
   ): Promise<string[]> {
-    try {
-      return await this.playoffsStageRepo.getPassedStages(tournamentId);
-    } catch (error) {
-      this.logger.error(`Failed to get passed stages. ${error.stack}`);
-      throw new InternalServerErrorException(`Failed to get passed stages.`);
-    }
+    const key = this.appCache.buildPublicKey('playoffs-stage/passed', {
+      tournamentId,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        return await this.playoffsStageRepo.getPassedStages(tournamentId);
+      } catch (error) {
+        this.logger.error(`Failed to get passed stages. ${error.stack}`);
+        throw new InternalServerErrorException(`Failed to get passed stages.`);
+      }
+    });
   }
 }

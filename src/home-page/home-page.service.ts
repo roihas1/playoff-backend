@@ -11,6 +11,7 @@ import { PlayoffsStageService } from 'src/playoffs-stage/playoffs-stage.service'
 import { SeriesService } from 'src/series/series.service';
 import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
 import { HomepageDataDto } from './dto/home-page-data.dto';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
 
 @Injectable()
 export class HomePageService {
@@ -20,9 +21,25 @@ export class HomePageService {
     private readonly userSeriesPointsService: UserSeriesPointsService,
     private readonly playoffsStageService: PlayoffsStageService,
     private readonly authService: AuthService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   async getHomepageData(
+    user: User,
+    tournamentId?: string,
+  ): Promise<HomepageDataDto> {
+    const keyParams = tournamentId !== undefined ? { tournamentId } : {};
+    const key = this.appCache.buildUserKey(
+      user.id,
+      'home-page/load',
+      keyParams,
+    );
+    return this.appCache.wrap(key, () =>
+      this.loadHomepageData(user, tournamentId),
+    );
+  }
+
+  private async loadHomepageData(
     user: User,
     tournamentId?: string,
   ): Promise<HomepageDataDto> {

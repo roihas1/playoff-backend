@@ -30,6 +30,8 @@ import { PlayerMatchupGuess } from 'src/player-matchup-guess/player-matchup-gues
 import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
 import { UserInitializationService } from 'src/user-initialization/user-initialization.service';
 import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterAuthProfileChange } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class AuthService {
@@ -39,6 +41,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private readonly userInitializationService: UserInitializationService,
+    private readonly appCache: AppCacheService,
     @InjectRepository(PrivateLeague)
     private readonly privateLeagueRepo: Repository<PrivateLeague>,
     @InjectRepository(Tournament)
@@ -147,7 +150,9 @@ export class AuthService {
     // Update fields dynamically
     Object.assign(user, updateUserDto);
     this.logger.verbose(`User with ID: "${id}" successfully updated.`);
-    return this.usersRepository.save(user);
+    const saved = await this.usersRepository.save(user);
+    await invalidateAfterAuthProfileChange(this.appCache, id);
+    return saved;
   }
 
   async deleteUser(user: User): Promise<void> {
@@ -162,6 +167,7 @@ export class AuthService {
     try {
       await this.usersRepository.delete(found.id);
       this.logger.verbose(`User with ID "${user.id}" successfully deleted.`);
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error(
         `Failed to delete user with ID: "${user.id}".`,
@@ -194,16 +200,21 @@ export class AuthService {
       championPoints: number;
     }[]
   > {
-    try {
-      const tid = tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
-      const users =
-        await this.usersRepository.getAllUsersWithTournamentPoints(tid);
-      this.logger.verbose(`All users retrieved successfully.`);
-      return users;
-    } catch (error) {
-      this.logger.error(`Failed to get all users.`, error.stack);
-      throw error;
-    }
+    const tid = tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+    const key = this.appCache.buildPublicKey('auth/users', {
+      tournamentId: tid,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const users =
+          await this.usersRepository.getAllUsersWithTournamentPoints(tid);
+        this.logger.verbose(`All users retrieved successfully.`);
+        return users;
+      } catch (error) {
+        this.logger.error(`Failed to get all users.`, error.stack);
+        throw error;
+      }
+    });
   }
 
   async getAllUsers(): Promise<User[]> {
@@ -223,23 +234,55 @@ export class AuthService {
     leagueId?: string,
     tournamentId?: string,
   ) {
-    try {
-      const tid = tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
-      const response = await this.usersRepository.getUsersWithCursor(
-        limit,
-        tid,
-        cursor,
-        prevCursor,
-        leagueId,
-      );
-      return response;
-    } catch (error) {
-      this.logger.error(`Failed to get users with cursor.`, error.stack);
-      throw error;
-    }
+    const tid = tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+    const key = this.appCache.buildPublicKey('auth/standings', {
+      cursorId: cursor?.id,
+      cursorPoints: cursor?.totalPoints,
+      prevCursorId: prevCursor?.id,
+      prevCursorPoints: prevCursor?.totalPoints,
+      leagueId,
+      limit,
+      tournamentId: tid,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const response = await this.usersRepository.getUsersWithCursor(
+          limit,
+          tid,
+          cursor,
+          prevCursor,
+          leagueId,
+        );
+        return response;
+      } catch (error) {
+        this.logger.error(`Failed to get users with cursor.`, error.stack);
+        throw error;
+      }
+    });
   }
 
   async getMyStandingsPosition(
+    user: User,
+    tournamentId?: string,
+    leagueId?: string,
+  ): Promise<{
+    tournamentId: string;
+    leagueId: string | null;
+    position: number;
+    fantasyPoints: number;
+    championPoints: number;
+    totalPoints: number;
+  }> {
+    const key = this.appCache.buildUserKey(user.id, 'auth/standings/me', {
+      leagueId,
+      tournamentId,
+    });
+    return this.appCache.wrap(key, async () =>
+      this.loadMyStandingsPosition(user, tournamentId, leagueId),
+    );
+  }
+
+  private async loadMyStandingsPosition(
     user: User,
     tournamentId?: string,
     leagueId?: string,
@@ -321,6 +364,36 @@ export class AuthService {
     user: User,
     tournamentId: string,
   ): Promise<HomeStandingsPreviewDto> {
+    const key = this.appCache.buildUserKey(
+      user.id,
+      'auth/standings/home-preview',
+      {
+        tournamentId,
+      },
+    );
+    return this.appCache.wrap(key, async () => {
+      try {
+        return await this.loadHomeStandingsPreview(user, tournamentId);
+      } catch (error) {
+        if (
+          error instanceof NotFoundException ||
+          error instanceof BadRequestException
+        ) {
+          throw error;
+        }
+        this.logger.error(
+          `Failed to get home standings preview.`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        throw error;
+      }
+    });
+  }
+
+  private async loadHomeStandingsPreview(
+    user: User,
+    tournamentId: string,
+  ): Promise<HomeStandingsPreviewDto> {
     try {
       const exists = await this.tournamentRepo.exist({
         where: { id: tournamentId },
@@ -398,13 +471,22 @@ export class AuthService {
     stage: PlayoffsStage,
     user: User,
   ): Promise<boolean> {
-    try {
-      await this.usersRepository.getChampionsGuesses(user.id);
+    const key = this.appCache.buildUserKey(
+      user.id,
+      'auth/check-champions-guess',
+      {
+        stage,
+      },
+    );
+    return this.appCache.wrap(key, async () => {
+      try {
+        await this.usersRepository.getChampionsGuesses(user.id);
 
-      return true;
-    } catch (error) {
-      this.logger.error(error);
-    }
+        return true;
+      } catch (error) {
+        this.logger.error(error);
+      }
+    });
   }
   async getUserGuessesForCheck(userId: string) {
     const user = await this.usersRepository.findOne({
@@ -462,36 +544,43 @@ export class AuthService {
     playerMatchupGuesses: PlayerMatchupGuess[];
     spontaneousGuesses: SpontaneousGuess[];
   }> {
-    try {
-      const foundUser = await this.getUserGuesses(user);
+    const key = this.appCache.buildUserKey(
+      user.id,
+      'auth/user-guesses-for-series',
+      { seriesId },
+    );
+    return this.appCache.wrap(key, async () => {
+      try {
+        const foundUser = await this.getUserGuesses(user);
 
-      const bestOf7Guess = foundUser.bestOf7Guesses.filter(
-        (g) => g.bet.series.id === seriesId,
-      )[0];
-      const teamWinGuess = foundUser.teamWinGuesses.filter(
-        (g) => g.bet.seriesId === seriesId,
-      )[0];
-      const playerMatchupGuesses = foundUser.playerMatchupGuesses.filter(
-        (g) => g.bet.seriesId === seriesId,
-      );
-      const spontaneousGuesses = foundUser.spontaneousGuesses.filter(
-        (g) => g.bet.seriesId === seriesId,
-      );
-      return {
-        bestOf7Guess,
-        teamWinGuess,
-        playerMatchupGuesses,
-        spontaneousGuesses,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Failed to get guesses of user:${user.username}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Failed to get guesses of user:${user.username}`,
-      );
-    }
+        const bestOf7Guess = foundUser.bestOf7Guesses.filter(
+          (g) => g.bet.series.id === seriesId,
+        )[0];
+        const teamWinGuess = foundUser.teamWinGuesses.filter(
+          (g) => g.bet.seriesId === seriesId,
+        )[0];
+        const playerMatchupGuesses = foundUser.playerMatchupGuesses.filter(
+          (g) => g.bet.seriesId === seriesId,
+        );
+        const spontaneousGuesses = foundUser.spontaneousGuesses.filter(
+          (g) => g.bet.seriesId === seriesId,
+        );
+        return {
+          bestOf7Guess,
+          teamWinGuess,
+          playerMatchupGuesses,
+          spontaneousGuesses,
+        };
+      } catch (error) {
+        this.logger.error(
+          `Failed to get guesses of user:${user.username}`,
+          error.stack,
+        );
+        throw new InternalServerErrorException(
+          `Failed to get guesses of user:${user.username}`,
+        );
+      }
+    });
   }
   async getUserChampionsGuesses(userId: string): Promise<User> {
     try {
@@ -530,26 +619,29 @@ export class AuthService {
     }
   }
   async getUserGuesses(user: User): Promise<User> {
-    try {
-      const foundUser = await this.usersRepository.findOne({
-        where: { id: user.id },
-        relations: [
-          'bestOf7Guesses',
-          'teamWinGuesses',
-          'playerMatchupGuesses',
-          'spontaneousGuesses',
-        ],
-      });
-      return foundUser;
-    } catch (error) {
-      this.logger.error(
-        `Failed to get guesses of user:${user.username}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Failed to get guesses of user:${user.username}`,
-      );
-    }
+    const key = this.appCache.buildUserKey(user.id, 'auth/user-guesses', {});
+    return this.appCache.wrap(key, async () => {
+      try {
+        const foundUser = await this.usersRepository.findOne({
+          where: { id: user.id },
+          relations: [
+            'bestOf7Guesses',
+            'teamWinGuesses',
+            'playerMatchupGuesses',
+            'spontaneousGuesses',
+          ],
+        });
+        return foundUser;
+      } catch (error) {
+        this.logger.error(
+          `Failed to get guesses of user:${user.username}`,
+          error.stack,
+        );
+        throw new InternalServerErrorException(
+          `Failed to get guesses of user:${user.username}`,
+        );
+      }
+    });
   }
   async validateGoogleUser(googleUser: AuthCredentialsDto): Promise<User> {
     const user = await this.usersRepository.findOne({

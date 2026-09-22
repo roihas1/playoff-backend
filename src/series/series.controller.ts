@@ -251,7 +251,11 @@ export class SeriesController {
     this.logger.verbose(
       `User "${user.username}" attempt to retrieve guesses for user id "${userId}" in series "${seriesId}".`,
     );
-    return await this.seriesServie.getAllGuessesForUser(seriesId, userId);
+    return await this.seriesServie.getAllGuessesForUser(
+      seriesId,
+      userId,
+      'series/all-guesses-for-user',
+    );
   }
 
   @Get('/isUserGuessed/All')

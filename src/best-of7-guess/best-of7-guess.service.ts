@@ -15,6 +15,8 @@ import { User } from '../auth/user.entity';
 import { Role } from '../auth/user-role.enum';
 import { BestOf7BetService } from 'src/best-of7-bet/best-of7-bet.service';
 import { BestOf7Bet } from 'src/best-of7-bet/bestOf7.entity';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterGuessWrite } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class BestOf7GuessService {
@@ -22,6 +24,7 @@ export class BestOf7GuessService {
   constructor(
     private bestOf7GuessRepository: BestOf7GuessRepository,
     private bestOf7BetService: BestOf7BetService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   private assertGuessOwnerOrAdmin(guess: BestOf7Guess, user: User): void {
@@ -50,15 +53,19 @@ export class BestOf7GuessService {
     });
     if (found) {
       found.guess = guess;
-      return await this.bestOf7GuessRepository.save(found);
+      const saved = await this.bestOf7GuessRepository.save(found);
+      await invalidateAfterGuessWrite(this.appCache, user.id);
+      return saved;
     }
     const bestOf7Bet =
       await this.bestOf7BetService.getBestOf7betById(bestOf7BetId);
-    return await this.bestOf7GuessRepository.createBestOf7Guess(
+    const created = await this.bestOf7GuessRepository.createBestOf7Guess(
       guess,
       bestOf7Bet,
       user,
     );
+    await invalidateAfterGuessWrite(this.appCache, user.id);
+    return created;
   }
 
   async getGuessById(id: string): Promise<BestOf7Guess> {
@@ -130,7 +137,9 @@ export class BestOf7GuessService {
     this.assertGuessOwnerOrAdmin(found, user);
 
     found.guess = guess;
-    return await this.bestOf7GuessRepository.save(found);
+    const saved = await this.bestOf7GuessRepository.save(found);
+    await invalidateAfterGuessWrite(this.appCache, user.id);
+    return saved;
   }
   async updateGuessByBet(
     bestOf7Bet: BestOf7Bet,
@@ -139,7 +148,9 @@ export class BestOf7GuessService {
   ): Promise<BestOf7Guess> {
     const found = await this.getGuessByBet(bestOf7Bet, user);
     found.guess = guess;
-    return await this.bestOf7GuessRepository.save(found);
+    const saved = await this.bestOf7GuessRepository.save(found);
+    await invalidateAfterGuessWrite(this.appCache, user.id);
+    return saved;
   }
 
   async deleteGuess(id: string, user?: User): Promise<void> {
@@ -150,6 +161,10 @@ export class BestOf7GuessService {
     try {
       await this.bestOf7GuessRepository.delete(found);
       this.logger.verbose(`BestOf7Guess with ID: ${id} deleted succesfully.`);
+      const actorId = user?.id ?? found.createdBy?.id;
+      if (actorId) {
+        await invalidateAfterGuessWrite(this.appCache, actorId);
+      }
       return;
     } catch (error) {
       this.logger.error(`BestOf7Guess with ID: ${id} did not delete.`);

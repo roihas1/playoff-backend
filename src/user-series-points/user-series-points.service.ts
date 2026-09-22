@@ -11,6 +11,8 @@ import { SeriesService } from 'src/series/series.service';
 import { AuthService } from 'src/auth/auth.service';
 import { UserTournamentPointsService } from 'src/user-tournament-points/user-tournament-points.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterUserPointsChange } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class UserSeriesPointsService {
@@ -22,12 +24,13 @@ export class UserSeriesPointsService {
     @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
     private readonly userTournamentPointsService: UserTournamentPointsService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   async updatePointsForUser(userId: string): Promise<void> {
     try {
       const seriesPoints =
-        await this.seriesService.getPointsPerSeriesForUser(userId);
+        await this.seriesService.computePointsPerSeriesForUser(userId);
 
       const existingPoints = await this.userSeriesPointsRepository
         .createQueryBuilder('usp')
@@ -83,6 +86,7 @@ export class UserSeriesPointsService {
       );
 
       this.logger.log(`Updated series points for user ${userId}`);
+      await invalidateAfterUserPointsChange(this.appCache, userId);
     } catch (error) {
       this.logger.error(
         `Failed to update series points for user ${userId}: ${error.message}`,
@@ -109,35 +113,40 @@ export class UserSeriesPointsService {
     userId: string,
     tournamentId?: string,
   ): Promise<{ [seriesId: string]: number }> {
-    try {
-      const qb = this.userSeriesPointsRepository
-        .createQueryBuilder('usp')
-        .select(['usp.points AS points', 'series.id AS seriesId'])
-        .innerJoin('usp.series', 'series')
-        .where('usp.userId = :userId', { userId });
+    const key = this.appCache.buildUserKey(userId, 'user-series-points/user', {
+      tournamentId,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const qb = this.userSeriesPointsRepository
+          .createQueryBuilder('usp')
+          .select(['usp.points AS points', 'series.id AS seriesId'])
+          .innerJoin('usp.series', 'series')
+          .where('usp.userId = :userId', { userId });
 
-      if (tournamentId != null) {
-        qb.andWhere('series.tournamentId = :tournamentId', { tournamentId });
-      }
-
-      const entries = await qb.getRawMany();
-      const result: { [seriesId: string]: number } = {};
-
-      for (const entry of entries) {
-        if (entry.seriesid) {
-          result[entry.seriesid] = entry.points;
+        if (tournamentId != null) {
+          qb.andWhere('series.tournamentId = :tournamentId', { tournamentId });
         }
+
+        const entries = await qb.getRawMany();
+        const result: { [seriesId: string]: number } = {};
+
+        for (const entry of entries) {
+          if (entry.seriesid) {
+            result[entry.seriesid] = entry.points;
+          }
+        }
+        return result;
+      } catch (error) {
+        this.logger.error(
+          `Failed to fetch points for user: ${userId}`,
+          error.stack,
+        );
+        throw new InternalServerErrorException(
+          `Failed to fetch points for user: ${userId}`,
+        );
       }
-      return result;
-    } catch (error) {
-      this.logger.error(
-        `Failed to fetch points for user: ${userId}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Failed to fetch points for user: ${userId}`,
-      );
-    }
+    });
   }
 
   async findBySeriesId(seriesId: string): Promise<UserSeriesPoints[]> {
@@ -160,22 +169,29 @@ export class UserSeriesPointsService {
     userId: string,
     seriesId: string,
   ): Promise<UserSeriesPoints | null> {
-    try {
-      return await this.userSeriesPointsRepository.findOne({
-        where: {
-          user: { id: userId },
-          series: { id: seriesId },
-        },
-      });
-    } catch (error) {
-      this.logger.error(
-        `Failed to fetch points for user: ${userId} and series: ${seriesId}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Failed to fetch points for user: ${userId} and series: ${seriesId}`,
-      );
-    }
+    const key = this.appCache.buildUserKey(
+      userId,
+      'user-series-points/user-series',
+      { seriesId },
+    );
+    return this.appCache.wrap(key, async () => {
+      try {
+        return await this.userSeriesPointsRepository.findOne({
+          where: {
+            user: { id: userId },
+            series: { id: seriesId },
+          },
+        });
+      } catch (error) {
+        this.logger.error(
+          `Failed to fetch points for user: ${userId} and series: ${seriesId}`,
+          error.stack,
+        );
+        throw new InternalServerErrorException(
+          `Failed to fetch points for user: ${userId} and series: ${seriesId}`,
+        );
+      }
+    });
   }
   async updateAllUserPointsTotalFSP(): Promise<void> {
     this.logger.log('Starting daily update of series points for all users...');
@@ -189,6 +205,7 @@ export class UserSeriesPointsService {
       this.logger.log(
         'Finished updating series and per-tournament fantasy totals for all users.',
       );
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error(`Cron job failed: ${error.message}`, error.stack);
     }
@@ -202,6 +219,7 @@ export class UserSeriesPointsService {
         await this.updatePointsForUser(user.id);
       }
       this.logger.log('Finished updating series points for all users.');
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error(`Cron job failed: ${error.message}`, error.stack);
     }
@@ -216,6 +234,7 @@ export class UserSeriesPointsService {
         await this.updatePointsForUser(user.id);
       }
       this.logger.log('✅ Daily user-series-points update completed.');
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error('❌ Error in daily update', error.stack);
     }

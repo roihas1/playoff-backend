@@ -10,6 +10,7 @@ import { User } from 'src/auth/user.entity';
 import { SeriesService } from 'src/series/series.service';
 import { UserMissingBet } from './user-missing-bets.entity';
 import { AuthService } from 'src/auth/auth.service';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
 
 @Injectable()
 export class UserMissingBetsService {
@@ -19,6 +20,7 @@ export class UserMissingBetsService {
     private seriesService: SeriesService,
     @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
+    private readonly appCache: AppCacheService,
   ) {}
   async getMissingBetsForUser(user: User): Promise<{
     [seriesId: string]: {
@@ -28,55 +30,62 @@ export class UserMissingBetsService {
       spontaneousBets: any[];
     };
   }> {
-    try {
-      const missingBets = await this.userMissingBetsRepository.find({
-        where: { user: { id: user.id } },
-      });
+    const key = this.appCache.buildUserKey(
+      user.id,
+      'user-missing-bets/user',
+      {},
+    );
+    return this.appCache.wrap(key, async () => {
+      try {
+        const missingBets = await this.userMissingBetsRepository.find({
+          where: { user: { id: user.id } },
+        });
 
-      const result: {
-        [seriesId: string]: {
-          seriesName: string;
-          gamesAndWinner: boolean;
-          playerMatchup: any[];
-          spontaneousBets: any[];
-        };
-      } = {};
-
-      for (const bet of missingBets) {
-        const { seriesId, betType, details } = bet;
-
-        if (!result[seriesId]) {
-          result[seriesId] = {
-            seriesName: details.seriesName,
-            gamesAndWinner: false,
-            playerMatchup: [],
-            spontaneousBets: [],
+        const result: {
+          [seriesId: string]: {
+            seriesName: string;
+            gamesAndWinner: boolean;
+            playerMatchup: any[];
+            spontaneousBets: any[];
           };
+        } = {};
+
+        for (const bet of missingBets) {
+          const { seriesId, betType, details } = bet;
+
+          if (!result[seriesId]) {
+            result[seriesId] = {
+              seriesName: details.seriesName,
+              gamesAndWinner: false,
+              playerMatchup: [],
+              spontaneousBets: [],
+            };
+          }
+
+          switch (betType) {
+            case 'bestOf7':
+            case 'teamWin':
+              result[seriesId].gamesAndWinner = true;
+              break;
+            case 'playerMatchup':
+              result[seriesId].playerMatchup.push(details);
+              break;
+            case 'spontaneous':
+              result[seriesId].spontaneousBets.push(details);
+              break;
+          }
         }
 
-        switch (betType) {
-          case 'bestOf7':
-          case 'teamWin':
-            result[seriesId].gamesAndWinner = true;
-            break;
-          case 'playerMatchup':
-            result[seriesId].playerMatchup.push(details);
-            break;
-          case 'spontaneous':
-            result[seriesId].spontaneousBets.push(details);
-            break;
-        }
+        return result;
+      } catch (error) {
+        this.logger.error(
+          `Failed to get missing bets for user: "${user.username}" ${error.stack}`,
+        );
+        throw new InternalServerErrorException(
+          `Failed to get missing bets for user: "${user.username}"`,
+        );
       }
-
-      return result;
-    } catch (error) {
-      this.logger.error(
-        `Failed to get missing bets for user: "${user.username}" ${error.stack}`,
-      );
-      throw new InternalServerErrorException(
-        `Failed to get missing bets for user: "${user.username}"`,
-      );
-    }
+    });
   }
 
   async updateMissingBetsForUser(user: User): Promise<void> {
@@ -84,7 +93,7 @@ export class UserMissingBetsService {
       await this.userMissingBetsRepository.delete({ user: { id: user.id } });
 
       const missingBets =
-        await this.seriesService.getOptimizedMissingBets(user);
+        await this.seriesService.computeOptimizedMissingBets(user);
 
       const entries: UserMissingBet[] = [];
       for (const [seriesId, data] of Object.entries(missingBets)) {
@@ -145,6 +154,7 @@ export class UserMissingBetsService {
 
       await this.userMissingBetsRepository.save(entries);
       this.logger.verbose(`User ${user.username} updated his missing bets.`);
+      await this.appCache.delByPrefix(this.appCache.userPrefix(user.id));
     } catch (error) {
       this.logger.error(
         `Failed to update missing bets for user ${user.username}`,
@@ -162,6 +172,7 @@ export class UserMissingBetsService {
         await this.updateMissingBetsForUser(user);
       }
       this.logger.verbose(`Update all users missing bets`);
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error(
         `Failed to update missing bets to all users`,

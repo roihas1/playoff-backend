@@ -13,6 +13,8 @@ import { PlayerMatchupBetService } from 'src/player-matchup-bet/player-matchup-b
 import { UpdateGuessDto } from './dto/update-guess.dto';
 import { PlayerMatchupBet } from 'src/player-matchup-bet/player-matchup-bet.entity';
 import { In } from 'typeorm';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterGuessWrite } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class PlayerMatchupGuessService {
@@ -20,6 +22,7 @@ export class PlayerMatchupGuessService {
   constructor(
     private playerMatchupGuessRepository: PlayerMatchupGuessRepository,
     private playerMatchupBetService: PlayerMatchupBetService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   private assertGuessOwnerOrAdmin(guess: PlayerMatchupGuess, user: User): void {
@@ -48,17 +51,22 @@ export class PlayerMatchupGuessService {
     });
     if (found) {
       found.guess = guess;
-      return await this.playerMatchupGuessRepository.save(found);
+      const saved = await this.playerMatchupGuessRepository.save(found);
+      await invalidateAfterGuessWrite(this.appCache, user.id);
+      return saved;
     }
     const playerMatchupBet =
       await this.playerMatchupBetService.getPlayerMatchupBetByIdNoGuesses(
         playerMatchupBetId,
       );
-    return await this.playerMatchupGuessRepository.createPlayerMatchupGuess(
-      guess,
-      playerMatchupBet,
-      user,
-    );
+    const created =
+      await this.playerMatchupGuessRepository.createPlayerMatchupGuess(
+        guess,
+        playerMatchupBet,
+        user,
+      );
+    await invalidateAfterGuessWrite(this.appCache, user.id);
+    return created;
   }
   async getUserGuessesForSeries(
     seriesId: string,
@@ -115,6 +123,7 @@ export class PlayerMatchupGuessService {
     );
 
     await this.playerMatchupGuessRepository.save(guessesToSave);
+    await invalidateAfterGuessWrite(this.appCache, user.id);
   }
 
   async getGuessesByUser(userId: string): Promise<PlayerMatchupGuess[]> {
@@ -177,6 +186,7 @@ export class PlayerMatchupGuessService {
     try {
       const savedBet = await this.playerMatchupGuessRepository.save(bet);
       this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
+      await invalidateAfterGuessWrite(this.appCache, user.id);
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
@@ -195,6 +205,7 @@ export class PlayerMatchupGuessService {
       this.logger.verbose(
         `PlayerMatchupGuess for Bet with ID "${playerMatchupBet.id}" successfully updated.`,
       );
+      await invalidateAfterGuessWrite(this.appCache, user.id);
       return savedBet;
     } catch (error) {
       this.logger.error(

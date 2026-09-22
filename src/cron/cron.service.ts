@@ -16,6 +16,7 @@ import { SpontaneousBet } from 'src/spontaneous-bet/spontaneousBet.entity';
 import { BetStatUpdate } from 'src/bet-stat-update/bet-stat-update.entity';
 import { MatchupCategory } from 'src/player-matchup-bet/matchup-category.enum';
 import { PlayerMatchupType } from 'src/player-matchup-bet/player-matchup-type.enum';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
 
 @Injectable()
 export class CronService {
@@ -34,6 +35,7 @@ export class CronService {
     private readonly spontaneousBetService: SpontaneousBetService,
     private readonly userSeriesPointsService: UserSeriesPointsService,
     private readonly dataSource: DataSource,
+    private readonly appCache: AppCacheService,
   ) {}
 
   private recomputeResultForBet(bet: PlayerMatchupBet | SpontaneousBet): void {
@@ -228,6 +230,9 @@ export class CronService {
     this.logger.log(
       `Last-night-winners detail: ${JSON.stringify(result.details)}`,
     );
+    if (result.updated > 0 || result.closed > 0) {
+      await this.appCache.clear();
+    }
   }
 
   /**
@@ -561,6 +566,7 @@ export class CronService {
       this.logger.verbose(
         `Slate slot=${scheduleSlot}: finished all-user series and tournament points recalc.`,
       );
+      await this.appCache.clear();
 
       const skipped =
         skippedUnresolvedSummary.length +

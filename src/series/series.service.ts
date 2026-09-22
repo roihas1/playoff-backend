@@ -51,6 +51,11 @@ import { MatchupCategory } from 'src/player-matchup-bet/matchup-category.enum';
 import { TeamService } from 'src/team/team.service';
 import { DataSource } from 'typeorm';
 import { SeriesGameUpdate } from './series-game-update.entity';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import {
+  invalidateAfterGuessWrite,
+  invalidateAfterSeriesMetadataChange,
+} from 'src/memory-cache/cache-invalidation.util';
 
 export type TournamentInfo = {
   id: string;
@@ -101,6 +106,7 @@ export class SeriesService {
     private spontaneousGuessService: SpontaneousGuessService,
     private readonly userSeriesPointsService: UserSeriesPointsService,
     private readonly dataSource: DataSource,
+    private readonly appCache: AppCacheService,
   ) {}
 
   private getDefaultBestOf7Percentages(): BestOf7PercentagesDto {
@@ -310,18 +316,27 @@ export class SeriesService {
   async getSeriesWithFilters(
     filters: GetSeriesWithFilterDto,
   ): Promise<Series[]> {
-    try {
-      const series = await this.seriesRepository.getSeriesWithFilters(filters);
-      this.logger.verbose(`Retrieving series succeed.`);
-      return series;
-    } catch (error) {
-      this.logger.error(
-        `Retrieving series had problems with filters: ${JSON.stringify(filters)}`,
-      );
-      throw new InternalServerErrorException(
-        `Retrieving series had problems with filters: ${JSON.stringify(filters)}`,
-      );
-    }
+    const key = this.appCache.buildPublicKey('series/list', {
+      coast: filters.coast,
+      round: filters.round,
+      teamId: filters.teamId,
+      tournamentId: filters.tournamentId,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const series =
+          await this.seriesRepository.getSeriesWithFilters(filters);
+        this.logger.verbose(`Retrieving series succeed.`);
+        return series;
+      } catch (error) {
+        this.logger.error(
+          `Retrieving series had problems with filters: ${JSON.stringify(filters)}`,
+        );
+        throw new InternalServerErrorException(
+          `Retrieving series had problems with filters: ${JSON.stringify(filters)}`,
+        );
+      }
+    });
   }
   async createSeries(createSeriesDto: CreateSeriesDto): Promise<Series> {
     try {
@@ -356,10 +371,12 @@ export class SeriesService {
         seriesId: newSeries.id,
         fantasyPoints: 6,
       });
-      return await this.seriesRepository.findOne({
+      const created = await this.seriesRepository.findOne({
         where: { id: newSeries.id },
         relations: ['team1Relation', 'team2Relation', 'tournament'],
       });
+      await invalidateAfterSeriesMetadataChange(this.appCache);
+      return created;
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;
@@ -506,35 +523,41 @@ export class SeriesService {
         closed++;
       }
     }
+    if (updated > 0 || closed > 0) {
+      await this.appCache.clear();
+    }
     return { updated, closed, details };
   }
 
   async getSeriesNoGuesses(seriesId: string): Promise<Series> {
-    try {
-      const query = await this.seriesRepository
-        .createQueryBuilder('series')
-        .leftJoinAndSelect('series.tournament', 'tournament')
-        .leftJoinAndSelect('series.team1Relation', 'team1Relation')
-        .leftJoinAndSelect('series.team2Relation', 'team2Relation')
-        .leftJoinAndSelect('series.playerMatchupBets', 'playerMatchupBet')
-        .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
-        .leftJoinAndSelect('series.spontaneousBets', 'spontaneousBet')
-        .where('series.id = :seriesId', { seriesId })
-        .getOne();
+    const key = this.appCache.buildPublicKey('series/detail', { seriesId });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const query = await this.seriesRepository
+          .createQueryBuilder('series')
+          .leftJoinAndSelect('series.tournament', 'tournament')
+          .leftJoinAndSelect('series.team1Relation', 'team1Relation')
+          .leftJoinAndSelect('series.team2Relation', 'team2Relation')
+          .leftJoinAndSelect('series.playerMatchupBets', 'playerMatchupBet')
+          .leftJoinAndSelect('series.bestOf7BetId', 'bestOf7Bet')
+          .leftJoinAndSelect('series.spontaneousBets', 'spontaneousBet')
+          .where('series.id = :seriesId', { seriesId })
+          .getOne();
 
-      if (!query) {
-        this.logger.error(`No series found with ID: ${seriesId}`);
-        throw new NotFoundException(`No series found with ID: ${seriesId}`);
+        if (!query) {
+          this.logger.error(`No series found with ID: ${seriesId}`);
+          throw new NotFoundException(`No series found with ID: ${seriesId}`);
+        }
+
+        return query;
+      } catch (error) {
+        this.logger.error(
+          `Error fetching series without guesses for ID: ${seriesId}`,
+          error,
+        );
+        throw new InternalServerErrorException('Failed to fetch series data');
       }
-
-      return query;
-    } catch (error) {
-      this.logger.error(
-        `Error fetching series without guesses for ID: ${seriesId}`,
-        error,
-      );
-      throw new InternalServerErrorException('Failed to fetch series data');
-    }
+    });
   }
   async getSeriesByID(id: string): Promise<Series> {
     const foundSeries = await this.seriesRepository.findOne({
@@ -549,16 +572,19 @@ export class SeriesService {
     return foundSeries;
   }
   async getSeriesScore(id: string): Promise<number[]> {
-    try {
-      const series = await this.getSeriesByID(id);
-      const score = series.bestOf7BetId.seriesScore;
-      return score;
-    } catch (error) {
-      this.logger.error(`Can not return Series score  with ID: ${id} `);
-      throw new InternalServerErrorException(
-        `Can not return Series score  with ID: ${id}`,
-      );
-    }
+    const key = this.appCache.buildPublicKey('series/score', { seriesId: id });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const series = await this.getSeriesByID(id);
+        const score = series.bestOf7BetId.seriesScore;
+        return score;
+      } catch (error) {
+        this.logger.error(`Can not return Series score  with ID: ${id} `);
+        throw new InternalServerErrorException(
+          `Can not return Series score  with ID: ${id}`,
+        );
+      }
+    });
   }
 
   async deleteSeries(id: string): Promise<void> {
@@ -576,6 +602,7 @@ export class SeriesService {
       await this.teamWinBetService.deleteBet(series.teamWinBetId.id);
       await this.seriesRepository.delete(id);
       this.logger.verbose(`Series with ID: ${id} deleted succesfully.`);
+      await this.appCache.clear();
       return;
     } catch (error) {
       this.logger.error(`Series with ID: ${id} did not delete.${error.stack}`);
@@ -653,6 +680,7 @@ export class SeriesService {
           user,
         );
       }
+      await invalidateAfterGuessWrite(this.appCache, user.id);
     } catch (error) {
       this.logger.error(
         `Series with ID: ${seriesId} did not update the guesses. ${error.stack}`,
@@ -741,6 +769,9 @@ export class SeriesService {
   async getAllGuessesForUser(
     seriesId: string,
     userId: string,
+    cacheScope:
+      | 'series/all-guesses'
+      | 'series/all-guesses-for-user' = 'series/all-guesses',
   ): Promise<{
     bestOf7: BestOf7Guess | null;
     teamWon: TeamWinGuess | null;
@@ -755,61 +786,64 @@ export class SeriesService {
       player2: string;
     }[];
   }> {
-    try {
-      const userWithGuesses = await this.getUserGuesses(userId);
+    const key = this.appCache.buildUserKey(userId, cacheScope, { seriesId });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const userWithGuesses = await this.getUserGuesses(userId);
 
-      const series = await this.getSeriesMinimalById(seriesId);
+        const series = await this.getSeriesMinimalById(seriesId);
 
-      const bestOf7 =
-        userWithGuesses.bestOf7Guesses.find(
-          (g) => g.betId === series.bestOf7BetId,
-        ) || null;
+        const bestOf7 =
+          userWithGuesses.bestOf7Guesses.find(
+            (g) => g.betId === series.bestOf7BetId,
+          ) || null;
 
-      const teamWon =
-        userWithGuesses.teamWinGuesses.find(
-          (g) => g.betId === series.teamWinBetId,
-        ) || null;
+        const teamWon =
+          userWithGuesses.teamWinGuesses.find(
+            (g) => g.betId === series.teamWinBetId,
+          ) || null;
 
-      const playerMatchups = series.playerMatchupBets.map((bet) => {
-        const guesses = userWithGuesses.playerMatchupGuesses.filter(
-          (g) => g.betId === bet.id,
-        );
+        const playerMatchups = series.playerMatchupBets.map((bet) => {
+          const guesses = userWithGuesses.playerMatchupGuesses.filter(
+            (g) => g.betId === bet.id,
+          );
+          return {
+            guesses,
+            player1: bet.player1,
+            player2: bet.player2,
+          };
+        });
+
+        const spontaneousGuesses = series.spontaneousBets.map((bet) => {
+          const guesses = userWithGuesses.spontaneousGuesses.filter(
+            (g) => g.betId === bet.id,
+          );
+          return {
+            guesses,
+            player1: bet.player1,
+            player2: bet.player2,
+          };
+        });
+
         return {
-          guesses,
-          player1: bet.player1,
-          player2: bet.player2,
+          bestOf7,
+          teamWon,
+          playerMatchups,
+          spontaneousGuesses,
         };
-      });
-
-      const spontaneousGuesses = series.spontaneousBets.map((bet) => {
-        const guesses = userWithGuesses.spontaneousGuesses.filter(
-          (g) => g.betId === bet.id,
+      } catch (error) {
+        if (error instanceof HttpException) {
+          throw error;
+        }
+        this.logger.error(
+          `User: ${userId} failed to get all guesses for series: ${seriesId}`,
+          error.stack,
         );
-        return {
-          guesses,
-          player1: bet.player1,
-          player2: bet.player2,
-        };
-      });
-
-      return {
-        bestOf7,
-        teamWon,
-        playerMatchups,
-        spontaneousGuesses,
-      };
-    } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
+        throw new InternalServerErrorException(
+          `Could not retrieve guesses for user: ${userId} in series: ${seriesId}`,
+        );
       }
-      this.logger.error(
-        `User: ${userId} failed to get all guesses for series: ${seriesId}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Could not retrieve guesses for user: ${userId} in series: ${seriesId}`,
-      );
-    }
+    });
   }
   async getSeriesWithBetsOnly(seriesId: string): Promise<Series> {
     try {
@@ -886,51 +920,56 @@ export class SeriesService {
     playerMatchupGuess: PlayerMatchupGuess[];
     spontanouesGuess: SpontaneousGuess[];
   }> {
-    try {
-      const [userWithGuesses, series] = await Promise.all([
-        this.getUserGuesses(user.id),
-        this.getSeriesWithBetsOnly(seriesId),
-      ]);
+    const key = this.appCache.buildUserKey(user.id, 'series/guesses', {
+      seriesId,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const [userWithGuesses, series] = await Promise.all([
+          this.getUserGuesses(user.id),
+          this.getSeriesWithBetsOnly(seriesId),
+        ]);
 
-      const teamWinGuess = userWithGuesses.teamWinGuesses.find(
-        (g) => g.betId === series.teamWinBetId.id,
-      );
+        const teamWinGuess = userWithGuesses.teamWinGuesses.find(
+          (g) => g.betId === series.teamWinBetId.id,
+        );
 
-      const bestOf7Guess = userWithGuesses.bestOf7Guesses.find(
-        (g) => g.betId === series.bestOf7BetId.id,
-      );
+        const bestOf7Guess = userWithGuesses.bestOf7Guesses.find(
+          (g) => g.betId === series.bestOf7BetId.id,
+        );
 
-      const playerMatchupBetIds = new Set(
-        series.playerMatchupBets.map((bet) => bet.id),
-      );
+        const playerMatchupBetIds = new Set(
+          series.playerMatchupBets.map((bet) => bet.id),
+        );
 
-      const playerMatchupGuess = userWithGuesses.playerMatchupGuesses.filter(
-        (g) => playerMatchupBetIds.has(g.betId),
-      );
+        const playerMatchupGuess = userWithGuesses.playerMatchupGuesses.filter(
+          (g) => playerMatchupBetIds.has(g.betId),
+        );
 
-      const spontaneousBetIds = new Set(
-        series.spontaneousBets.map((bet) => bet.id),
-      );
+        const spontaneousBetIds = new Set(
+          series.spontaneousBets.map((bet) => bet.id),
+        );
 
-      const spontanouesGuess = userWithGuesses.spontaneousGuesses.filter((g) =>
-        spontaneousBetIds.has(g.betId),
-      );
+        const spontanouesGuess = userWithGuesses.spontaneousGuesses.filter(
+          (g) => spontaneousBetIds.has(g.betId),
+        );
 
-      return {
-        teamWinGuess,
-        bestOf7Guess,
-        playerMatchupGuess,
-        spontanouesGuess,
-      };
-    } catch (err) {
-      this.logger.error(
-        `User: ${user.username} failed to get all his guesses to series: ${seriesId}`,
-      );
-      throw new InternalServerErrorException(
-        `User: ${user.username} failed to get all his guesses to series: ${seriesId}`,
-        err.stack,
-      );
-    }
+        return {
+          teamWinGuess,
+          bestOf7Guess,
+          playerMatchupGuess,
+          spontanouesGuess,
+        };
+      } catch (err) {
+        this.logger.error(
+          `User: ${user.username} failed to get all his guesses to series: ${seriesId}`,
+        );
+        throw new InternalServerErrorException(
+          `User: ${user.username} failed to get all his guesses to series: ${seriesId}`,
+          err.stack,
+        );
+      }
+    });
   }
 
   async updateGuesses(
@@ -969,6 +1008,7 @@ export class SeriesService {
           );
         });
       }
+      await invalidateAfterGuessWrite(this.appCache, user.id);
     } catch (error) {
       this.logger.error(
         `User: ${user.username} faild to update  his guesses to series: ${seriesId}`,
@@ -993,6 +1033,7 @@ export class SeriesService {
         { result: updateResultTeamGamesDto.wonTeam },
         series.teamWinBetId.id,
       );
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error(
         `User: ${user.username} faild to update results to series: ${seriesId}`,
@@ -1013,6 +1054,7 @@ export class SeriesService {
         series.bestOf7BetId.id,
         updateGame,
       );
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error(
         `User: ${user.username} faild to update results to series: ${seriesId}`,
@@ -1230,6 +1272,7 @@ export class SeriesService {
       }
 
       await this.seriesRepository.update(series.id, { lastUpdate: new Date() });
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error(
         `User: ${user.username} failed to close all bets results to series: ${seriesId}`,
@@ -1437,6 +1480,26 @@ export class SeriesService {
       tournament: TournamentInfo;
     };
   }> {
+    const key = this.appCache.buildUserKey(user.id, 'series/missing-bets', {
+      tournamentId,
+    });
+    return this.appCache.wrap(key, () =>
+      this.computeOptimizedMissingBets(user, tournamentId),
+    );
+  }
+
+  async computeOptimizedMissingBets(
+    user: User,
+    tournamentId?: string,
+  ): Promise<{
+    [seriesId: string]: {
+      seriesName: string;
+      gamesAndWinner: boolean;
+      playerMatchup: any[];
+      spontaneousBets: any[];
+      tournament: TournamentInfo;
+    };
+  }> {
     try {
       const userWithGuesses = await this.getUserGuesses(user.id);
       const series = await this.getSeriesNamesIdsAndTournament(tournamentId);
@@ -1527,106 +1590,111 @@ export class SeriesService {
     tournamentId?: string,
     seriesIds?: string[],
   ): Promise<{ [seriesId: string]: boolean }> {
-    try {
-      const [
-        bestOf7Guesses,
-        matchupGuesses,
-        spontaneousGuesses,
-        scopedSeriesIds,
-      ] = await Promise.all([
-        this.bestOf7GuessService.getGuessesByUser(user.id),
-        this.playerMatchupGuessService.getGuessesByUser(user.id),
-        this.spontaneousGuessService.getGuessesByUser(user.id),
-        this.resolveSeriesIdsForGuessCheck(tournamentId, seriesIds),
-      ]);
+    const key = this.appCache.buildUserKey(user.id, 'series/guessed-all', {
+      tournamentId,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const [
+          bestOf7Guesses,
+          matchupGuesses,
+          spontaneousGuesses,
+          scopedSeriesIds,
+        ] = await Promise.all([
+          this.bestOf7GuessService.getGuessesByUser(user.id),
+          this.playerMatchupGuessService.getGuessesByUser(user.id),
+          this.spontaneousGuessService.getGuessesByUser(user.id),
+          this.resolveSeriesIdsForGuessCheck(tournamentId, seriesIds),
+        ]);
 
-      if (scopedSeriesIds.length === 0) {
-        return {};
-      }
+        if (scopedSeriesIds.length === 0) {
+          return {};
+        }
 
-      const [bestOf7, matchupBets, spontaneous] = await Promise.all([
-        this.bestOf7BetService.getBySeriesIds(scopedSeriesIds),
-        this.playerMatcupBetService.getBySeriesIds(scopedSeriesIds),
-        this.spontaneousBetService.getBySeriesIds(scopedSeriesIds),
-      ]);
+        const [bestOf7, matchupBets, spontaneous] = await Promise.all([
+          this.bestOf7BetService.getBySeriesIds(scopedSeriesIds),
+          this.playerMatcupBetService.getBySeriesIds(scopedSeriesIds),
+          this.spontaneousBetService.getBySeriesIds(scopedSeriesIds),
+        ]);
 
-      const bestOf7GuessIds = new Set(bestOf7Guesses.map((g) => g.betId));
-      const matchupGuessIds = new Set(matchupGuesses.map((g) => g.betId));
-      const spontaneousGuessIds = new Set(
-        spontaneousGuesses.map((g) => g.betId),
-      );
-
-      const betsBySeries: {
-        [seriesId: string]: {
-          bestOf7?: string;
-          // teamWin?: string;
-          matchup: string[];
-          spontaneous: string[];
-        };
-      } = {};
-      const getSeriesId = (bet: { seriesId?: string; seriesid?: string }) =>
-        bet.seriesId ?? bet.seriesid ?? '';
-
-      // Organize bets per series
-      for (const bet of bestOf7) {
-        const seriesId = getSeriesId(bet);
-        if (!seriesId) continue;
-        if (!betsBySeries[seriesId])
-          betsBySeries[seriesId] = { matchup: [], spontaneous: [] };
-        betsBySeries[seriesId].bestOf7 = bet.id;
-      }
-
-      // for (const bet of teamWin) {
-      //   if (!betsBySeries[bet.seriesId])
-      //     betsBySeries[bet.seriesId] = { matchup: [], spontaneous: [] };
-      //   betsBySeries[bet.seriesId].teamWin = bet.id;
-      // }
-
-      for (const bet of matchupBets) {
-        const seriesId = getSeriesId(bet);
-        if (!seriesId) continue;
-        if (!betsBySeries[seriesId])
-          betsBySeries[seriesId] = { matchup: [], spontaneous: [] };
-        betsBySeries[seriesId].matchup.push(bet.id);
-      }
-
-      for (const bet of spontaneous) {
-        const seriesId = getSeriesId(bet);
-        if (!seriesId) continue;
-        if (!betsBySeries[seriesId])
-          betsBySeries[seriesId] = { matchup: [], spontaneous: [] };
-        betsBySeries[seriesId].spontaneous.push(bet.id);
-      }
-
-      // Check if all bets are guessed
-      const result: { [seriesId: string]: boolean } = {};
-
-      for (const [seriesId, bets] of Object.entries(betsBySeries)) {
-        const guessedAllBestOf7 = bets.bestOf7
-          ? bestOf7GuessIds.has(bets.bestOf7)
-          : true;
-
-        const guessedAllMatchups = bets.matchup.every((id) =>
-          matchupGuessIds.has(id),
-        );
-        const guessedAllSpontaneous = bets.spontaneous.every((id) =>
-          spontaneousGuessIds.has(id),
+        const bestOf7GuessIds = new Set(bestOf7Guesses.map((g) => g.betId));
+        const matchupGuessIds = new Set(matchupGuesses.map((g) => g.betId));
+        const spontaneousGuessIds = new Set(
+          spontaneousGuesses.map((g) => g.betId),
         );
 
-        result[seriesId] =
-          guessedAllBestOf7 && guessedAllMatchups && guessedAllSpontaneous;
-      }
+        const betsBySeries: {
+          [seriesId: string]: {
+            bestOf7?: string;
+            // teamWin?: string;
+            matchup: string[];
+            spontaneous: string[];
+          };
+        } = {};
+        const getSeriesId = (bet: { seriesId?: string; seriesid?: string }) =>
+          bet.seriesId ?? bet.seriesid ?? '';
 
-      return result;
-    } catch (error) {
-      this.logger.error(
-        `Failed to determine if user ${user.username} completed all bets.`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Could not verify complete guesses for user ${user.username}`,
-      );
-    }
+        // Organize bets per series
+        for (const bet of bestOf7) {
+          const seriesId = getSeriesId(bet);
+          if (!seriesId) continue;
+          if (!betsBySeries[seriesId])
+            betsBySeries[seriesId] = { matchup: [], spontaneous: [] };
+          betsBySeries[seriesId].bestOf7 = bet.id;
+        }
+
+        // for (const bet of teamWin) {
+        //   if (!betsBySeries[bet.seriesId])
+        //     betsBySeries[bet.seriesId] = { matchup: [], spontaneous: [] };
+        //   betsBySeries[bet.seriesId].teamWin = bet.id;
+        // }
+
+        for (const bet of matchupBets) {
+          const seriesId = getSeriesId(bet);
+          if (!seriesId) continue;
+          if (!betsBySeries[seriesId])
+            betsBySeries[seriesId] = { matchup: [], spontaneous: [] };
+          betsBySeries[seriesId].matchup.push(bet.id);
+        }
+
+        for (const bet of spontaneous) {
+          const seriesId = getSeriesId(bet);
+          if (!seriesId) continue;
+          if (!betsBySeries[seriesId])
+            betsBySeries[seriesId] = { matchup: [], spontaneous: [] };
+          betsBySeries[seriesId].spontaneous.push(bet.id);
+        }
+
+        // Check if all bets are guessed
+        const result: { [seriesId: string]: boolean } = {};
+
+        for (const [seriesId, bets] of Object.entries(betsBySeries)) {
+          const guessedAllBestOf7 = bets.bestOf7
+            ? bestOf7GuessIds.has(bets.bestOf7)
+            : true;
+
+          const guessedAllMatchups = bets.matchup.every((id) =>
+            matchupGuessIds.has(id),
+          );
+          const guessedAllSpontaneous = bets.spontaneous.every((id) =>
+            spontaneousGuessIds.has(id),
+          );
+
+          result[seriesId] =
+            guessedAllBestOf7 && guessedAllMatchups && guessedAllSpontaneous;
+        }
+
+        return result;
+      } catch (error) {
+        this.logger.error(
+          `Failed to determine if user ${user.username} completed all bets.`,
+          error.stack,
+        );
+        throw new InternalServerErrorException(
+          `Could not verify complete guesses for user ${user.username}`,
+        );
+      }
+    });
   }
 
   private async resolveSeriesIdsForGuessCheck(
@@ -1971,6 +2039,18 @@ export class SeriesService {
     userId: string,
     tournamentId?: string,
   ): Promise<{ [key: string]: number }> {
+    const key = this.appCache.buildUserKey(userId, 'series/points-by-series', {
+      tournamentId,
+    });
+    return this.appCache.wrap(key, () =>
+      this.computePointsPerSeriesForUser(userId, tournamentId),
+    );
+  }
+
+  async computePointsPerSeriesForUser(
+    userId: string,
+    tournamentId?: string,
+  ): Promise<{ [key: string]: number }> {
     try {
       const userWithGuesses = await this.getUserGuesses(userId);
       let startedSeriesIds = await this.getStartedSeriesIds();
@@ -2077,113 +2157,118 @@ export class SeriesService {
       spontaneousBets: SpontaneousBet[];
     };
   }> {
-    const bettingData: {
-      [key: string]: {
-        team1Id: string;
-        team2Id: string;
-        team1Name: string;
-        team2Name: string;
-        team1Abbreviation: string;
-        team2Abbreviation: string;
-        conference: Conference;
-        round: Round;
-        startDate: Date;
-        timeOfStart: string;
-        tournament: TournamentInfo;
-        bestOf7Bet: BestOf7Bet;
-        teamWinBet: TeamWinBet;
-        playerMatchupBets: PlayerMatchupBet[];
-        spontaneousBets: SpontaneousBet[];
-      };
-    } = {};
-
-    try {
-      const series = await this.getAllSeriesNoGuesses(tournamentId);
-      if (series.length === 0) {
-        return {};
-      }
-
-      const seriesIds = series.map((s) => s.id);
-      const [allMatchups, allSpontaneous] = await Promise.all([
-        this.playerMatcupBetService.getBySeriesIds(seriesIds),
-        this.spontaneousBetService.getBySeriesIds(seriesIds),
-      ]);
-
-      const matchupMap = new Map<string, PlayerMatchupBet[]>();
-      for (const bet of allMatchups) {
-        const categoriesArray =
-          typeof bet.categories === 'string'
-            ? this.parsePostgresArray(bet.categories)
-            : Array.isArray(bet.categories)
-              ? bet.categories
-              : [];
-        const seriesId =
-          (bet as PlayerMatchupBet & { seriesid?: string }).seriesId ??
-          (bet as PlayerMatchupBet & { seriesid?: string }).seriesid;
-        if (!seriesId) continue;
-        const mappedBet = {
-          ...bet,
-          categories: categoriesArray,
+    const key = this.appCache.buildPublicKey('series/all-bets', {
+      tournamentId,
+    });
+    return this.appCache.wrap(key, async () => {
+      const bettingData: {
+        [key: string]: {
+          team1Id: string;
+          team2Id: string;
+          team1Name: string;
+          team2Name: string;
+          team1Abbreviation: string;
+          team2Abbreviation: string;
+          conference: Conference;
+          round: Round;
+          startDate: Date;
+          timeOfStart: string;
+          tournament: TournamentInfo;
+          bestOf7Bet: BestOf7Bet;
+          teamWinBet: TeamWinBet;
+          playerMatchupBets: PlayerMatchupBet[];
+          spontaneousBets: SpontaneousBet[];
         };
-        if (!matchupMap.has(seriesId)) matchupMap.set(seriesId, []);
-        matchupMap.get(seriesId)!.push(mappedBet);
-      }
+      } = {};
 
-      const spontaneousMap = new Map<string, SpontaneousBet[]>();
-      for (const bet of allSpontaneous) {
-        const categoriesArray =
-          typeof bet.categories === 'string'
-            ? this.parsePostgresArray(bet.categories)
-            : Array.isArray(bet.categories)
-              ? bet.categories
-              : [];
-        const seriesId =
-          (bet as SpontaneousBet & { seriesid?: string }).seriesId ??
-          (bet as SpontaneousBet & { seriesid?: string }).seriesid;
-        if (!seriesId) continue;
-        const mappedBet = {
-          ...bet,
-          categories: categoriesArray,
-        };
-        if (!spontaneousMap.has(seriesId)) spontaneousMap.set(seriesId, []);
-        spontaneousMap.get(seriesId)!.push(mappedBet);
-      }
+      try {
+        const series = await this.getAllSeriesNoGuesses(tournamentId);
+        if (series.length === 0) {
+          return {};
+        }
 
-      series.forEach((s) => {
-        bettingData[s.id] = {
-          team1Id: s.team1Relation?.id ?? '',
-          team2Id: s.team2Relation?.id ?? '',
-          team1Name: s.team1Relation?.name ?? '',
-          team2Name: s.team2Relation?.name ?? '',
-          team1Abbreviation: s.team1Relation?.abbreviation ?? '',
-          team2Abbreviation: s.team2Relation?.abbreviation ?? '',
-          conference: s.conference,
-          round: s.round,
-          startDate: s.dateOfStart,
-          timeOfStart: s.timeOfStart,
-          tournament: toTournamentInfo(s.tournament),
-          bestOf7Bet: {
-            ...s.bestOf7BetId,
-          },
-          teamWinBet: {
-            ...s.teamWinBetId,
-          },
+        const seriesIds = series.map((s) => s.id);
+        const [allMatchups, allSpontaneous] = await Promise.all([
+          this.playerMatcupBetService.getBySeriesIds(seriesIds),
+          this.spontaneousBetService.getBySeriesIds(seriesIds),
+        ]);
 
-          playerMatchupBets: (matchupMap.get(s.id) ?? []).map((bet) => ({
+        const matchupMap = new Map<string, PlayerMatchupBet[]>();
+        for (const bet of allMatchups) {
+          const categoriesArray =
+            typeof bet.categories === 'string'
+              ? this.parsePostgresArray(bet.categories)
+              : Array.isArray(bet.categories)
+                ? bet.categories
+                : [];
+          const seriesId =
+            (bet as PlayerMatchupBet & { seriesid?: string }).seriesId ??
+            (bet as PlayerMatchupBet & { seriesid?: string }).seriesid;
+          if (!seriesId) continue;
+          const mappedBet = {
             ...bet,
-          })),
-          spontaneousBets: (spontaneousMap.get(s.id) ?? []).map((bet) => ({
+            categories: categoriesArray,
+          };
+          if (!matchupMap.has(seriesId)) matchupMap.set(seriesId, []);
+          matchupMap.get(seriesId)!.push(mappedBet);
+        }
+
+        const spontaneousMap = new Map<string, SpontaneousBet[]>();
+        for (const bet of allSpontaneous) {
+          const categoriesArray =
+            typeof bet.categories === 'string'
+              ? this.parsePostgresArray(bet.categories)
+              : Array.isArray(bet.categories)
+                ? bet.categories
+                : [];
+          const seriesId =
+            (bet as SpontaneousBet & { seriesid?: string }).seriesId ??
+            (bet as SpontaneousBet & { seriesid?: string }).seriesid;
+          if (!seriesId) continue;
+          const mappedBet = {
             ...bet,
-          })),
-        };
-      });
-      return bettingData;
-    } catch (error) {
-      this.logger.error(`Failed to get all bets for all series "${error}".`);
-      throw new InternalServerErrorException(
-        `Failed to get all bets for all series`,
-      );
-    }
+            categories: categoriesArray,
+          };
+          if (!spontaneousMap.has(seriesId)) spontaneousMap.set(seriesId, []);
+          spontaneousMap.get(seriesId)!.push(mappedBet);
+        }
+
+        series.forEach((s) => {
+          bettingData[s.id] = {
+            team1Id: s.team1Relation?.id ?? '',
+            team2Id: s.team2Relation?.id ?? '',
+            team1Name: s.team1Relation?.name ?? '',
+            team2Name: s.team2Relation?.name ?? '',
+            team1Abbreviation: s.team1Relation?.abbreviation ?? '',
+            team2Abbreviation: s.team2Relation?.abbreviation ?? '',
+            conference: s.conference,
+            round: s.round,
+            startDate: s.dateOfStart,
+            timeOfStart: s.timeOfStart,
+            tournament: toTournamentInfo(s.tournament),
+            bestOf7Bet: {
+              ...s.bestOf7BetId,
+            },
+            teamWinBet: {
+              ...s.teamWinBetId,
+            },
+
+            playerMatchupBets: (matchupMap.get(s.id) ?? []).map((bet) => ({
+              ...bet,
+            })),
+            spontaneousBets: (spontaneousMap.get(s.id) ?? []).map((bet) => ({
+              ...bet,
+            })),
+          };
+        });
+        return bettingData;
+      } catch (error) {
+        this.logger.error(`Failed to get all bets for all series "${error}".`);
+        throw new InternalServerErrorException(
+          `Failed to get all bets for all series`,
+        );
+      }
+    });
   }
   async updateSeriesTime(
     seriesId: string,
@@ -2198,6 +2283,7 @@ export class SeriesService {
         series.timeOfStart = updateSeriesTimeDto.timeOfStart;
       }
       await this.seriesRepository.save(series);
+      await invalidateAfterSeriesMetadataChange(this.appCache);
     } catch (error) {
       this.logger.error(`Failed to update series time. "${error}".`);
       throw new InternalServerErrorException(`Failed to update series time.`);
@@ -2319,69 +2405,74 @@ export class SeriesService {
     spontaneousMacthups: { [key: string]: { 1: number; 2: number } };
     bestOf7: BestOf7PercentagesDto;
   }> {
-    try {
-      const res: {
-        teamWin: { 1: number; 2: number };
-        playerMatchup: { [key: string]: { 1: number; 2: number } };
-        spontaneousMacthups: { [key: string]: { 1: number; 2: number } };
-        bestOf7: BestOf7PercentagesDto;
-      } = {
-        teamWin: { 1: 0, 2: 0 },
-        playerMatchup: {},
-        spontaneousMacthups: {},
-        bestOf7: this.getDefaultBestOf7Percentages(),
-      };
-      const series = await this.getSeriesIfStartedByID(seriesId);
-      if (!series) {
-        return {
+    const key = this.appCache.buildPublicKey('series/percentages', {
+      seriesId,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const res: {
+          teamWin: { 1: number; 2: number };
+          playerMatchup: { [key: string]: { 1: number; 2: number } };
+          spontaneousMacthups: { [key: string]: { 1: number; 2: number } };
+          bestOf7: BestOf7PercentagesDto;
+        } = {
           teamWin: { 1: 0, 2: 0 },
           playerMatchup: {},
           spontaneousMacthups: {},
           bestOf7: this.getDefaultBestOf7Percentages(),
         };
+        const series = await this.getSeriesIfStartedByID(seriesId);
+        if (!series) {
+          return {
+            teamWin: { 1: 0, 2: 0 },
+            playerMatchup: {},
+            spontaneousMacthups: {},
+            bestOf7: this.getDefaultBestOf7Percentages(),
+          };
+        }
+        // const teamWin1Precentage = this.calculatePercentage(
+        //   series.teamWinBetId.guesses,
+        //   1,
+        // );
+        // const teamWin2Percentage = this.calculatePercentage(
+        //   series.teamWinBetId.guesses,
+        //   2,
+        // );
+        res['teamWin'] = await this.teamWinGuessService.getTeamWinPercentages(
+          series.teamWinBetId.id,
+        );
+        // const playerMatchup = {};
+        // series.playerMatchupBets.map((bet) => {
+        //   const value1 = this.calculatePercentage(bet.guesses, 1);
+        //   const value2 = this.calculatePercentage(bet.guesses, 2);
+        //   playerMatchup[bet.id] = { 1: value1, 2: value2 };
+        // });
+        res['playerMatchup'] =
+          await this.playerMatcupBetService.getPlayerMatchupPercentagesForSeries(
+            series.id,
+          );
+
+        // series.spontaneousBets.map((bet) => {
+        //   const value1 = this.calculatePercentage(bet.guesses, 1);
+
+        //   const value2 = this.calculatePercentage(bet.guesses, 2);
+        //   spontaneous[bet.id] = { 1: value1, 2: value2 };
+        // });
+        res['spontaneousMacthups'] =
+          await this.spontaneousBetService.getSpontaneousBetsPercentagesForSeries(
+            series.id,
+          );
+        const { bestOf7 } =
+          bestOf7Stats ?? (await this.getBestOf7Stats(series.id));
+        res['bestOf7'] = bestOf7;
+        return res;
+      } catch (error) {
+        this.logger.error(`Failed to get guesses percentage. "${error}".`);
+        throw new InternalServerErrorException(
+          `Failed to get guesses percentage.`,
+        );
       }
-      // const teamWin1Precentage = this.calculatePercentage(
-      //   series.teamWinBetId.guesses,
-      //   1,
-      // );
-      // const teamWin2Percentage = this.calculatePercentage(
-      //   series.teamWinBetId.guesses,
-      //   2,
-      // );
-      res['teamWin'] = await this.teamWinGuessService.getTeamWinPercentages(
-        series.teamWinBetId.id,
-      );
-      // const playerMatchup = {};
-      // series.playerMatchupBets.map((bet) => {
-      //   const value1 = this.calculatePercentage(bet.guesses, 1);
-      //   const value2 = this.calculatePercentage(bet.guesses, 2);
-      //   playerMatchup[bet.id] = { 1: value1, 2: value2 };
-      // });
-      res['playerMatchup'] =
-        await this.playerMatcupBetService.getPlayerMatchupPercentagesForSeries(
-          series.id,
-        );
-
-      // series.spontaneousBets.map((bet) => {
-      //   const value1 = this.calculatePercentage(bet.guesses, 1);
-
-      //   const value2 = this.calculatePercentage(bet.guesses, 2);
-      //   spontaneous[bet.id] = { 1: value1, 2: value2 };
-      // });
-      res['spontaneousMacthups'] =
-        await this.spontaneousBetService.getSpontaneousBetsPercentagesForSeries(
-          series.id,
-        );
-      const { bestOf7 } =
-        bestOf7Stats ?? (await this.getBestOf7Stats(series.id));
-      res['bestOf7'] = bestOf7;
-      return res;
-    } catch (error) {
-      this.logger.error(`Failed to get guesses percentage. "${error}".`);
-      throw new InternalServerErrorException(
-        `Failed to get guesses percentage.`,
-      );
-    }
+    });
   }
   async getSpontaneousBetIdsBySeries(seriesId: string): Promise<string[]> {
     try {
@@ -2408,68 +2499,79 @@ export class SeriesService {
     seriesId: string,
     user: User,
   ): Promise<SpontaneousGuess[]> {
-    try {
-      const series = await this.getSpontaneousBetIdsBySeries(seriesId);
-      const userGuess = await this.authService.getUserSpontanouesGuess(user);
-      const spontenouesGuesses = userGuess.filter((g) => {
-        return series.includes(g.betId);
-      });
-      // const spontaneousBets = await Promise.all(
-      //   series.spontaneousBets.map(async (bet) => {
-      //     return await this.spontaneousBetService.getBetById(bet.id);
-      //   }),
-      // );
-      // const guesses = spontaneousBets.map((bet) =>
-      //   bet.guesses.filter((guess) => guess.createdBy.id === user.id),
-      // );
-      return spontenouesGuesses;
-    } catch (error) {
-      this.logger.error(`Failed to get spontaneous guesses  "${error}".`);
-      throw new InternalServerErrorException(
-        `Failed to get spontaneous guesses.`,
-      );
-    }
+    const key = this.appCache.buildUserKey(
+      user.id,
+      'series/spontaneous-guesses',
+      { seriesId },
+    );
+    return this.appCache.wrap(key, async () => {
+      try {
+        const series = await this.getSpontaneousBetIdsBySeries(seriesId);
+        const userGuess = await this.authService.getUserSpontanouesGuess(user);
+        const spontenouesGuesses = userGuess.filter((g) => {
+          return series.includes(g.betId);
+        });
+        // const spontaneousBets = await Promise.all(
+        //   series.spontaneousBets.map(async (bet) => {
+        //     return await this.spontaneousBetService.getBetById(bet.id);
+        //   }),
+        // );
+        // const guesses = spontaneousBets.map((bet) =>
+        //   bet.guesses.filter((guess) => guess.createdBy.id === user.id),
+        // );
+        return spontenouesGuesses;
+      } catch (error) {
+        this.logger.error(`Failed to get spontaneous guesses  "${error}".`);
+        throw new InternalServerErrorException(
+          `Failed to get spontaneous guesses.`,
+        );
+      }
+    });
   }
   async getAllGuessesAndStats(
     seriesId: string,
     user: User,
   ): Promise<GetAllSeriesGuessesDto> {
-    try {
-      this.logger.verbose(
-        `Fetching all guess data for user: ${user.username} and series: ${seriesId}`,
-      );
+    const key = this.appCache.buildUserKey(user.id, 'series/full-data', {
+      seriesId,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        this.logger.verbose(
+          `Fetching all guess data for user: ${user.username} and series: ${seriesId}`,
+        );
 
-      const series = await this.getSeriesIfStartedByID(seriesId);
-      const bestOf7Stats = series
-        ? await this.getBestOf7Stats(series.id)
-        : {
-            bestOf7: this.getDefaultBestOf7Percentages(),
-            bestOf7Counts: this.getDefaultBestOf7Counts(),
-          };
-      const [guesses, percentages] = await Promise.all([
-        this.getGuessesByUser(seriesId, user),
-        // this.getSpontaneousGuesses(seriesId, user),
-        this.getGuessesPercentage(seriesId, bestOf7Stats),
-      ]);
-      const { bestOf7Counts } = bestOf7Stats;
-      this.logger.verbose(
-        `Successfully fetched guess data for user: ${user.username} and series: ${seriesId}`,
-      );
-      const spontaneousGuesses = guesses.spontanouesGuess;
-      return {
-        guesses,
-        spontaneousGuesses,
-        percentages,
-        bestOf7Counts,
-      };
-    } catch (error) {
-      this.logger.error(
-        `User: ${user.username} failed to get combined guess data for series: ${seriesId}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Failed to get all guess data for series`,
-      );
-    }
+        const series = await this.getSeriesIfStartedByID(seriesId);
+        const bestOf7Stats = series
+          ? await this.getBestOf7Stats(series.id)
+          : {
+              bestOf7: this.getDefaultBestOf7Percentages(),
+              bestOf7Counts: this.getDefaultBestOf7Counts(),
+            };
+        const [guesses, percentages] = await Promise.all([
+          this.getGuessesByUser(seriesId, user),
+          this.getGuessesPercentage(seriesId, bestOf7Stats),
+        ]);
+        const { bestOf7Counts } = bestOf7Stats;
+        this.logger.verbose(
+          `Successfully fetched guess data for user: ${user.username} and series: ${seriesId}`,
+        );
+        const spontaneousGuesses = guesses.spontanouesGuess;
+        return {
+          guesses,
+          spontaneousGuesses,
+          percentages,
+          bestOf7Counts,
+        };
+      } catch (error) {
+        this.logger.error(
+          `User: ${user.username} failed to get combined guess data for series: ${seriesId}`,
+          error.stack,
+        );
+        throw new InternalServerErrorException(
+          `Failed to get all guess data for series`,
+        );
+      }
+    });
   }
 }

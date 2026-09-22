@@ -9,6 +9,8 @@ import { CreateSpontaneousGuessDto } from './dto/create-spontaneous-guess.dto';
 import { User } from 'src/auth/user.entity';
 import { SpontaneousBetService } from 'src/spontaneous-bet/spontaneous-bet.service';
 import { UpdateSpontaneousGuessesDto } from './dto/update-spontaneous-guess.dto';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterGuessWrite } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class SpontaneousGuessService {
@@ -16,6 +18,7 @@ export class SpontaneousGuessService {
   constructor(
     private spontaneousGuessRepo: SpontaneousGuessRepo,
     private spontaneousBetService: SpontaneousBetService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   async createSpontaneousGuess(
@@ -33,17 +36,21 @@ export class SpontaneousGuessService {
       });
       if (found) {
         found.guess = guess;
-        return await this.spontaneousGuessRepo.save(found);
+        const saved = await this.spontaneousGuessRepo.save(found);
+        await invalidateAfterGuessWrite(this.appCache, user.id);
+        return saved;
       }
       const spontaneousBet =
         await this.spontaneousBetService.getBetByIdNoRelations(
           spontaneousBetId,
         );
-      return await this.spontaneousGuessRepo.createSpontaneousGuess(
+      const created = await this.spontaneousGuessRepo.createSpontaneousGuess(
         guess,
         spontaneousBet,
         user,
       );
+      await invalidateAfterGuessWrite(this.appCache, user.id);
+      return created;
     } catch (error) {
       this.logger.error(
         `Failed to create new spontaneous guess ${error.stack}`,
@@ -103,6 +110,7 @@ export class SpontaneousGuessService {
           }),
         ),
       );
+      await invalidateAfterGuessWrite(this.appCache, user.id);
     } catch (error) {
       this.logger.error(
         `Failed to create or update new spontaneous guesses ${error.stack}`,

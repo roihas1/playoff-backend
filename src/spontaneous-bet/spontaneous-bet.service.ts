@@ -10,11 +10,16 @@ import { CreateSpontaneousBetDto } from './dto/create-spontaneous-bet.dto';
 import { UpdateBetFieldsDto } from './dto/update-fields.dto';
 import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity';
 import { In } from 'typeorm';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterSeriesMetadataChange } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class SpontaneousBetService {
   private logger = new Logger('SpontaneousBetService', { timestamp: true });
-  constructor(private spontaneousBetRepo: SpontaneousBetRepo) {}
+  constructor(
+    private spontaneousBetRepo: SpontaneousBetRepo,
+    private readonly appCache: AppCacheService,
+  ) {}
 
   /**
    * Unsettled matchup bets in `spontaneous_bet` (any categories), with guesses loaded for user recalculation.
@@ -39,6 +44,7 @@ export class SpontaneousBetService {
         createSpontaneousBetDto,
       );
       this.logger.verbose(`Spontaneous bet created.`);
+      await invalidateAfterSeriesMetadataChange(this.appCache);
       return bet;
     } catch (error) {
       this.logger.error(`Failed to create new spontaneous Bet ${error.stack}`);
@@ -242,6 +248,7 @@ export class SpontaneousBetService {
     try {
       const savedBet = await this.spontaneousBetRepo.save(matchup);
       this.logger.verbose(`Bet with ID "${matchup.id}" successfully updated.`);
+      await this.appCache.clear();
       return savedBet;
     } catch (error) {
       this.logger.error(
@@ -345,6 +352,7 @@ export class SpontaneousBetService {
       this.logger.verbose(
         `Spontaneoues bet with ID "${betId}" successfully updated the fields.`,
       );
+      await invalidateAfterSeriesMetadataChange(this.appCache);
       return savedBet;
     } catch (error) {
       this.logger.error(
@@ -367,6 +375,7 @@ export class SpontaneousBetService {
       }
       await this.spontaneousBetRepo.delete(id);
       this.logger.verbose(`Successfully deleted bet with ID: "${id}"`);
+      await this.appCache.clear();
       return;
     } catch (error) {
       this.logger.error(`Failed to delete spontaneous bet. ${error.stack}`);

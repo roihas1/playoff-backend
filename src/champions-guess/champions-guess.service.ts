@@ -18,6 +18,8 @@ import { UpdateChamionGuessDto } from './dto/update-champ-guess.dto';
 import { UserTournamentPointsService } from 'src/user-tournament-points/user-tournament-points.service';
 import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
 import { TeamService } from 'src/team/team.service';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterChampionGuessWrite } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class ChampionsGuessService {
@@ -32,6 +34,7 @@ export class ChampionsGuessService {
     private playoffsStageService: PlayoffsStageService,
     private readonly userTournamentPointsService: UserTournamentPointsService,
     private readonly teamService: TeamService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   private getErrorMetadata(error: unknown): {
@@ -250,11 +253,14 @@ export class ChampionsGuessService {
         user,
         mvpGuess.fantasyPoints,
       );
-      return {
+      const result = {
         champTeam: champTeamNewGuess,
         confrenceGuess: createdConferenceFinalGuesses,
         mvpGuess: newMVPGuess,
       };
+      await invalidateAfterChampionGuessWrite(this.appCache, user.id);
+      await this.appCache.delByPrefix('p:v1:playoffs-stage:');
+      return result;
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;
@@ -307,10 +313,13 @@ export class ChampionsGuessService {
         user,
         4,
       );
-      return {
+      const result = {
         champTeamGuess: champTeamNewGuess,
         MVPGuess: newMVPGuess,
       };
+      await invalidateAfterChampionGuessWrite(this.appCache, user.id);
+      await this.appCache.delByPrefix('p:v1:playoffs-stage:');
+      return result;
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;

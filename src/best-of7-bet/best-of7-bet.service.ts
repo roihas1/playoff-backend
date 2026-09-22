@@ -16,6 +16,8 @@ import { UpdateGameDto } from '../series/dto/update-game.dto';
 import { UserSeriesPointsService } from 'src/user-series-points/user-series-points.service';
 import { BestOf7GuessService } from 'src/best-of7-guess/best-of7-guess.service';
 import { BestOf7Guess } from 'src/best-of7-guess/best-of7-guess.entity';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterSeriesMetadataChange } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class BestOf7BetService {
@@ -28,6 +30,7 @@ export class BestOf7BetService {
     private userSeriesPointsService: UserSeriesPointsService,
     @Inject(forwardRef(() => BestOf7GuessService))
     private bestOf7GuessService: BestOf7GuessService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   async createBestOf7Bet(
@@ -37,10 +40,12 @@ export class BestOf7BetService {
     const series = await this.seriesService.getSeriesByID(
       createBestOf7BetDto.seriesId,
     );
-    return await this.bestOf7BetRepository.createBestOf7Bet(
+    const bet = await this.bestOf7BetRepository.createBestOf7Bet(
       series,
       createBestOf7BetDto.fantasyPoints,
     );
+    await invalidateAfterSeriesMetadataChange(this.appCache);
+    return bet;
   }
   async getAllBets(): Promise<
     {
@@ -178,6 +183,7 @@ export class BestOf7BetService {
       this.logger.verbose(
         `best of 7 Bet with ID "${id}" successfully deleted.`,
       );
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error(`Failed to delete bet with ID: "${id}".`, error.stack);
       throw error;
@@ -203,6 +209,7 @@ export class BestOf7BetService {
           this.userSeriesPointsService.updatePointsForUser(userId),
         ),
       );
+      await this.appCache.clear();
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
@@ -244,6 +251,7 @@ export class BestOf7BetService {
     try {
       const savedBet = await this.bestOf7BetRepository.save(bet);
       this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
+      await invalidateAfterSeriesMetadataChange(this.appCache);
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);
@@ -277,6 +285,7 @@ export class BestOf7BetService {
       this.logger.verbose(
         `BestOf7Bet with ID "${betId}" incremented series score for team ${teamWon}.`,
       );
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error(
         `Failed to increment bet series score with ID: "${betId}".`,
@@ -295,6 +304,7 @@ export class BestOf7BetService {
       this.logger.verbose(
         `BestOf7Bet with ID "${id}" successfully updated series score.`,
       );
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error(
         `Failed to update bet series score with ID: "${id}".`,

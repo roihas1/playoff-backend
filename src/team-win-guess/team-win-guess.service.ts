@@ -11,6 +11,8 @@ import { User } from 'src/auth/user.entity';
 import { CreateTeamWinGuessDto } from './dto/create-team-win-guess.dto';
 import { UpdateGuessDto } from 'src/player-matchup-guess/dto/update-guess.dto';
 import { TeamWinBet } from 'src/team-win-bet/team-win-bet.entity';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterGuessWrite } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class TeamWinGuessService {
@@ -18,6 +20,7 @@ export class TeamWinGuessService {
   constructor(
     private teamWinGuessRepository: TeamWinGuessRepository,
     private teamWinBetService: TeamWinBetService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   async createTeamWinGuess(
@@ -35,16 +38,20 @@ export class TeamWinGuessService {
     });
     if (found) {
       found.guess = guess;
-      return await this.teamWinGuessRepository.save(found);
+      const saved = await this.teamWinGuessRepository.save(found);
+      await invalidateAfterGuessWrite(this.appCache, user.id);
+      return saved;
     }
     const teamWinBet =
       await this.teamWinBetService.getTeamWinBetById(teamWinBetId);
 
-    return await this.teamWinGuessRepository.createTeamWinGuess(
+    const created = await this.teamWinGuessRepository.createTeamWinGuess(
       guess,
       teamWinBet,
       user,
     );
+    await invalidateAfterGuessWrite(this.appCache, user.id);
+    return created;
   }
   async getTeamWinPercentages(
     betId: string,
@@ -115,6 +122,7 @@ export class TeamWinGuessService {
     try {
       const savedBet = await this.teamWinGuessRepository.save(bet);
       this.logger.verbose(`TeamWinGuess for bet ID ${teamWinBet.id} updated.`);
+      await invalidateAfterGuessWrite(this.appCache, user.id);
       return savedBet;
     } catch (error) {
       this.logger.error(
@@ -131,6 +139,9 @@ export class TeamWinGuessService {
       });
       await this.teamWinGuessRepository.delete(found);
       this.logger.verbose(`TeamWinGuess with ID: ${id} deleted succesfully.`);
+      if (found?.createdBy?.id) {
+        await invalidateAfterGuessWrite(this.appCache, found.createdBy.id);
+      }
       return;
     } catch (error) {
       this.logger.error(`TeamWinGuess with ID: ${id} did not delete.`);

@@ -15,6 +15,8 @@ import { BestOf7Bet } from 'src/best-of7-bet/bestOf7.entity';
 import { User } from 'src/auth/user.entity';
 import { TeamWinGuessService } from 'src/team-win-guess/team-win-guess.service';
 import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateAfterSeriesMetadataChange } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class TeamWinBetService {
@@ -23,15 +25,17 @@ export class TeamWinBetService {
     private teamWinBetRepository: TeamWinBetRepository,
     @Inject(forwardRef(() => TeamWinGuessService))
     private teamWinGuessSerive: TeamWinGuessService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   async createTeamWinBet(
     createTeamWinBetDto: CreateTeamWinBetDto,
   ): Promise<TeamWinBet> {
     this.logger.verbose(`Trying to create TeamWinBet.`);
-    return await this.teamWinBetRepository.createTeamWinBet(
-      createTeamWinBetDto,
-    );
+    const bet =
+      await this.teamWinBetRepository.createTeamWinBet(createTeamWinBetDto);
+    await invalidateAfterSeriesMetadataChange(this.appCache);
+    return bet;
   }
   async getAllWithResults(): Promise<
     { id: string; result: number; seriesId: string; fantasyPoints: number }[]
@@ -74,6 +78,7 @@ export class TeamWinBetService {
       );
       await this.teamWinBetRepository.delete(bet.id);
       this.logger.verbose(`Team win Bet with ID "${id}" successfully deleted.`);
+      await this.appCache.clear();
     } catch (error) {
       this.logger.error(
         `Failed to delete team win bet with ID: "${id}".`,
@@ -147,6 +152,7 @@ export class TeamWinBetService {
       });
 
       this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
+      await this.appCache.clear();
 
       // Step 1: Collect BestOf7 Points if Series Finished
       // if (isSeriesFinished) {
@@ -224,6 +230,7 @@ export class TeamWinBetService {
     try {
       const savedBet = await this.teamWinBetRepository.save(bet);
       this.logger.verbose(`Bet with ID "${id}" successfully updated.`);
+      await invalidateAfterSeriesMetadataChange(this.appCache);
       return savedBet;
     } catch (error) {
       this.logger.error(`Failed to update bet with ID: "${id}".`, error.stack);

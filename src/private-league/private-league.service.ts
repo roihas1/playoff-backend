@@ -26,6 +26,8 @@ import { LeagueMessageDto } from './dto/league-message.dto';
 import { CreateLeagueMessageDto } from './dto/create-league-message.dto';
 import { GetLeagueMessagesQueryDto } from './dto/get-league-messages-query.dto';
 import { GetLeagueMessagesResponseDto } from './dto/get-league-messages-response.dto';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
+import { invalidateLeagueMembershipCaches } from 'src/memory-cache/cache-invalidation.util';
 
 @Injectable()
 export class PrivateLeagueService {
@@ -41,7 +43,16 @@ export class PrivateLeagueService {
     private tournamentRepo: Repository<Tournament>,
     @InjectRepository(LeagueMessage)
     private leagueMessageRepo: Repository<LeagueMessage>,
+    private readonly appCache: AppCacheService,
   ) {}
+
+  private async invalidateMemberCaches(memberIds: string[]): Promise<void> {
+    const uniqueIds = [...new Set(memberIds.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return;
+    }
+    await invalidateLeagueMembershipCaches(this.appCache, uniqueIds);
+  }
 
   private async loadLeagueWithMembers(
     leagueId: string,
@@ -117,85 +128,91 @@ export class PrivateLeagueService {
     user: User,
     query: GetLeagueMessagesQueryDto,
   ): Promise<GetLeagueMessagesResponseDto> {
-    try {
-      const league = await this.loadLeagueWithMembers(leagueId);
-      if (!league) {
-        throw new NotFoundException(
-          `League with id: ${leagueId} was not found.`,
-        );
-      }
+    const rawLimit = query.limit ?? PrivateLeagueService.DEFAULT_MESSAGES_LIMIT;
+    const limit = Math.min(
+      Math.max(rawLimit, 1),
+      PrivateLeagueService.MAX_MESSAGES_LIMIT,
+    );
+    const key = this.appCache.buildUserKey(user.id, 'private-league/messages', {
+      after: query.after,
+      before: query.before,
+      leagueId,
+      limit,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const league = await this.loadLeagueWithMembers(leagueId);
+        if (!league) {
+          throw new NotFoundException(
+            `League with id: ${leagueId} was not found.`,
+          );
+        }
 
-      this.assertMemberOrAppAdmin(user, league);
+        this.assertMemberOrAppAdmin(user, league);
 
-      const rawLimit =
-        query.limit ?? PrivateLeagueService.DEFAULT_MESSAGES_LIMIT;
-      const limit = Math.min(
-        Math.max(rawLimit, 1),
-        PrivateLeagueService.MAX_MESSAGES_LIMIT,
-      );
+        const qb = this.leagueMessageRepo
+          .createQueryBuilder('message')
+          .leftJoinAndSelect('message.author', 'author')
+          .leftJoin('message.league', 'league')
+          .where('league.id = :leagueId', { leagueId });
 
-      const qb = this.leagueMessageRepo
-        .createQueryBuilder('message')
-        .leftJoinAndSelect('message.author', 'author')
-        .leftJoin('message.league', 'league')
-        .where('league.id = :leagueId', { leagueId });
+        if (query.before) {
+          const cursor = this.parseCursor(query.before);
+          qb.andWhere(
+            '(message.createdAt < :cursorCreatedAt OR (message.createdAt = :cursorCreatedAt AND message.id < :cursorId))',
+            {
+              cursorCreatedAt: cursor.createdAt.toISOString(),
+              cursorId: cursor.id,
+            },
+          );
+        } else if (query.after) {
+          const cursor = this.parseCursor(query.after);
+          qb.andWhere(
+            '(message.createdAt > :cursorCreatedAt OR (message.createdAt = :cursorCreatedAt AND message.id > :cursorId))',
+            {
+              cursorCreatedAt: cursor.createdAt.toISOString(),
+              cursorId: cursor.id,
+            },
+          );
+        }
 
-      if (query.before) {
-        const cursor = this.parseCursor(query.before);
-        qb.andWhere(
-          '(message.createdAt < :cursorCreatedAt OR (message.createdAt = :cursorCreatedAt AND message.id < :cursorId))',
-          {
-            cursorCreatedAt: cursor.createdAt.toISOString(),
-            cursorId: cursor.id,
+        qb.orderBy('message.createdAt', 'DESC')
+          .addOrderBy('message.id', 'DESC')
+          .take(limit + 1);
+
+        const dbMessages = await qb.getMany();
+        const hasMore = dbMessages.length > limit;
+        const pageMessages = hasMore ? dbMessages.slice(0, limit) : dbMessages;
+
+        const data = pageMessages
+          .map((message) => this.toLeagueMessageDto(message))
+          .reverse();
+        const oldestMessage = data[0];
+
+        return {
+          data,
+          pageInfo: {
+            nextCursor: oldestMessage ? this.encodeCursor(oldestMessage) : null,
+            hasMore,
           },
+        };
+      } catch (error) {
+        if (
+          error instanceof NotFoundException ||
+          error instanceof ForbiddenException ||
+          error instanceof BadRequestException
+        ) {
+          throw error;
+        }
+        this.logger.error(
+          `Failed to get messages for league:${leagueId}`,
+          error.stack,
         );
-      } else if (query.after) {
-        const cursor = this.parseCursor(query.after);
-        qb.andWhere(
-          '(message.createdAt > :cursorCreatedAt OR (message.createdAt = :cursorCreatedAt AND message.id > :cursorId))',
-          {
-            cursorCreatedAt: cursor.createdAt.toISOString(),
-            cursorId: cursor.id,
-          },
+        throw new InternalServerErrorException(
+          `Failed to get messages for league:${leagueId}`,
         );
       }
-
-      qb.orderBy('message.createdAt', 'DESC')
-        .addOrderBy('message.id', 'DESC')
-        .take(limit + 1);
-
-      const dbMessages = await qb.getMany();
-      const hasMore = dbMessages.length > limit;
-      const pageMessages = hasMore ? dbMessages.slice(0, limit) : dbMessages;
-
-      const data = pageMessages
-        .map((message) => this.toLeagueMessageDto(message))
-        .reverse();
-      const oldestMessage = data[0];
-
-      return {
-        data,
-        pageInfo: {
-          nextCursor: oldestMessage ? this.encodeCursor(oldestMessage) : null,
-          hasMore,
-        },
-      };
-    } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ForbiddenException ||
-        error instanceof BadRequestException
-      ) {
-        throw error;
-      }
-      this.logger.error(
-        `Failed to get messages for league:${leagueId}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Failed to get messages for league:${leagueId}`,
-      );
-    }
+    });
   }
 
   async createLeagueMessage(
@@ -253,6 +270,9 @@ export class PrivateLeagueService {
         );
       }
 
+      await this.invalidateMemberCaches(
+        league.users?.map((member) => member.id) ?? [],
+      );
       return {
         data: this.toLeagueMessageDto(populatedMessage),
       };
@@ -298,6 +318,7 @@ export class PrivateLeagueService {
       });
       const savedLeague = await this.privateLeagueRepo.save(league);
       this.logger.verbose(`Private league created.`);
+      await this.invalidateMemberCaches([user.id]);
       return savedLeague;
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -340,6 +361,9 @@ export class PrivateLeagueService {
 
       league.users.push(user);
       await this.privateLeagueRepo.save(league);
+      await this.invalidateMemberCaches(
+        league.users.map((member) => member.id),
+      );
 
       return {
         message: `User successfully joined the league ${league.name}`,
@@ -363,21 +387,26 @@ export class PrivateLeagueService {
     user: User,
     tournamentId?: string,
   ): Promise<PrivateLeague[]> {
-    try {
-      const leagues = await this.authService.getAllUserLeagues(
-        user,
-        tournamentId,
-      );
-      return leagues;
-    } catch (error) {
-      this.logger.error(
-        `Failed to get all private leagues for user: ${user.username}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Failed to get all private leagues`,
-      );
-    }
+    const key = this.appCache.buildUserKey(user.id, 'private-league/list', {
+      tournamentId,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const leagues = await this.authService.getAllUserLeagues(
+          user,
+          tournamentId,
+        );
+        return leagues;
+      } catch (error) {
+        this.logger.error(
+          `Failed to get all private leagues for user: ${user.username}`,
+          error.stack,
+        );
+        throw new InternalServerErrorException(
+          `Failed to get all private leagues`,
+        );
+      }
+    });
   }
   async getAllUsersForLeague(
     leagueId: string,
@@ -393,70 +422,76 @@ export class PrivateLeagueService {
       championPoints: number;
     }[]
   > {
-    try {
-      const leagueEntity = await this.loadLeagueWithMembers(leagueId);
-      if (!leagueEntity) {
-        this.logger.error(`League with id: ${leagueId} was not found.`);
-        throw new NotFoundException(
-          `League with id: ${leagueId} was not found.`,
-        );
-      }
-      this.assertMemberOrAppAdmin(user, leagueEntity);
-      let tid: string;
-      if (tournamentId) {
-        if (tournamentId !== leagueEntity.tournament.id) {
-          throw new BadRequestException(
-            'tournamentId does not match this league.',
+    const key = this.appCache.buildUserKey(user.id, 'private-league/users', {
+      leagueId,
+      tournamentId,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const leagueEntity = await this.loadLeagueWithMembers(leagueId);
+        if (!leagueEntity) {
+          this.logger.error(`League with id: ${leagueId} was not found.`);
+          throw new NotFoundException(
+            `League with id: ${leagueId} was not found.`,
           );
         }
-        tid = tournamentId;
-      } else {
-        tid = leagueEntity.tournament.id;
-      }
-      const rawUsers = await this.privateLeagueRepo
-        .createQueryBuilder('league')
-        .leftJoin('league.users', 'user')
-        .leftJoin(
-          'user.tournamentPoints',
-          'utp',
-          'utp.tournamentId = :tournamentId',
-          { tournamentId: tid },
-        )
-        .select('user.id', 'id')
-        .addSelect('user.username', 'username')
-        .addSelect('user.firstName', 'firstName')
-        .addSelect('user.lastName', 'lastName')
-        .addSelect('COALESCE(utp.fantasyPoints, 0)', 'scopedFantasy')
-        .addSelect('COALESCE(utp.championPoints, 0)', 'scopedChampion')
-        .where('league.id = :leagueId', { leagueId })
-        .getRawMany();
+        this.assertMemberOrAppAdmin(user, leagueEntity);
+        let tid: string;
+        if (tournamentId) {
+          if (tournamentId !== leagueEntity.tournament.id) {
+            throw new BadRequestException(
+              'tournamentId does not match this league.',
+            );
+          }
+          tid = tournamentId;
+        } else {
+          tid = leagueEntity.tournament.id;
+        }
+        const rawUsers = await this.privateLeagueRepo
+          .createQueryBuilder('league')
+          .leftJoin('league.users', 'user')
+          .leftJoin(
+            'user.tournamentPoints',
+            'utp',
+            'utp.tournamentId = :tournamentId',
+            { tournamentId: tid },
+          )
+          .select('user.id', 'id')
+          .addSelect('user.username', 'username')
+          .addSelect('user.firstName', 'firstName')
+          .addSelect('user.lastName', 'lastName')
+          .addSelect('COALESCE(utp.fantasyPoints, 0)', 'scopedFantasy')
+          .addSelect('COALESCE(utp.championPoints, 0)', 'scopedChampion')
+          .where('league.id = :leagueId', { leagueId })
+          .getRawMany();
 
-      const users = rawUsers.map((raw) => ({
-        id: raw.id,
-        username: raw.username,
-        firstName: raw.firstName,
-        lastName: raw.lastName,
-        fantasyPoints: Number(raw.scopedFantasy ?? raw.scopedfantasy ?? 0),
-        championPoints: Number(raw.scopedChampion ?? raw.scopedchampion ?? 0),
-      }));
+        const users = rawUsers.map((raw) => ({
+          id: raw.id,
+          username: raw.username,
+          firstName: raw.firstName,
+          lastName: raw.lastName,
+          fantasyPoints: Number(raw.scopedFantasy ?? raw.scopedfantasy ?? 0),
+          championPoints: Number(raw.scopedChampion ?? raw.scopedchampion ?? 0),
+        }));
 
-      return users;
-    } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ForbiddenException ||
-        error instanceof BadRequestException
-      ) {
-        throw error;
+        return users;
+      } catch (error) {
+        if (
+          error instanceof NotFoundException ||
+          error instanceof ForbiddenException ||
+          error instanceof BadRequestException
+        ) {
+          throw error;
+        }
+        this.logger.error(
+          `Failed to get all users for league:${leagueId}`,
+          error.stack,
+        );
+        throw new InternalServerErrorException(
+          `Failed to get all users for league:${leagueId}`,
+        );
       }
-      this.logger.error(
-        `Failed to get all users for league:${leagueId}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Failed to get all users for league:${leagueId}`,
-      );
-    }
+    });
   }
 
   async updateLeagueName(
@@ -475,6 +510,7 @@ export class PrivateLeagueService {
       this.assertLeagueAdminOrAppAdmin(user, league);
       league.name = newName;
       await this.privateLeagueRepo.save(league);
+      await this.invalidateMemberCaches(league.users?.map((m) => m.id) ?? []);
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -501,7 +537,9 @@ export class PrivateLeagueService {
         );
       }
       this.assertLeagueAdminOrAppAdmin(user, league);
+      const memberIds = league.users?.map((m) => m.id) ?? [];
       await this.privateLeagueRepo.delete(league.id);
+      await this.invalidateMemberCaches(memberIds);
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -533,10 +571,15 @@ export class PrivateLeagueService {
       }
       this.assertLeagueAdminOrAppAdmin(user, league);
       const { users } = removeUsersDto;
+      const affectedIds = [
+        ...users.map((removed) => removed.id),
+        ...(league.users?.map((m) => m.id) ?? []),
+      ];
       league.users = league.users.filter(
         (user) => !users.some((removeUser) => removeUser.id === user.id),
       );
       await this.privateLeagueRepo.save(league);
+      await this.invalidateMemberCaches(affectedIds);
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -565,8 +608,13 @@ export class PrivateLeagueService {
           `League with id: ${leagueId} was not found.`,
         );
       }
+      const affectedIds = [
+        removeUser.id,
+        ...(league.users?.map((m) => m.id) ?? []),
+      ];
       league.users = league.users.filter((user) => user.id !== removeUser.id);
       await this.privateLeagueRepo.save(league);
+      await this.invalidateMemberCaches(affectedIds);
     } catch (error) {
       this.logger.error(
         `User: ${removeUser.username} failed to leave league:${leagueId}`,

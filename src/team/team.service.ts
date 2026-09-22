@@ -13,6 +13,7 @@ import {
   PythonTeamResponseItem,
   PythonTeamsResponse,
 } from './dto/python-team-response.dto';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
 
 @Injectable()
 export class TeamService {
@@ -25,6 +26,7 @@ export class TeamService {
   constructor(
     private teamRepository: TeamRepository,
     private readonly httpService: HttpService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   async findById(id: string): Promise<Team> {
@@ -139,6 +141,7 @@ export class TeamService {
     }
 
     this.logger.log(`Sync complete: ${created} created, ${updated} updated.`);
+    await this.appCache.clear();
     return { created, updated };
   }
 

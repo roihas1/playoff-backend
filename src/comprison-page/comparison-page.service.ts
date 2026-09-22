@@ -10,6 +10,7 @@ import { PrivateLeagueService } from 'src/private-league/private-league.service'
 import { SeriesService } from 'src/series/series.service';
 import { GetComparisonDataDto } from './dto/get-comparison-data.dto';
 import { LEGACY_MIGRATION_TOURNAMENT_ID } from 'src/tournament/legacy-migration-tournament.constants';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
 
 @Injectable()
 export class ComparisonPageService {
@@ -19,35 +20,46 @@ export class ComparisonPageService {
     private readonly seriesService: SeriesService,
     private readonly playoffsStageService: PlayoffsStageService,
     private readonly privateLeagueService: PrivateLeagueService,
+    private readonly appCache: AppCacheService,
   ) {}
   async getComparisonData(
     user: User,
     tournamentId?: string,
   ): Promise<GetComparisonDataDto> {
-    try {
-      const resolvedTournamentId =
-        tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
-      const [allBets, userLeagues, allUsers, passedStages] = await Promise.all([
-        this.seriesService.getAllBets(resolvedTournamentId),
-        this.privateLeagueService.getUserLeagues(user, resolvedTournamentId),
-        this.authService.getAllUsersWithSelection(resolvedTournamentId),
-        this.playoffsStageService.getPassedStages(resolvedTournamentId),
-      ]);
+    const resolvedTournamentId = tournamentId ?? LEGACY_MIGRATION_TOURNAMENT_ID;
+    const key = this.appCache.buildUserKey(user.id, 'comparison-page/load', {
+      tournamentId: resolvedTournamentId,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        const [allBets, userLeagues, allUsers, passedStages] =
+          await Promise.all([
+            this.seriesService.getAllBets(resolvedTournamentId),
+            this.privateLeagueService.getUserLeagues(
+              user,
+              resolvedTournamentId,
+            ),
+            this.authService.getAllUsersWithSelection(resolvedTournamentId),
+            this.playoffsStageService.getPassedStages(resolvedTournamentId),
+          ]);
 
-      return {
-        tournamentId: resolvedTournamentId,
-        allBets,
-        userLeagues,
-        allUsers,
-        passedStages,
-        currentUser: user,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Failed to load comparison data for user: ${user.username}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException('Failed to load comparison data');
-    }
+        return {
+          tournamentId: resolvedTournamentId,
+          allBets,
+          userLeagues,
+          allUsers,
+          passedStages,
+          currentUser: user,
+        };
+      } catch (error) {
+        this.logger.error(
+          `Failed to load comparison data for user: ${user.username}`,
+          error.stack,
+        );
+        throw new InternalServerErrorException(
+          'Failed to load comparison data',
+        );
+      }
+    });
   }
 }

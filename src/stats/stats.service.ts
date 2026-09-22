@@ -19,6 +19,7 @@ import { TeamWinGuess } from 'src/team-win-guess/team-win-guess.entity';
 import { Tournament } from 'src/tournament/tournament.entity';
 import { DateTime } from 'luxon';
 import { Repository } from 'typeorm';
+import { AppCacheService } from 'src/memory-cache/app-cache.service';
 import {
   GetGuessPageStatsDto,
   GuessPageChampionByStageItem,
@@ -61,6 +62,7 @@ export class StatsService {
     @InjectRepository(ConferenceFinalGuess)
     private readonly conferenceFinalGuessRepo: Repository<ConferenceFinalGuess>,
     private readonly seriesService: SeriesService,
+    private readonly appCache: AppCacheService,
   ) {}
 
   private toTwoDecimals(value: number): number {
@@ -203,62 +205,72 @@ export class StatsService {
   ): Promise<GetGuessPageStatsDto> {
     const { tournamentId, stage, includeSeries, includeChampion, requestedBy } =
       query;
-    try {
-      this.logger.log(
-        `Building guess-page stats. user=${requestedBy}, tournamentId=${tournamentId}, leagueId=${query.leagueId ?? 'null'}, stage=${stage ?? 'all'}, includeSeries=${includeSeries}, includeChampion=${includeChampion}`,
-      );
+    const stageFilter = stage?.trim() ? stage.trim() : undefined;
+    const key = this.appCache.buildPublicKey('stats/guess-page', {
+      includeChampion,
+      includeSeries,
+      leagueId: query.leagueId,
+      stage: stageFilter ?? 'all',
+      tournamentId,
+    });
+    return this.appCache.wrap(key, async () => {
+      try {
+        this.logger.log(
+          `Building guess-page stats. user=${requestedBy}, tournamentId=${tournamentId}, leagueId=${query.leagueId ?? 'null'}, stage=${stage ?? 'all'}, includeSeries=${includeSeries}, includeChampion=${includeChampion}`,
+        );
 
-      await this.validateTournamentOrFail(tournamentId);
-      const leagueScope = await this.resolveLeagueUserScope(
-        tournamentId,
-        query.leagueId,
-      );
-
-      const response: GetGuessPageStatsDto = {
-        meta: {
+        await this.validateTournamentOrFail(tournamentId);
+        const leagueScope = await this.resolveLeagueUserScope(
           tournamentId,
-          leagueId: leagueScope.leagueId,
-          stageFilter: stage?.trim() ? stage : 'all',
-          generatedAt: new Date().toISOString(),
-        },
-        series: [],
-        championByStage: [],
-      };
+          query.leagueId,
+        );
 
-      if (includeSeries) {
-        response.series = await this.getSeriesStatsForTournament(
-          tournamentId,
-          leagueScope.userIds,
+        const response: GetGuessPageStatsDto = {
+          meta: {
+            tournamentId,
+            leagueId: leagueScope.leagueId,
+            stageFilter: stage?.trim() ? stage : 'all',
+            generatedAt: new Date().toISOString(),
+          },
+          series: [],
+          championByStage: [],
+        };
+
+        if (includeSeries) {
+          response.series = await this.getSeriesStatsForTournament(
+            tournamentId,
+            leagueScope.userIds,
+          );
+        }
+
+        if (includeChampion) {
+          response.championByStage = await this.getChampionStatsByStage(
+            tournamentId,
+            leagueScope.userIds,
+            stage,
+          );
+        }
+
+        this.logger.verbose(
+          `Guess-page stats built. user=${requestedBy}, tournamentId=${tournamentId}, series=${response.series.length}, championByStage=${response.championByStage.length}`,
+        );
+        return response;
+      } catch (error) {
+        if (
+          error instanceof BadRequestException ||
+          error instanceof NotFoundException
+        ) {
+          throw error;
+        }
+        this.logger.error(
+          `Failed to build guess-page stats for user=${requestedBy}, tournamentId=${tournamentId}`,
+          error?.stack,
+        );
+        throw new InternalServerErrorException(
+          'Failed to build guess-page stats.',
         );
       }
-
-      if (includeChampion) {
-        response.championByStage = await this.getChampionStatsByStage(
-          tournamentId,
-          leagueScope.userIds,
-          stage,
-        );
-      }
-
-      this.logger.verbose(
-        `Guess-page stats built. user=${requestedBy}, tournamentId=${tournamentId}, series=${response.series.length}, championByStage=${response.championByStage.length}`,
-      );
-      return response;
-    } catch (error) {
-      if (
-        error instanceof BadRequestException ||
-        error instanceof NotFoundException
-      ) {
-        throw error;
-      }
-      this.logger.error(
-        `Failed to build guess-page stats for user=${requestedBy}, tournamentId=${tournamentId}`,
-        error?.stack,
-      );
-      throw new InternalServerErrorException(
-        'Failed to build guess-page stats.',
-      );
-    }
+    });
   }
 
   private async getSeriesStatsForTournament(
