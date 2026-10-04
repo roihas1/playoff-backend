@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+// import { Cron } from '@nestjs/schedule';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { DateTime } from 'luxon';
@@ -238,12 +238,12 @@ export class CronService {
    * increments currentStats/playerGames, recomputes bet results, then recalculates all users' series
    * and tournament fantasy points (idempotent stat rows via BetStatUpdate; idempotent games via SeriesGameUpdate).
    */
-  @Cron('0 0 5 * * *', { timeZone: 'Asia/Jerusalem' })
+  // @Cron('0 0 5 * * *', { timeZone: 'Asia/Jerusalem' })
   async handleSlateGrading05Israel(): Promise<void> {
     await this.runSlateGrading('05:00 Asia/Jerusalem');
   }
 
-  @Cron('0 0 8 * * *', { timeZone: 'Asia/Jerusalem' })
+  // @Cron('0 0 8 * * *', { timeZone: 'Asia/Jerusalem' })
   async handleSlateGrading08Israel(): Promise<void> {
     await this.runSlateGrading('08:00 Asia/Jerusalem');
   }
