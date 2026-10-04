@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   forwardRef,
   Inject,
@@ -22,6 +23,10 @@ import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './jwt-payload.interface';
 import { User } from './user.entity';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { MyProfileDto } from './dto/my-profile.dto';
+import { UpdateMyProfileResponseDto } from './dto/update-my-profile-response.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ConfigService } from '@nestjs/config';
 import { Role } from './user-role.enum';
@@ -100,7 +105,16 @@ export class AuthService {
         userRole: user.role,
         username: user.username,
       };
-    } catch (error) {}
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed Google OAuth sign-in for googleId "${googleId}".`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    }
   }
   async signIn(authCredentialsDto: LoginDto): Promise<{
     accessToken: string;
@@ -159,6 +173,228 @@ export class AuthService {
     await this.usersRepository.save(found);
     this.logger.verbose(`User "${found.username}" logout.`);
   }
+
+  async isUsernameAvailable(
+    userId: string,
+    username: string,
+  ): Promise<boolean> {
+    const normalized = username?.trim();
+    if (!normalized || normalized.length < 4 || normalized.length > 12) {
+      return false;
+    }
+    const existing = await this.usersRepository.findOne({
+      where: { username: normalized },
+      select: ['id'],
+    });
+    return !existing || existing.id === userId;
+  }
+
+  async getMyProfile(userId: string): Promise<MyProfileDto> {
+    this.logger.log(`Fetching profile for user id "${userId}".`);
+    try {
+      const user = await this.usersRepository.findOne({
+        where: { id: userId },
+        select: [
+          'id',
+          'username',
+          'firstName',
+          'lastName',
+          'email',
+          'role',
+          'password',
+          'googleId',
+        ],
+      });
+      if (!user) {
+        throw new NotFoundException(`User with id ${userId} not found.`);
+      }
+      const profile = this.toMyProfileDto(user);
+      this.logger.verbose(
+        `Profile fetched for user "${profile.username}" (id: ${userId}).`,
+      );
+      return profile;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to fetch profile for user id "${userId}".`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async updateMyProfile(
+    userId: string,
+    dto: UpdateProfileDto,
+  ): Promise<UpdateMyProfileResponseDto> {
+    this.logger.log(
+      `Profile update requested for user id "${userId}" (fields: ${Object.keys(dto).join(', ') || 'none'}).`,
+    );
+    try {
+      const user = await this.usersRepository.findOne({
+        where: { id: userId },
+        select: [
+          'id',
+          'username',
+          'firstName',
+          'lastName',
+          'email',
+          'role',
+          'password',
+          'googleId',
+        ],
+      });
+      if (!user) {
+        throw new NotFoundException(`User with id ${userId} not found.`);
+      }
+
+      const jwtFieldsChanged =
+        (dto.username !== undefined && dto.username !== user.username) ||
+        (dto.firstName !== undefined && dto.firstName !== user.firstName) ||
+        (dto.lastName !== undefined && dto.lastName !== user.lastName);
+
+      if (dto.username !== undefined && dto.username !== user.username) {
+        const existing = await this.usersRepository.findOne({
+          where: { username: dto.username },
+          select: ['id'],
+        });
+        if (existing && existing.id !== userId) {
+          throw new ConflictException('Username already exists');
+        }
+        user.username = dto.username;
+      }
+      if (dto.firstName !== undefined) {
+        user.firstName = dto.firstName;
+      }
+      if (dto.lastName !== undefined) {
+        user.lastName = dto.lastName;
+      }
+
+      let saved: User;
+      try {
+        saved = await this.usersRepository.save(user);
+      } catch (error) {
+        if (error.code === '23505') {
+          throw new ConflictException('Username already exists');
+        }
+        throw error;
+      }
+
+      await invalidateAfterAuthProfileChange(this.appCache, userId);
+
+      const profile = this.toMyProfileDto(saved);
+      const response: UpdateMyProfileResponseDto = { profile };
+
+      if (jwtFieldsChanged) {
+        const expiresIn = this.configService.get<number>('EXPIRE_IN') || 3600;
+        response.accessToken = this.signAccessToken(saved);
+        response.expiresIn = expiresIn;
+      }
+
+      this.logger.verbose(
+        `Profile updated for user "${profile.username}" (id: ${userId}).`,
+      );
+      return response;
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to update profile for user id "${userId}".`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async changeMyPassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<void> {
+    this.logger.log(`Password change requested for user id "${userId}".`);
+    try {
+      const user = await this.usersRepository.findOne({
+        where: { id: userId },
+        select: ['id', 'username', 'password'],
+      });
+      if (!user) {
+        throw new NotFoundException(`User with id ${userId} not found.`);
+      }
+
+      const hasPassword = !!user.password;
+
+      if (hasPassword) {
+        if (!dto.currentPassword) {
+          throw new BadRequestException('Current password is required');
+        }
+        const isValid = await bcrypt.compare(
+          dto.currentPassword,
+          user.password,
+        );
+        if (!isValid) {
+          throw new UnauthorizedException('Invalid current password');
+        }
+        const sameAsOld = await bcrypt.compare(dto.newPassword, user.password);
+        if (sameAsOld) {
+          throw new BadRequestException(
+            'New password must be different from the current password',
+          );
+        }
+      }
+
+      const salt = await bcrypt.genSalt();
+      user.password = await bcrypt.hash(dto.newPassword, salt);
+      await this.usersRepository.save(user);
+
+      this.logger.verbose(
+        `Password updated for user "${user.username}" (id: ${userId}).`,
+      );
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof UnauthorizedException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to change password for user id "${userId}".`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  private toMyProfileDto(
+    user: Pick<
+      User,
+      | 'id'
+      | 'username'
+      | 'firstName'
+      | 'lastName'
+      | 'email'
+      | 'role'
+      | 'password'
+      | 'googleId'
+    >,
+  ): MyProfileDto {
+    return {
+      id: user.id,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      hasPassword: !!user.password,
+      hasGoogle: !!user.googleId,
+    };
+  }
+
   async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.usersRepository.findOne({ where: { id } });
 

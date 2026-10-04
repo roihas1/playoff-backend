@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -34,7 +36,11 @@ import { SpontaneousGuess } from 'src/spontaneous-guess/spontaneous-guess.entity
 import { RolesGuard } from './roles.guard';
 import { Roles } from './roles.decorator';
 import { MergeUserTournamentPointsInterceptor } from 'src/user-tournament-points/merge-user-tournament-points.interceptor';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { HomeStandingsPreviewDto } from './dto/home-standings-preview.dto';
+import { MyProfileDto } from './dto/my-profile.dto';
+import { UpdateMyProfileResponseDto } from './dto/update-my-profile-response.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -77,6 +83,60 @@ export class AuthController {
     );
 
     return await this.authService.logout(user);
+  }
+
+  @Get('/me')
+  @UseGuards(JwtAuthGuard)
+  async getMyProfile(@GetUser() user: User): Promise<MyProfileDto> {
+    this.logger.verbose(
+      `User "${user.username}" is requesting their profile.`,
+      'AuthController',
+    );
+    return await this.authService.getMyProfile(user.id);
+  }
+
+  @Get('/me/username-available')
+  @UseGuards(JwtAuthGuard)
+  async checkUsernameAvailable(
+    @GetUser() user: User,
+    @Query('username') username: string,
+  ): Promise<{ available: boolean }> {
+    this.logger.verbose(
+      `User "${user.username}" is checking username availability.`,
+      'AuthController',
+    );
+    const available = await this.authService.isUsernameAvailable(
+      user.id,
+      username ?? '',
+    );
+    return { available };
+  }
+
+  @Patch('/me')
+  @UseGuards(JwtAuthGuard)
+  async updateMyProfile(
+    @GetUser() user: User,
+    @Body() updateProfileDto: UpdateProfileDto,
+  ): Promise<UpdateMyProfileResponseDto> {
+    this.logger.verbose(
+      `User "${user.username}" is updating their profile.`,
+      'AuthController',
+    );
+    return await this.authService.updateMyProfile(user.id, updateProfileDto);
+  }
+
+  @Patch('/me/password')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async changeMyPassword(
+    @GetUser() user: User,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ): Promise<void> {
+    this.logger.verbose(
+      `User "${user.username}" is changing their password.`,
+      'AuthController',
+    );
+    return await this.authService.changeMyPassword(user.id, changePasswordDto);
   }
 
   @Patch()
