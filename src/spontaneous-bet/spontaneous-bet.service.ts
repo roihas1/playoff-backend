@@ -122,6 +122,7 @@ export class SpontaneousBetService {
       .createQueryBuilder('bet')
       .innerJoin('bet.guesses', 'guesses')
       .where('bet."seriesIdId" = :seriesId', { seriesId })
+      .andWhere('bet."startTime" <= NOW()')
       .select('bet.id', 'betId')
       .addSelect('guesses.guess', 'guess')
       .addSelect('COUNT(*)', 'count')

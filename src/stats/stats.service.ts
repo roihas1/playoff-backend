@@ -365,6 +365,7 @@ export class StatsService {
         }
       }
 
+      const now = Date.now();
       return startedSeriesIds.map((seriesId) => {
         const s = allBets[seriesId];
         const teamWinCounts = teamWinMap.get(seriesId) ?? { 1: 0, 2: 0 };
@@ -409,7 +410,10 @@ export class StatsService {
         > = {};
         const spontaneousPctByBet: Record<string, { 1: number; 2: number }> =
           {};
-        const spontaneousMeta = (s.spontaneousBets ?? []).map((bet) => {
+        const startedSpontaneousBets = (s.spontaneousBets ?? []).filter(
+          (bet) => bet.startTime && new Date(bet.startTime).getTime() <= now,
+        );
+        const spontaneousMeta = startedSpontaneousBets.map((bet) => {
           const counts = spontaneousMap.get(seriesId)?.get(bet.id) ?? {
             1: 0,
             2: 0,

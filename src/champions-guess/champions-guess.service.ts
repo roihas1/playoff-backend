@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { ConferenceFinalGuess } from './entities/conference-final-guess.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/auth/user.entity';
+import { Role } from 'src/auth/user-role.enum';
 import { CreateChampGuessDto } from './dto/create-champ-guess.dto';
 import { ChampionTeamGuess } from './entities/champion-team-guess.entity';
 import { MVPGuess } from './entities/mvp-guess.entity';
@@ -287,6 +288,12 @@ export class ChampionsGuessService {
   }> {
     const { champTeamGuess, mvpGuess, stage, deadline } =
       updateChampionGuessDto;
+    const isAdmin = user.role === Role.ADMIN;
+    if (deadline && !isAdmin) {
+      this.logger.warn(
+        `User ${user.username} sent a stage deadline without admin role; ignoring it. stage=${stage}`,
+      );
+    }
     try {
       const champTeamId = await this.resolveTeamId(
         champTeamGuess.teamId,
@@ -296,7 +303,7 @@ export class ChampionsGuessService {
       const playoffsStage = await this.playoffsStageService.createPlayoffsStage(
         {
           name: stage,
-          startDate: deadline,
+          startDate: isAdmin ? deadline : undefined,
           tournamentId: updateChampionGuessDto.tournamentId,
         },
         user,

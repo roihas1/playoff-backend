@@ -23,7 +23,7 @@ export class SpontaneousBetRepo extends Repository<SpontaneousBet> {
   ): Promise<SpontaneousBet[]> {
     const query = this.createQueryBuilder('spontaneousBet');
     query.leftJoin('spontaneousBet.seriesId', 'series');
-    query.select('spontaneousBet.id');
+    query.select(['spontaneousBet.id', 'spontaneousBet.startTime']);
     query.where('spontaneousBet.seriesId.id = :seriesId', { seriesId });
     const bets = await query.getMany();
     return bets;

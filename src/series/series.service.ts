@@ -706,7 +706,12 @@ export class SeriesService {
     bestOf7BetId: string;
     teamWinBetId: string;
     playerMatchupBets: { id: string; player1: string; player2: string }[];
-    spontaneousBets: { id: string; player1: string; player2: string }[];
+    spontaneousBets: {
+      id: string;
+      player1: string;
+      player2: string;
+      startTime: Date;
+    }[];
   }> {
     try {
       const result = await this.seriesRepository
@@ -727,6 +732,7 @@ export class SeriesService {
           'spontaneous.id',
           'spontaneous.player1',
           'spontaneous.player2',
+          'spontaneous.startTime',
         ])
         .where('series.id = :id', { id: seriesId })
         .getOne();
@@ -762,6 +768,7 @@ export class SeriesService {
             id: sp.id,
             player1: sp.player1,
             player2: sp.player2,
+            startTime: sp.startTime,
           })) ?? [],
       };
     } catch (error) {
@@ -803,7 +810,12 @@ export class SeriesService {
       try {
         const series = await this.getSeriesMinimalById(seriesId);
         const matchupBetIds = series.playerMatchupBets.map((bet) => bet.id);
-        const spontaneousBetIds = series.spontaneousBets.map((bet) => bet.id);
+        const now = Date.now();
+        const spontaneousBetIds = series.spontaneousBets
+          .filter(
+            (bet) => bet.startTime && new Date(bet.startTime).getTime() <= now,
+          )
+          .map((bet) => bet.id);
         const [
           bestOf7Guesses,
           teamWinGuesses,
