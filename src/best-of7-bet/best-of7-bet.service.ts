@@ -116,7 +116,10 @@ export class BestOf7BetService {
     const raw = await this.bestOf7BetRepository
       .createQueryBuilder('bet')
       .innerJoin('bet.series', 'series')
-      .where('series.dateOfStart > :now', { now: new Date() })
+      .where(
+        `(series."timeOfStart" IS NULL OR (series."dateOfStart" + series."timeOfStart") AT TIME ZONE 'Asia/Jerusalem' > :now)`,
+        { now: new Date() },
+      )
       .select([
         'bet.id AS id',
         'bet.fantasyPoints AS fantasyPoints',

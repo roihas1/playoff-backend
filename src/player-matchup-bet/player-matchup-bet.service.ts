@@ -197,7 +197,10 @@ export class PlayerMatchupBetService {
         'bet.fantasyPoints AS "fantasyPoints"',
       ])
       .leftJoin('bet.seriesId', 'series') // Join with the series table
-      .where('series.dateOfStart > :now', { now: new Date() }) // Check if the series date is in the future
+      .where(
+        `(series."timeOfStart" IS NULL OR (series."dateOfStart" + series."timeOfStart") AT TIME ZONE 'Asia/Jerusalem' > :now)`,
+        { now: new Date() },
+      )
       .getRawMany();
 
     return bets;
